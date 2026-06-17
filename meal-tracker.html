@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
   <meta name="apple-mobile-web-app-title" content="Meal Tracker"/>
+  <link rel="manifest" href="meal-manifest.json"/>
+  <link rel="apple-touch-icon" href="meal-icon-192.png"/>
   <title>Meal Tracker</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -868,24 +870,43 @@ async function startScanner(){
   modal.classList.add('open');
   status.textContent='Starting camera...';
   try {
-    scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    scannerStream=await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
+    });
     video.srcObject=scannerStream;
     await video.play();
     status.textContent='Point camera at barcode';
-    const canvas=document.createElement('canvas');
-    const ctx=canvas.getContext('2d');
-    scannerInterval=setInterval(()=>{
-      if(video.readyState===video.HAVE_ENOUGH_DATA){
-        canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-        ctx.drawImage(video,0,0);
-        const img=ctx.getImageData(0,0,canvas.width,canvas.height);
-        const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
-        if(code&&code.data){
-          stopScanner();
-          fetchBarcode(code.data);
+
+    // Try native BarcodeDetector first (Android Chrome 83+)
+    if('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code'] });
+      scannerInterval = setInterval(async()=>{
+        if(video.readyState === video.HAVE_ENOUGH_DATA) {
+          try {
+            const barcodes = await detector.detect(video);
+            if(barcodes.length > 0) {
+              stopScanner();
+              fetchBarcode(barcodes[0].rawValue);
+            }
+          } catch(e) { /* keep scanning */ }
         }
-      }
-    },200);
+      }, 300);
+    } else {
+      // Fallback: jsQR canvas method
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      scannerInterval = setInterval(()=>{
+        if(video.readyState === video.HAVE_ENOUGH_DATA){
+          canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+          ctx.drawImage(video,0,0);
+          const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+          if(typeof jsQR !== 'undefined') {
+            const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'});
+            if(code&&code.data){ stopScanner(); fetchBarcode(code.data); }
+          }
+        }
+      },200);
+    }
   } catch(e){
     status.textContent='Camera access denied. Try typing ingredients instead.';
     console.error(e);
