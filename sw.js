@@ -1,4 +1,4 @@
-const CACHE = 'peptide-calc-v1';
+const CACHE = 'peptide-calc-v2';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
