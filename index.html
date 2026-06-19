@@ -80,6 +80,16 @@
     .section-label { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
 
     /* Dose pills */
+    .syringe-size-btn {
+      flex: 1; padding: 10px 8px; border-radius: 8px;
+      border: 2px solid var(--border);
+      background: var(--surface); color: var(--muted);
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      text-align: center; transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .syringe-size-btn.active { border-color: var(--accent); background: rgba(0,200,150,0.12); color: var(--accent); }
+
     .dose-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
     .dose-btn {
       padding: 10px 14px; border-radius: 8px;
@@ -97,6 +107,14 @@
     .stat-val { font-size: 18px; font-weight: 800; color: #f1f5f9; margin-top: 2px; }
 
     /* What-if inputs */
+    .preset-btn {
+      padding: 7px 11px; border-radius: 7px;
+      border: 1px solid #f59e0b60; background: #f59e0b12;
+      color: #f59e0b; font-size: 12px; font-weight: 600;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      transition: all 0.15s;
+    }
+    .preset-btn.active { background: #f59e0b; color: #060f1e; }
     .whatif-card { background: var(--surface); border: 1px solid #f59e0b40; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
     .whatif-eyebrow { font-size: 10px; color: #f59e0b; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 14px; }
     .input-group { margin-bottom: 12px; }
@@ -197,7 +215,7 @@
 <div id="app">
   <div class="eyebrow" id="eyebrow">Household Protocol</div>
   <h1>Peptide Calc</h1>
-  <p class="subtitle">70mg vial · 2.8mL BAC water · 25mg/mL · U-100 syringe</p>
+  <p class="subtitle" id="subtitle">70mg vial · 2.0mL BAC water · 35mg/mL · U-100 syringe</p>
 
   <!-- Person switcher -->
   <div class="persons">
@@ -226,8 +244,18 @@
     </div>
     <div class="stats-row">
       <div class="stat-box"><div class="stat-label">Vial Size</div><div class="stat-val">70mg</div></div>
-      <div class="stat-box"><div class="stat-label">BAC Water</div><div class="stat-val">2.8mL</div></div>
-      <div class="stat-box"><div class="stat-label">Conc.</div><div class="stat-val">25mg/mL</div></div>
+      <div class="stat-box"><div class="stat-label">BAC Water</div><div class="stat-val">2.0mL</div></div>
+      <div class="stat-box"><div class="stat-label">Conc.</div><div class="stat-val">35mg/mL</div></div>
+    </div>
+
+    <!-- Syringe size selector -->
+    <div style="margin-bottom:20px;">
+      <div class="section-label">Syringe Size</div>
+      <div style="display:flex;gap:8px;">
+        <button class="syringe-size-btn active" data-capacity="0.5" data-units="50" onclick="setSyringeSize(this)">0.5mL<div style="font-size:9px;opacity:0.7;margin-top:2px;">50 units</div></button>
+        <button class="syringe-size-btn" data-capacity="1" data-units="100" onclick="setSyringeSize(this)">1mL<div style="font-size:9px;opacity:0.7;margin-top:2px;">100 units</div></button>
+        <button class="syringe-size-btn" data-capacity="3" data-units="300" onclick="setSyringeSize(this)">3mL<div style="font-size:9px;opacity:0.7;margin-top:2px;">300 units</div></button>
+      </div>
     </div>
   </div>
 
@@ -235,17 +263,36 @@
   <div id="custom-panel" style="display:none">
     <div class="whatif-card">
       <div class="whatif-eyebrow">What-If Mode — Custom Values</div>
+
+      <!-- Dose -->
       <div class="input-group">
         <div class="input-label">Dose (mg) <span>— Your injection dose</span></div>
         <input class="field" type="number" id="ci-dose" placeholder="e.g. 3.5" inputmode="decimal" oninput="recalc()" />
       </div>
+
+      <!-- Vial size presets -->
       <div class="input-group">
-        <div class="input-label">Vial Size (mg) <span>— Total mg in vial</span></div>
-        <input class="field" type="number" id="ci-vial" placeholder="e.g. 70" inputmode="decimal" oninput="recalc()" />
+        <div class="input-label">Vial Size (mg) <span>— Tap a preset or enter custom</span></div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+          <button class="preset-btn" onclick="setVialPreset(10, 1.0)">10mg</button>
+          <button class="preset-btn" onclick="setVialPreset(15, 1.5)">15mg</button>
+          <button class="preset-btn" onclick="setVialPreset(30, 2.0)">30mg</button>
+          <button class="preset-btn" onclick="setVialPreset(50, 2.5)">50mg</button>
+          <button class="preset-btn" onclick="setVialPreset(70, 2.0)">70mg</button>
+          <button class="preset-btn" onclick="setVialPreset(100, 3.0)">100mg</button>
+          <button class="preset-btn" onclick="setVialPreset(180, 4.0)">180mg</button>
+          <button class="preset-btn" onclick="setVialPreset(300, 5.0)">300mg</button>
+        </div>
+        <input class="field" type="number" id="ci-vial" placeholder="e.g. 70" inputmode="decimal" oninput="onVialInput()" />
       </div>
+
+      <!-- BAC water — auto-suggested but fully editable -->
       <div class="input-group" style="margin-bottom:0">
-        <div class="input-label">BAC Water (mL) <span>— mL added to vial</span></div>
+        <div class="input-label">BAC Water (mL) <span id="bac-hint">— mL added to vial</span></div>
         <input class="field" type="number" id="ci-bac" placeholder="e.g. 2.8" inputmode="decimal" oninput="recalc()" />
+        <div id="bac-suggestion" style="display:none; margin-top:6px; font-size:11px; color:#f59e0b;">
+          💡 <span id="bac-suggestion-text"></span> — tap to apply
+        </div>
       </div>
     </div>
   </div>
@@ -264,19 +311,8 @@
   <!-- Household summary (quick mode only) -->
   <div class="household-card" id="household-card">
     <div class="household-label">Friday Pin — All Three</div>
-    <div class="household-row">
-      <div><span class="hr-name" style="color:#00c896">Rich</span><span class="hr-dose">3.5mg</span></div>
-      <div><div class="hr-units">14 units</div><div class="hr-vol">0.140mL</div></div>
-    </div>
-    <div class="household-row">
-      <div><span class="hr-name" style="color:#a78bfa">Wife</span><span class="hr-dose">2.5mg</span></div>
-      <div><div class="hr-units">10 units</div><div class="hr-vol">0.100mL</div></div>
-    </div>
-    <div class="household-row">
-      <div><span class="hr-name" style="color:#38bdf8">Son</span><span class="hr-dose">2.5mg</span></div>
-      <div><div class="hr-units">10 units</div><div class="hr-vol">0.100mL</div></div>
-    </div>
-    <div class="household-note">Draw all three back-to-back · Label immediately (Rich 14 / Wife 10 / Son 10) · Inject</div>
+    <div id="household-rows"></div>
+    <div class="household-note" id="household-note"></div>
   </div>
 
   <div class="footer">Peptide Calc · Personal protocol reference only · June 2026</div>
@@ -290,10 +326,25 @@
     color: '#00c896',
     dose: 3.5,
     vialMg: 70,
-    bacMl: 2.8,
+    bacMl: 2.0,
+    syringeCapacity: 0.5,  // mL
+    syringeUnits: 50,       // max units on this syringe
   };
 
   const LADDER = [2.5, 3.5, 5.0, 6.0, 7.5, 8.5, 10.0, 12.5, 15.0];
+  const PERSONS = [
+    { id: 'rich', label: 'Rich', defaultDose: 3.5, color: '#00c896' },
+    { id: 'wife', label: 'Wife', defaultDose: 2.5, color: '#a78bfa' },
+    { id: 'son',  label: 'Son',  defaultDose: 2.5, color: '#38bdf8' },
+  ];
+
+  function setSyringeSize(btn) {
+    document.querySelectorAll('.syringe-size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.syringeCapacity = parseFloat(btn.dataset.capacity);
+    state.syringeUnits = parseInt(btn.dataset.units);
+    recalc();
+  }
 
   function calc(dose, vial, bac) {
     if (!dose || !vial || !bac || isNaN(dose) || isNaN(vial) || isNaN(bac)) return null;
@@ -373,7 +424,8 @@
   }
 
   function buildSyringe(units, color) {
-    const pct = Math.min(Math.max(units / 100, 0), 1);
+    const maxUnits = state.syringeUnits;
+    const pct = Math.min(Math.max(units / maxUnits, 0), 1);
 
     // Ticks: every 2 units
     let ticks = '';
@@ -437,8 +489,8 @@
     card.style.borderColor = state.color;
 
     let warnings = '';
-    if (r.units > 100) {
-      warnings += `<div class="warn warn-red">Over 100 units — exceeds 1mL syringe capacity. Split dose or use a larger syringe.</div>`;
+    if (r.units > state.syringeUnits) {
+      warnings += `<div class="warn warn-red">Over ${state.syringeUnits} units — exceeds ${state.syringeCapacity}mL syringe capacity. Split dose or switch to a larger syringe.</div>`;
     }
     if (dose > 5) {
       warnings += `<div class="warn warn-yellow">Doses over 5mg — recalculate reconstitution math. Consider less BAC water to keep units manageable.</div>`;
@@ -446,16 +498,43 @@
 
     content.innerHTML = `
       <div class="big-number" style="color:${state.color}">${Math.round(r.units * 10)/10}</div>
-      <div class="big-label">units on U-100 syringe</div>
+      <div class="big-label">units on ${state.syringeCapacity}mL syringe</div>
       ${buildSyringe(r.units, state.color)}
       <div class="result-stats">
         <div class="result-stat"><div class="rs-label">Dose</div><div class="rs-val">${dose}mg</div></div>
         <div class="result-stat"><div class="rs-label">Draw Volume</div><div class="rs-val">${r.vol.toFixed(3)}mL</div></div>
         <div class="result-stat"><div class="rs-label">Concentration</div><div class="rs-val">${r.conc.toFixed(2)}mg/mL</div></div>
-        <div class="result-stat"><div class="rs-label">Syringe</div><div class="rs-val">31G 5/16" U-100</div></div>
+        <div class="result-stat"><div class="rs-label">Syringe</div><div class="rs-val">${state.syringeCapacity}mL U-100</div></div>
       </div>
       ${warnings}
     `;
+
+    // Update Friday Pin household summary
+    renderHousehold();
+  }
+
+  function renderHousehold() {
+    const vial = state.vialMg;
+    const bac = state.bacMl;
+    const rowsEl = document.getElementById('household-rows');
+    const noteEl = document.getElementById('household-note');
+    if (!rowsEl) return;
+
+    const draws = PERSONS.map(p => {
+      const r = calc(p.defaultDose, vial, bac);
+      const units = r ? Math.round(r.units * 10) / 10 : '—';
+      const vol = r ? r.vol.toFixed(3) : '—';
+      return { ...p, units, vol };
+    });
+
+    rowsEl.innerHTML = draws.map(p => `
+      <div class="household-row">
+        <div><span class="hr-name" style="color:${p.color}">${p.label}</span><span class="hr-dose">${p.defaultDose}mg</span></div>
+        <div><div class="hr-units">${p.units} units</div><div class="hr-vol">${p.vol}mL</div></div>
+      </div>`).join('');
+
+    const label = draws.map(p => `${p.label} ${p.units}`).join(' / ');
+    noteEl.textContent = `Draw all three back-to-back · Label immediately (${label}) · Inject`;
   }
 
   // Init
@@ -469,6 +548,54 @@
 
   buildDoseGrid();
   recalc();
+  renderHousehold();
+
+  // Vial presets — sets vial size and SUGGESTS BAC water without overwriting user input
+  const VIAL_BAC_DEFAULTS = {10:1.0, 15:1.5, 30:2.0, 50:2.0, 70:2.0, 100:3.0, 180:4.0, 300:5.0};
+
+  function setVialPreset(vialMg, suggestedBac) {
+    document.getElementById('ci-vial').value = vialMg;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    suggestBac(vialMg, suggestedBac);
+    recalc();
+  }
+
+  function onVialInput() {
+    const vial = parseFloat(document.getElementById('ci-vial').value);
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    if (VIAL_BAC_DEFAULTS[vial]) {
+      suggestBac(vial, VIAL_BAC_DEFAULTS[vial]);
+    } else {
+      document.getElementById('bac-suggestion').style.display = 'none';
+    }
+    recalc();
+  }
+
+  function suggestBac(vialMg, suggestedBac) {
+    const bacField = document.getElementById('ci-bac');
+    const currentBac = parseFloat(bacField.value);
+    const suggEl = document.getElementById('bac-suggestion');
+    const suggText = document.getElementById('bac-suggestion-text');
+
+    // If bac field is empty or matches a previous suggestion, auto-fill
+    if (!bacField.value || bacField.dataset.suggested === bacField.value) {
+      bacField.value = suggestedBac;
+      bacField.dataset.suggested = String(suggestedBac);
+      suggEl.style.display = 'none';
+    } else {
+      // User has their own value — show suggestion as tap-to-apply
+      suggText.textContent = `Suggested ${suggestedBac}mL for ${vialMg}mg vial`;
+      suggEl.style.display = 'block';
+      suggEl.onclick = () => {
+        bacField.value = suggestedBac;
+        bacField.dataset.suggested = String(suggestedBac);
+        suggEl.style.display = 'none';
+        recalc();
+      };
+    }
+    recalc();
+  }
 
   // Service worker
   if ('serviceWorker' in navigator) {
