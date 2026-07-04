@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peptide Vendor Master Scorecard — Rich Mendez Protocol</title>
+<style>
+  :root {
+    --green: #006644;
+    --green-l: #e8f5f0;
+    --green-m: #00a878;
+    --red: #8b0000;
+    --red-l: #fff0f0;
+    --yellow: #7a4f00;
+    --yellow-l: #fff8e8;
+    --blue: #003380;
+    --blue-l: #eef4ff;
+    --orange: #7a3000;
+    --orange-l: #fff4ee;
+    --purple: #4b0082;
+    --purple-l: #f8f0ff;
+    --gray: #f5f5f5;
+    --border: #ddd;
+    --text: #222;
+    --muted: #666;
+    --hdr: #1a3a2a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; color: var(--text); background: #fff; line-height: 1.5; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+  /* HEADER */
+  .header { text-align: center; padding: 20px 0 16px; border-bottom: 3px solid var(--green); margin-bottom: 20px; }
+  .header h1 { font-size: 22px; color: var(--hdr); letter-spacing: 1px; }
+  .header p { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  /* SECTION HEADERS */
+  .section-title { font-size: 13px; font-weight: 700; color: var(--hdr); border-left: 4px solid var(--green); padding: 6px 10px; background: var(--green-l); margin: 20px 0 8px; letter-spacing: 0.5px; }
+  .section-title.red { border-color: var(--red); background: var(--red-l); color: var(--red); }
+  .section-title.yellow { border-color: var(--yellow); background: var(--yellow-l); color: var(--yellow); }
+  .section-title.blue { border-color: var(--blue); background: var(--blue-l); color: var(--blue); }
+  .section-title.orange { border-color: var(--orange); background: var(--orange-l); color: var(--orange); }
+  .section-title.purple { border-color: var(--purple); background: var(--purple-l); color: var(--purple); }
+
+  /* ANALOGY BOX */
+  .analogy { background: var(--purple-l); border-left: 4px solid var(--purple); padding: 12px 14px; border-radius: 4px; font-style: italic; color: var(--purple); font-size: 13px; margin-bottom: 16px; }
+
+  /* VENDOR CARDS */
+  .vendor-card { border: 2px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+  .vendor-card.green { border-color: var(--green); }
+  .vendor-card.blue { border-color: var(--blue); }
+  .vendor-card.yellow { border-color: var(--yellow); }
+  .vendor-card-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--green-l); }
+  .vendor-card.blue .vendor-card-header { background: var(--blue-l); }
+  .vendor-card.yellow .vendor-card-header { background: var(--yellow-l); }
+  .vendor-card-name { font-weight: 700; font-size: 13px; color: var(--green); }
+  .vendor-card.blue .vendor-card-name { color: var(--blue); }
+  .vendor-card.yellow .vendor-card-name { color: var(--yellow); }
+  .vendor-card-price { font-weight: 700; font-size: 13px; color: var(--hdr); }
+  .vendor-card-body { padding: 8px 12px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .vendor-card-body .lab { color: var(--text); font-weight: 600; margin-bottom: 3px; }
+  .vendor-card-body .details { margin-bottom: 3px; }
+  .vendor-card-body .use { font-style: italic; color: var(--purple); }
+
+  /* TABLES */
+  .tbl-wrap { overflow-x: auto; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: var(--hdr); color: #fff; padding: 7px 8px; text-align: left; font-size: 11px; letter-spacing: 0.3px; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.45; }
+  tr:nth-child(even) td { background: var(--gray); }
+  tr:hover td { background: #f0f8f4; }
+  .g { color: var(--green); font-weight: 700; }
+  .r { color: var(--red); }
+  .y { color: var(--yellow); }
+  .b { color: var(--blue); }
+  .o { color: var(--orange); }
+  .pu { color: var(--purple); }
+  .mu { color: var(--muted); }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .badge-g { background: var(--green-l); color: var(--green); }
+  .badge-r { background: var(--red-l); color: var(--red); }
+  .badge-y { background: var(--yellow-l); color: var(--yellow); }
+  .badge-b { background: var(--blue-l); color: var(--blue); }
+  .badge-o { background: var(--orange-l); color: var(--orange); }
+  .badge-pu { background: var(--purple-l); color: var(--purple); }
+
+  /* INTEL ITEMS */
+  .intel-item { display: flex; gap: 0; margin-bottom: 4px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .intel-label { background: var(--green-l); color: var(--green); font-weight: 700; font-size: 11px; padding: 8px 10px; min-width: 140px; border-right: 2px solid var(--green); display: flex; align-items: flex-start; }
+  .intel-text { padding: 8px 10px; font-size: 12px; color: var(--muted); background: var(--gray); }
+
+  /* SEARCH */
+  .search-bar { width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 6px; font-size: 14px; margin-bottom: 16px; outline: none; }
+  .search-bar:focus { border-color: var(--green); }
+
+  /* FILTER TABS */
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filter-btn { padding: 5px 14px; border-radius: 20px; border: 1.5px solid var(--border); background: #fff; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; color: var(--muted); }
+  .filter-btn.active, .filter-btn:hover { background: var(--hdr); color: #fff; border-color: var(--hdr); }
+  .filter-btn.green.active { background: var(--green); border-color: var(--green); }
+  .filter-btn.red.active { background: var(--red); border-color: var(--red); }
+  .filter-btn.yellow.active { background: var(--yellow); border-color: var(--yellow); }
+  .filter-btn.blue.active { background: var(--blue); border-color: var(--blue); }
+
+  /* QUICK REF */
+  .rank-table td:first-child { font-weight: 700; text-align: center; }
+
+  /* FOOTER */
+  .footer { text-align: center; color: var(--muted); font-size: 11px; padding: 20px 0 10px; border-top: 1px solid var(--border); margin-top: 24px; }
+
+  /* PRINT */
+  @media print {
+    .search-bar, .filters, .no-print { display: none !important; }
+    .vendor-card { break-inside: avoid; }
+    .tbl-wrap { overflow: visible; }
+    body { font-size: 11px; }
+    .page { max-width: 100%; padding: 0; }
+    .section-title { break-after: avoid; }
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 600px) {
+    .vendor-card-header { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .intel-item { flex-direction: column; }
+    .intel-label { min-width: unset; border-right: none; border-bottom: 2px solid var(--green); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>PEPTIDE VENDOR MASTER SCORECARD</h1>
+    <p>July 2, 2026 &nbsp;·&nbsp; Rich Mendez Protocol &nbsp;·&nbsp; Rich · Claudia · Dom &nbsp;·&nbsp; 21 vendors + 14 labs evaluated</p>
+  </div>
+
+  <!-- FRAMEWORK -->
+  <div class="analogy">
+    <strong>The Framework (5-Year-Old Version):</strong> One river feeds the whole city (Chinese API manufacturers). Treatment plants clean the water (the labs). Government-certified plants have a certificate number you can look up — A2LA or PJLA. Some plants are certified only for pool water, not drinking water (wrong scope). Trucks deliver to your door (the vendors). The one rule: a clean-looking COA from an unverifiable lab is MORE dangerous than a weak COA from a verified one — it creates false confidence.
+  </div>
+
+  <!-- SEARCH + FILTER -->
+  <input class="search-bar no-print" type="text" id="search" placeholder="🔍 Search vendors, labs, or status..." oninput="filterAll()">
+  <div class="filters no-print">
+    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn green" onclick="setFilter('approved', this)">✅ Approved</button>
+    <button class="filter-btn blue" onclick="setFilter('backup', this)">🔵 Backup</button>
+    <button class="filter-btn yellow" onclick="setFilter('caution', this)">⚠️ Caution</button>
+    <button class="filter-btn red" onclick="setFilter('fail', this)">❌ Hard Fail</button>
+  </div>
+
+  <!-- APPROVED PRIMARY -->
+  <div class="section-title" data-group="approved">✅ APPROVED — PRIMARY VENDORS</div>
+
+  <div class="vendor-card green" data-group="approved" data-search="peptide crafters primary rich claudia pharmetric vanguard janoshik triple lab">
+    <div class="vendor-card-header">
+      <span class="vendor-card-name">PEPTIDE CRAFTERS — PRIMARY (Rich + Claudia only)</span>
+      <span class="vendor-card-price">$3.57/mg &nbsp;|&nbsp; $250 / 70mg</span>
+    </div>
+    <div class="vendor-card-body">
+      <div class="lab">Lab: Janoshik (purity) + Pharmetric A2LA #5386.01 (endotoxin) + Vanguard A2LA #6377.01 (sterility)</div>
+      <div class="details">Lot PC-G1-T70 &nbsp;·&nbsp; Purity 99.837% &nbsp;·&nbsp; Endotoxin 0.033 EU/mg (150x below limit) &nbsp;·&nbsp; STG approved 1 of 6 &nbsp;·&nbsp; No socials, no marketing — green flags &nbsp;·&nbsp; Virtual mailbox Frisco TX noted &nbsp;·&nbsp; Finnrick C (qty variance only, purity clean)</div>
+      <div class="use">Use: Rich + Claudia personal supply ONLY. Highest lab architecture on board. Never substitute secondary for personal protocol.</div>
+    </div>
+  </div>
+
+  <div class="vendor-card green" data-group="approved" data-search="labsourced peptides dom vanguard secondary sammyc order 18654">
+    <div class="vendor-card-header">
+      <span class="vendor-card-name">LABSOURCED PEPTIDES — APPROVED SECONDARY (Dom's primary)</span>
+      <span class="vendor-card-price">$2.39/mg &nbsp;|&nbsp; $143.10 / 60mg</span>
+    </div>
+    <div class="vendor-card-body">
+      <div class="lab">Lab: Vanguard A2LA #6377.01 — 10-point panel verified LIVE on verifiedbyvanguard.com July 1 2026</div>
+      <div class="details">Lot V260211-4 010 &nbsp;·&nbsp; Purity >99.80% (3 vials) &nbsp;·&nbsp; Endotoxin LAL &lt;5.00 EU/mg &nbsp;·&nbsp; Heavy metals all ND &nbsp;·&nbsp; Bioburden USP &lt;71&gt; Fast No Growth &nbsp;·&nbsp; Fentanyl screening &nbsp;·&nbsp; BAC water Vanguard-verified (pH 7.7–7.94 — cleared given ~5wk consumption) &nbsp;·&nbsp; SAMMYC code stacks &nbsp;·&nbsp; CC accepted (Kurv) &nbsp;·&nbsp; Order #18654 placed July 2 2026</div>
+      <div class="use">Use: Dom's primary. Best verified price on board. SAMMYC code stacks. Household backup when Crafters unavailable.</div>
+    </div>
+  </div>
+
+  <!-- APPROVED BACKUP INJECTABLE -->
+  <div class="section-title blue" data-group="backup">🔵 APPROVED BACKUP — INJECTABLE (All Vanguard A2LA #6377.01 verified)</div>
+
+  <div class="tbl-wrap">
+    <table id="backup-table">
+      <thead>
+        <tr><th>Vendor</th><th>$/mg</th><th>Size / Price</th><th>Lab</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr data-group="backup" data-search="trusted aminos vanguard same lot labsourced ghost">
+          <td class="b"><strong>Trusted Aminos</strong></td>
+          <td class="b"><strong>$2.65</strong></td>
+          <td>60mg / $159</td>
+          <td>Vanguard A2LA</td>
+          <td>Same lot as LabSourceced (identical vial weights + Run ID 260217). Ghost entity — no web presence. Use when LabSourceced unavailable.</td>
+        </tr>
+        <tr data-group="backup" data-search="veyron biologics vanguard emergency 40mg">
+          <td class="b"><strong>Veyron Biologics</strong></td>
+          <td class="b"><strong>$4.00</strong></td>
+          <td>40mg / $160</td>
+          <td>Vanguard A2LA</td>
+          <td>Zero community track record. Anonymous ownership. Smaller vial = more reconstitutions. Emergency only.</td>
+        </tr>
+        <tr data-group="backup" data-search="optimum formula vanguard cc payment">
+          <td class="b"><strong>Optimum Formula</strong></td>
+          <td class="b"><strong>$5.00</strong></td>
+          <td>60mg / $300</td>
+          <td>Vanguard A2LA</td>
+          <td>⚠️ Previously flagged Venmo/Cash App. Now Vanguard-verified. CONFIRM CC accepted before ordering.</td>
+        </tr>
+        <tr data-group="backup" data-search="good science bio vanguard backup">
+          <td class="b"><strong>Good Science Bio</strong></td>
+          <td class="b"><strong>$5.17</strong></td>
+          <td>60mg / $310</td>
+          <td>Vanguard A2LA</td>
+          <td>Different vendor from Good Science NIO. Vanguard-verified July 2026. No community presence. Expensive backup.</td>
+        </tr>
+        <tr data-group="backup" data-search="skye peptides trustpointe janoshik emergency">
+          <td class="y"><strong>Skye Peptides</strong></td>
+          <td class="y"><strong>$5.31</strong></td>
+          <td>—</td>
+          <td>Janoshik + TrustPointe</td>
+          <td>⚠️ TrustPointe not A2LA. Finnrick A. Emergency only when Vanguard vendors unavailable.</td>
+        </tr>
+        <tr data-group="backup" data-search="polaris peptides trustpointe last resort">
+          <td class="y"><strong>Polaris Peptides</strong></td>
+          <td class="y"><strong>$5.15</strong></td>
+          <td>—</td>
+          <td>TrustPointe</td>
+          <td>⚠️ TrustPointe not A2LA. Finnrick A June 2026. Last resort only.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- POWDERS / NON-INJECTABLE -->
+  <div class="section-title purple" data-group="backup">🧪 APPROVED — POWDERS / NON-INJECTABLE ONLY</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Vendor</th><th>Product</th><th>$/mg</th><th>Size / Price</th><th>Lab</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr data-group="backup" data-search="verified peptides ghk powder janoshik">
+          <td class="pu"><strong>Verified Peptides</strong></td>
+          <td>GHK-Cu raw powder</td>
+          <td class="pu"><strong>$0.033</strong></td>
+          <td>1000mg / $33</td>
+          <td>Janoshik purity</td>
+          <td>NOT for subcutaneous injection. Powders + nasal formulations only. Code GOOG15 = 15% off, VERIFIED10 = 10% off.</td>
+        </tr>
+        <tr data-group="backup" data-search="modified aminos spray solution nasal vanguard">
+          <td class="pu"><strong>Modified Aminos</strong></td>
+          <td>GLP-2T spray/solution</td>
+          <td class="pu"><strong>$11.98</strong></td>
+          <td>60mg / $719</td>
+          <td>Vanguard A2LA</td>
+          <td>Pre-mixed spray/solution format — NOT dry lyophilized injectable. Nasal peptide protocols only. Claudia sign-off required.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- CAUTION -->
+  <div class="section-title yellow" data-group="caution">⚠️ CAUTION — DO NOT ORDER</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Vendor</th><th>Issue</th><th>Resolution Required</th></tr>
+      </thead>
+      <tbody>
+        <tr data-group="caution" data-search="optimum formula payment venmo">
+          <td class="y"><strong>Optimum Formula*</strong></td>
+          <td>Payment method unconfirmed</td>
+          <td>*Moved to backup IF CC accepted. Verify payment method before ordering.</td>
+        </tr>
+        <tr data-group="caution" data-search="la peptides bioviridian">
+          <td class="y"><strong>LA Peptides</strong></td>
+          <td>Bioviridian — not A2LA</td>
+          <td>Lab upgrade to A2LA required before any consideration</td>
+        </tr>
+        <tr data-group="caution" data-search="kits4less crypto unlabeled">
+          <td class="y"><strong>KITS4LESS</strong></td>
+          <td>Crypto only, unlabeled vials</td>
+          <td>Full $405 Finnrick panel required before any consideration</td>
+        </tr>
+        <tr data-group="caution" data-search="paradigm peptide federal charges">
+          <td class="y"><strong>Paradigm Peptide</strong></td>
+          <td>Founders facing federal charges</td>
+          <td>Hard stop — do not reorder until case fully resolved</td>
+        </tr>
+        <tr data-group="caution" data-search="ion peptides freedom kovera ils triple fail">
+          <td class="y"><strong>Ion Peptides</strong></td>
+          <td>Freedom + Kovera + ILS triple fail</td>
+          <td>Full lab stack replacement needed — unlikely to resolve</td>
+        </tr>
+        <tr data-group="caution" data-search="kimera chems vanguard numega mz biolabs">
+          <td class="y"><strong>Kimera Chems</strong></td>
+          <td>Vanguard + NuMega + MZ Biolabs (2 unverified)</td>
+          <td>Verify all three labs independently before any order</td>
+        </tr>
+        <tr data-group="caution" data-search="atomik labz faq sterility disclaimer">
+          <td class="y"><strong>Atomik Labz</strong></td>
+          <td>FAQ self-disclaims sterility testing</td>
+          <td>Remove disclaimer + verify MDx accreditation scope</td>
+        </tr>
+        <tr data-group="caution" data-search="good science nio ghost vanguard no web">
+          <td class="y"><strong>Good Science NIO</strong></td>
+          <td>Vanguard COA real — zero web presence</td>
+          <td>≠ Good Science Bio. Ghost entity — establish identity before engaging</td>
+        </tr>
+        <tr data-group="caution" data-search="ez peptides nexaph supply chain">
+          <td class="y"><strong>EZ Peptides</strong></td>
+          <td>Nexaph supply chain affiliation</td>
+          <td>Batch-by-batch Finnrick panel mandatory before pinning any dose</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PENDING -->
+  <div class="section-title blue" data-group="caution">🔍 PENDING EVALUATION</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Vendor</th><th>Potential</th><th>Gate Required</th></tr>
+      </thead>
+      <tbody>
+        <tr data-group="caution" data-search="shandong shengyuan direct chinese api finnrick">
+          <td class="b"><strong>Shandong Shengyuan</strong></td>
+          <td>$0.83/mg direct Chinese API</td>
+          <td>Full $405 Finnrick panel mandatory. No exceptions. Do not touch without it.</td>
+        </tr>
+        <tr data-group="caution" data-search="instantpeptides kovera ip overlap">
+          <td class="b"><strong>InstantPeptides.com</strong></td>
+          <td>Unknown</td>
+          <td>Kovera IP overlap flagged — investigate before any contact</td>
+        </tr>
+        <tr data-group="caution" data-search="verified peptides tirz goog15 lab name">
+          <td class="b"><strong>Verified Peptides (tirz)</strong></td>
+          <td>verifiedpeptides.com — founded 2020</td>
+          <td>500+ COAs but no lab name on tirz products. Pull COA letterhead before evaluation. Codes: GOOG15=15%, VERIFIED10=10%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- HARD FAILS -->
+  <div class="section-title red" data-group="fail">❌ HARD FAILS — DO NOT ENGAGE</div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Permanent disqualifications based on primary-source evidence. No marketing claim overrides these.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Vendor</th><th>Reason</th><th>Primary Evidence</th></tr>
+      </thead>
+      <tbody>
+        <tr data-group="fail" data-search="freedom diagnostics coa mill vendor owned">
+          <td class="r"><strong>Freedom Diagnostics</strong></td>
+          <td><span class="badge badge-r">COA MILL</span></td>
+          <td>Vendor ownership confirmed. No A2LA. Exclusively serves peptide vendors.</td>
+        </tr>
+        <tr data-group="fail" data-search="kovera labs mile high fake identity virtual mailbox">
+          <td class="r"><strong>Kovera Labs</strong></td>
+          <td><span class="badge badge-r">COA MILL</span></td>
+          <td>Mile High owned. Virtual mailbox IL. Fake LinkedIn QD. IP overlap with InstantPeptides.</td>
+        </tr>
+        <tr data-group="fail" data-search="mile high compounds fda warning letter march 2026">
+          <td class="r"><strong>Mile High Compounds</strong></td>
+          <td><span class="badge badge-r">FDA ENFORCEMENT</span></td>
+          <td>FDA warning letter March 2026. CO LLC May 2025. Kovera ownership confirmed.</td>
+        </tr>
+        <tr data-group="fail" data-search="ils labs cannabis scope pjla l25-631">
+          <td class="r"><strong>ILS Labs</strong></td>
+          <td><span class="badge badge-r">WRONG SCOPE</span></td>
+          <td>PJLA L25-631 scope pulled: cannabis plant material ONLY — 8 pages confirmed in session.</td>
+        </tr>
+        <tr data-group="fail" data-search="ethos analytics supplement scope pjla l26-225">
+          <td class="r"><strong>Ethos Analytics</strong></td>
+          <td><span class="badge badge-r">WRONG SCOPE</span></td>
+          <td>PJLA L26-225 scope pulled: cosmetics/supplements/botanicals — zero injectable scope.</td>
+        </tr>
+        <tr data-group="fail" data-search="tidewater analytical pepkits ghost lab 2026">
+          <td class="r"><strong>Tidewater / PEPKITS</strong></td>
+          <td><span class="badge badge-r">GHOST LAB</span></td>
+          <td>Website April 2026. No cert. No clients. CA cannabis license on file.</td>
+        </tr>
+        <tr data-group="fail" data-search="perfect peptides chromate misidentification">
+          <td class="r"><strong>Perfect Peptides</strong></td>
+          <td><span class="badge badge-r">MISIDENTIFICATION</span></td>
+          <td>Chromate confirmed 3 compound misidentifications. Identity errors = automatic disqualification.</td>
+        </tr>
+        <tr data-group="fail" data-search="liberty peptides bioviridian liberty labs">
+          <td class="r"><strong>Liberty Peptides</strong></td>
+          <td><span class="badge badge-r">WRONG LAB</span></td>
+          <td>Uses Bioviridian (Liberty Labs) — not A2LA, unverifiable for injectable testing.</td>
+        </tr>
+        <tr data-group="fail" data-search="bio edge research labs kovera">
+          <td class="r"><strong>Bio Edge Research Labs</strong></td>
+          <td><span class="badge badge-r">COA MILL</span></td>
+          <td>Uses Kovera Labs — hard fail by association, same COA mill network.</td>
+        </tr>
+        <tr data-group="fail" data-search="nexaph finnrick e bad purity">
+          <td class="r"><strong>Nexaph</strong></td>
+          <td><span class="badge badge-r">FINNRICK E/BAD</span></td>
+          <td>50 tirz samples — purity 29 points below vendor claim on at least one test.</td>
+        </tr>
+        <tr data-group="fail" data-search="petratide science endotoxin failure tiktok">
+          <td class="r"><strong>Petratide Science</strong></td>
+          <td><span class="badge badge-r">ENDOTOXIN FAIL</span></td>
+          <td>Documented endotoxin failure + TikTok vendor + 7-month domain at time of testing.</td>
+        </tr>
+        <tr data-group="fail" data-search="disguised alpha chromate ils misidentification">
+          <td class="r"><strong>Disguised Alpha</strong></td>
+          <td><span class="badge badge-r">MISIDENTIFICATION</span></td>
+          <td>Chromate flagged 3 misIDs + ILS cannabis scope.</td>
+        </tr>
+        <tr data-group="fail" data-search="glacier aminos ils cannabis scope">
+          <td class="r"><strong>Glacier Aminos</strong></td>
+          <td><span class="badge badge-r">WRONG SCOPE</span></td>
+          <td>Uses ILS as primary lab — cannabis scope only.</td>
+        </tr>
+        <tr data-group="fail" data-search="the barn endotoxin fail stg removed">
+          <td class="r"><strong>The Barn</strong></td>
+          <td><span class="badge badge-r">ENDOTOXIN FAIL</span></td>
+          <td>Failed endotoxin independently, removed from STG approved list.</td>
+        </tr>
+        <tr data-group="fail" data-search="protide health freedom diagnostics coa mill">
+          <td class="r"><strong>Protide Health</strong></td>
+          <td><span class="badge badge-r">COA MILL</span></td>
+          <td>Confirmed Freedom Diagnostics user — COA mill by association.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- LAB HIERARCHY -->
+  <div class="section-title" style="margin-top:24px;">🔬 COMPLETE LAB EVALUATION — 14 LABS</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Lab</th><th>Cert #</th><th>Body</th><th>Scope Type</th><th>Findings</th><th>Verdict</th></tr>
+      </thead>
+      <tbody>
+        <tr style="background:var(--green-l)">
+          <td class="g"><strong>Pharmetric</strong></td><td>#5386.01</td><td>A2LA</td><td>Pharmaceutical</td>
+          <td>USP &lt;85&gt; endotoxin + USP &lt;71&gt; sterility explicitly in scope. Pharma-only — highest tier. Valid Nov 2026.</td>
+          <td><span class="badge badge-g">GOLD STANDARD</span></td>
+        </tr>
+        <tr style="background:var(--green-l)">
+          <td class="g"><strong>Vanguard Laboratory</strong></td><td>#6377.01</td><td>A2LA</td><td>Pharma + food + env</td>
+          <td>Endotoxin, sterility, HPLC, ICP-MS confirmed. 10-point panel verified live July 1 2026. Valid Sept 2027.</td>
+          <td><span class="badge badge-g">A2LA VERIFIED</span></td>
+        </tr>
+        <tr>
+          <td class="b"><strong>Janoshik</strong></td><td>Community</td><td>None</td><td>Purity only</td>
+          <td>Community-trusted for HPLC identity + purity. NOT standalone for endotoxin or sterility.</td>
+          <td><span class="badge badge-b">PURITY ONLY</span></td>
+        </tr>
+        <tr style="background:var(--orange-l)">
+          <td class="o"><strong>Accumark Labs</strong></td><td>Pending</td><td>PJLA</td><td>ISO 17025 pending</td>
+          <td>Real physical address, legit infrastructure. ISO 17025 in process. Cannot clear until cert number posts publicly.</td>
+          <td><span class="badge badge-o">WATCH</span></td>
+        </tr>
+        <tr style="background:var(--yellow-l)">
+          <td class="y"><strong>MDx BioAnalytical</strong></td><td>None found</td><td>PJLA?</td><td>Unverified</td>
+          <td>Claims pending re-accreditation post-March 2026 audit. PJLA directory: zero results. Nasal peptides only.</td>
+          <td><span class="badge badge-y">NASAL ONLY</span></td>
+        </tr>
+        <tr style="background:var(--yellow-l)">
+          <td class="y"><strong>Krause Analytical</strong></td><td>None</td><td>EPA/FDA</td><td>Finnrick partner</td>
+          <td>Finnrick's endotoxin (USP &lt;86&gt; rFC), heavy metals, solvents lab. No A2LA/PJLA cert. Finnrick screening only.</td>
+          <td><span class="badge badge-y">UNACCREDITED</span></td>
+        </tr>
+        <tr style="background:var(--yellow-l)">
+          <td class="y"><strong>TrustPointe</strong></td><td>None</td><td>Not A2LA</td><td>Unaccredited</td>
+          <td>Used by Skye + Polaris for endotoxin. No A2LA cert. Emergency vendor use only.</td>
+          <td><span class="badge badge-y">UNACCREDITED</span></td>
+        </tr>
+        <tr style="background:var(--yellow-l)">
+          <td class="y"><strong>BTLabs</strong></td><td>None</td><td>Unknown</td><td>Finnrick partner</td>
+          <td>Finnrick's $89 optional HPLC add-on. No accreditation confirmed. Do not select on Finnrick orders.</td>
+          <td><span class="badge badge-y">SKIP</span></td>
+        </tr>
+        <tr style="background:var(--yellow-l)">
+          <td class="y"><strong>Bioviridian</strong></td><td>None</td><td>Unknown</td><td>Unaccredited</td>
+          <td>Used by LA Peptides + Liberty Peptides. No A2LA cert. Unverifiable for injectables.</td>
+          <td><span class="badge badge-y">UNVERIFIED</span></td>
+        </tr>
+        <tr style="background:var(--yellow-l)">
+          <td class="y"><strong>BioRegen</strong></td><td>None</td><td>Unknown</td><td>Unaccredited</td>
+          <td>Used by NextGen Peptides. No accreditation confirmed. Unverifiable.</td>
+          <td><span class="badge badge-y">UNVERIFIED</span></td>
+        </tr>
+        <tr style="background:var(--yellow-l)">
+          <td class="y"><strong>NuMega + MZ Biolabs</strong></td><td>None</td><td>Unknown</td><td>Unaccredited</td>
+          <td>Kimera Chems' secondary labs. No accreditation confirmed for either.</td>
+          <td><span class="badge badge-y">UNVERIFIED</span></td>
+        </tr>
+        <tr style="background:var(--purple-l)">
+          <td class="pu"><strong>Ethos Analytics</strong></td><td>L26-225</td><td>PJLA</td><td>Cosmetics/supplements</td>
+          <td>Real ISO 17025. Scope pulled: cosmetics, supplements, botanicals — zero injectable scope confirmed.</td>
+          <td><span class="badge badge-pu">WRONG SCOPE</span></td>
+        </tr>
+        <tr style="background:var(--purple-l)">
+          <td class="pu"><strong>ILS Labs (Quality Cannabis)</strong></td><td>L25-631</td><td>PJLA</td><td>Cannabis only</td>
+          <td>Real ISO 17025. 8-page scope pulled: cannabis plant material ONLY. CA DCC cannabis license confirmed April 2025.</td>
+          <td><span class="badge badge-pu">WRONG SCOPE</span></td>
+        </tr>
+        <tr style="background:var(--red-l)">
+          <td class="r"><strong>Freedom Diagnostics / Kovera</strong></td><td>None</td><td>None</td><td>Vendor-owned</td>
+          <td>Vendor ownership confirmed. No A2LA. COA mills — produce results for whoever pays, no independent accountability.</td>
+          <td><span class="badge badge-r">COA MILL</span></td>
+        </tr>
+        <tr style="background:var(--red-l)">
+          <td class="r"><strong>Chromate</strong></td><td>None</td><td>None</td><td>Disqualified</td>
+          <td>3 confirmed compound misidentifications. Identity errors are the worst possible outcome.</td>
+          <td><span class="badge badge-r">DISQUALIFIED</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- QUICK RANK -->
+  <div class="section-title" style="margin-top:24px;">⚡ QUICK REFERENCE — INJECTABLE TIRZ RANKING</div>
+  <div class="tbl-wrap">
+    <table class="rank-table">
+      <thead>
+        <tr><th>#</th><th>Vendor</th><th>$/mg</th><th>Lab</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr style="background:var(--green-l)"><td class="g">1</td><td class="g"><strong>Peptide Crafters</strong></td><td class="g"><strong>$3.57</strong></td><td>Triple A2LA</td><td>PRIMARY — Rich + Claudia. Pharmetric pharma scope = highest safety standard.</td></tr>
+        <tr style="background:var(--green-l)"><td class="g">2</td><td class="g"><strong>LabSourceced</strong></td><td class="g"><strong>$2.39</strong></td><td>Vanguard A2LA</td><td>PRIMARY — Dom. Best verified price. SAMMYC stacks. Order #18654 confirmed.</td></tr>
+        <tr style="background:var(--blue-l)"><td class="b">3</td><td class="b"><strong>Trusted Aminos</strong></td><td class="b"><strong>$2.65</strong></td><td>Vanguard A2LA</td><td>BACKUP — Same lot as LabSourceced. Ghost entity. Use when LabSourceced unavailable.</td></tr>
+        <tr style="background:var(--blue-l)"><td class="b">4</td><td class="b"><strong>Veyron Biologics</strong></td><td class="b"><strong>$4.00</strong></td><td>Vanguard A2LA</td><td>EMERGENCY — 40mg vials. Zero track record. Anonymous.</td></tr>
+        <tr style="background:var(--blue-l)"><td class="b">5</td><td class="b"><strong>Optimum Formula</strong></td><td class="b"><strong>$5.00</strong></td><td>Vanguard A2LA</td><td>BACKUP — Confirm CC accepted first.</td></tr>
+        <tr style="background:var(--blue-l)"><td class="b">6</td><td class="b"><strong>Good Science Bio</strong></td><td class="b"><strong>$5.17</strong></td><td>Vanguard A2LA</td><td>BACKUP — Vanguard confirmed. No community presence. Expensive.</td></tr>
+        <tr style="background:var(--yellow-l)"><td class="y">7</td><td class="y"><strong>Skye Peptides</strong></td><td class="y"><strong>$5.31</strong></td><td>TrustPointe</td><td>EMERGENCY — Not A2LA. Use only when all Vanguard vendors unavailable.</td></tr>
+        <tr style="background:var(--yellow-l)"><td class="y">8</td><td class="y"><strong>Polaris Peptides</strong></td><td class="y"><strong>$5.15</strong></td><td>TrustPointe</td><td>LAST RESORT — Not A2LA. Absolute final fallback only.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SUPPLY PLAN -->
+  <div class="section-title" style="margin-top:24px;">📦 HOUSEHOLD SUPPLY PLAN (Conservative — Wife exits Mo 12, Reta 12mo)</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Member</th><th>Compound</th><th>Months</th><th>mg Needed</th><th>Vendor</th><th>$/mg</th><th>Subtotal</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Rich</strong></td><td>Tirz</td><td>Mo 1-17</td><td>645.8mg</td><td class="g">Peptide Crafters</td><td>$3.57</td><td>~$1,392</td><td>Exits at plateau</td></tr>
+        <tr><td><strong>Claudia</strong></td><td>Tirz</td><td>Mo 1-12</td><td>169mg</td><td class="g">Peptide Crafters</td><td>$3.57</td><td>~$364</td><td>Exits after maintenance</td></tr>
+        <tr><td><strong>Dom</strong></td><td>Tirz</td><td>Mo 1-24</td><td>1,103mg</td><td class="g">LabSourceced</td><td>$2.39</td><td>~$2,107</td><td>Full 24mo — most volume</td></tr>
+        <tr><td><strong>Rich</strong></td><td>Reta</td><td>Mo 18+ (12mo)</td><td>~400mg</td><td class="g">LabSourceced</td><td>$3.01</td><td>~$1,204</td><td>Triggered by tirz plateau</td></tr>
+        <tr style="background:var(--green-l)"><td colspan="6" style="text-align:right;font-weight:700;color:var(--green)">TOTAL</td><td class="g"><strong>~$5,067</strong></td><td class="mu"><em>vs $11k original est.</em></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- DOSING -->
+  <div class="section-title" style="margin-top:24px;">💉 CURRENT DOSING & VIAL CONSUMPTION</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Member</th><th>Weekly Dose</th><th>mg/Month</th><th>Vial Size (actual)</th><th>Mo/Vial</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Rich</strong></td><td>4.32mg (18u)</td><td>18.7mg</td><td>58.2mg</td><td>3.1 months</td><td>Reorder trigger — Rich + Claudia empty first</td></tr>
+        <tr><td><strong>Claudia</strong></td><td>4.32mg (18u)</td><td>18.7mg</td><td>58.2mg</td><td>3.1 months</td><td>Same schedule as Rich</td></tr>
+        <tr><td><strong>Dom</strong></td><td>3.5mg (14.6u)</td><td>15.2mg</td><td>58.2mg</td><td>3.8 months</td><td>Extra ~3wk runway vs Rich + Claudia</td></tr>
+        <tr style="background:var(--green-l)"><td class="g"><strong>HOUSEHOLD</strong></td><td>—</td><td class="g"><strong>52.6mg/mo</strong></td><td>2 vials shared</td><td class="g"><strong>2.2 months</strong></td><td>Current trial order (Order #18654) = 2.2mo household supply</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- KEY INTEL -->
+  <div class="section-title" style="margin-top:24px;">🧠 KEY INTELLIGENCE — JULY 2, 2026</div>
+  <div id="intel-section">
+    <div class="intel-item"><div class="intel-label">Peptide Sciences shutdown</div><div class="intel-text">Closed March 2026 — was $7.4M/month. Eli Lilly enforcement accelerating. Eli Lilly filed federal lawsuits April 2025 against compounding pharmacies. Tranched buying strategy is correct.</div></div>
+    <div class="intel-item"><div class="intel-label">FDA proposed exclusion</div><div class="intel-text">April 30, 2026: FDA proposed permanently excluding semaglutide, tirzepatide, and liraglutide from the 503B bulks list. Legitimate compounding pathways narrowing. Independent lab testing is the only reliable defense.</div></div>
+    <div class="intel-item"><div class="intel-label">Finnrick COI confirmed</div><div class="intel-text">VC-backed, revenue from vendors it rates, no published COI policy. Directional signal only — never standalone verification. A2LA portal checks (verifiedbyvanguard.com) always win.</div></div>
+    <div class="intel-item"><div class="intel-label">8% endotoxin rate</div><div class="intel-text">Finnrick data: 8% of independently tested peptide samples show quantifiable endotoxin. HPLC purity doesn't catch it. Accredited endotoxin testing is non-negotiable for injectables.</div></div>
+    <div class="intel-item"><div class="intel-label">Shared supply chains</div><div class="intel-text">Trusted Aminos + LabSourceced: identical Vanguard lot, vial weights, Run ID 260217. Multiple vendors buy same Chinese API batch. Lab verification is the only differentiator, not vendor branding.</div></div>
+    <div class="intel-item"><div class="intel-label">BAC water pH flag</div><div class="intel-text">LabSourceced BAC water pH 7.7–7.94 (spec 4.0–7.0). Cleared at current consumption rate — household finishes 2 vials in ~2.2 months, well before degradation window. Flag Claudia for awareness.</div></div>
+    <div class="intel-item"><div class="intel-label">SAMMYC code</div><div class="intel-text">LabSourceced: stacks with bundle discount. Confirmed $110.85 savings on 3-vial order. Apply before every checkout. Alternate: cdecon works as additional code.</div></div>
+    <div class="intel-item"><div class="intel-label">Order #18654</div><div class="intel-text">2x Peptide-T 60mg + 2x BAC 0.9% BA 10mL = $250.09 via CC (Kurv). Vanguard 10-point panel: 10/10. VFY-2026-0701-3456. Skip Delivery Guarantee on future orders ($15.21 wasted).</div></div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    Peptide Vendor Master Scorecard &nbsp;·&nbsp; Rich Mendez Protocol &nbsp;·&nbsp; July 2, 2026 &nbsp;·&nbsp; 21 vendors + 14 labs &nbsp;·&nbsp; RUO personal reference only
+    <br><span style="font-size:10px;margin-top:4px;display:block;">Hosted at goldenstatewarrior3323-design.github.io — commit vendor-scorecard.html to your repo root</span>
+  </div>
+
+</div>
+
+<script>
+let currentFilter = 'all';
+
+function setFilter(group, btn) {
+  currentFilter = group;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterAll();
+}
+
+function filterAll() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const rows = document.querySelectorAll('tr[data-group], .vendor-card[data-group]');
+  rows.forEach(el => {
+    const grp = el.dataset.group || '';
+    const srch = (el.dataset.search || '') + el.textContent.toLowerCase();
+    const groupMatch = currentFilter === 'all' || grp === currentFilter;
+    const textMatch = !q || srch.includes(q);
+    el.style.display = groupMatch && textMatch ? '' : 'none';
+  });
+  // Show/hide section titles
+  document.querySelectorAll('.section-title[data-group]').forEach(s => {
+    s.style.display = currentFilter === 'all' || s.dataset.group === currentFilter ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>
