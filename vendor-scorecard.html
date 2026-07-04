@@ -618,6 +618,8 @@ function filterAll() {
     s.style.display = currentFilter === 'all' || s.dataset.group === currentFilter ? '' : 'none';
   });
 }
+// Initialize on load
+window.addEventListener("DOMContentLoaded", filterAll);
 </script>
 </body>
 </html>
