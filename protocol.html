@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rich Mendez — Master Protocol Reference</title>
+<style>
+  :root {
+    --green:#006644;--green-l:#e8f5f0;--green-m:#00a878;
+    --red:#8b0000;--red-l:#fff0f0;
+    --yellow:#7a4f00;--yellow-l:#fff8e8;
+    --blue:#003380;--blue-l:#eef4ff;
+    --orange:#7a3000;--orange-l:#fff4ee;
+    --purple:#4b0082;--purple-l:#f8f0ff;
+    --gray:#f5f5f5;--border:#ddd;--text:#222;--muted:#666;--hdr:#1a3a2a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;color:var(--text);background:#fff;line-height:1.5}
+  .page{max-width:1100px;margin:0 auto;padding:24px 20px}
+  .header{text-align:center;padding:20px 0 16px;border-bottom:3px solid var(--green);margin-bottom:20px}
+  .header h1{font-size:22px;color:var(--hdr);letter-spacing:1px}
+  .header p{color:var(--muted);font-size:12px;margin-top:4px}
+  .sec{font-size:13px;font-weight:700;color:var(--hdr);border-left:4px solid var(--green);padding:6px 10px;background:var(--green-l);margin:20px 0 8px;letter-spacing:.5px}
+  .sec.red{border-color:var(--red);background:var(--red-l);color:var(--red)}
+  .sec.yellow{border-color:var(--yellow);background:var(--yellow-l);color:var(--yellow)}
+  .sec.blue{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
+  .sec.orange{border-color:var(--orange);background:var(--orange-l);color:var(--orange)}
+  .sec.purple{border-color:var(--purple);background:var(--purple-l);color:var(--purple)}
+  .analogy{background:var(--purple-l);border-left:4px solid var(--purple);padding:12px 14px;border-radius:4px;font-style:italic;color:var(--purple);font-size:13px;margin-bottom:12px}
+  .note{background:var(--yellow-l);border-left:4px solid var(--yellow);padding:10px 14px;border-radius:4px;font-size:12px;color:var(--yellow);margin-bottom:10px}
+  .alert{background:var(--red-l);border-left:4px solid var(--red);padding:10px 14px;border-radius:4px;font-size:12px;color:var(--red);margin-bottom:10px}
+  .success{background:var(--green-l);border-left:4px solid var(--green);padding:10px 14px;border-radius:4px;font-size:12px;color:var(--green);margin-bottom:10px}
+  .tbl-wrap{overflow-x:auto;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{background:var(--hdr);color:#fff;padding:7px 8px;text-align:left;font-size:11px;letter-spacing:.3px}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.45}
+  tr:nth-child(even) td{background:var(--gray)}
+  .g{color:var(--green);font-weight:700}.r{color:var(--red)}.y{color:var(--yellow)}.b{color:var(--blue)}.o{color:var(--orange)}.pu{color:var(--purple)}.mu{color:var(--muted)}
+  .now{background:var(--green-l)!important;font-weight:700}
+  .done{background:var(--gray)!important;color:var(--muted);text-decoration:line-through}
+  .pivot{background:var(--orange-l)!important}
+  .removed{background:#f0f0f0!important;color:var(--muted);text-decoration:line-through}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}
+  .bg{background:var(--green-l);color:var(--green)}
+  .br{background:var(--red-l);color:var(--red)}
+  .by{background:var(--yellow-l);color:var(--yellow)}
+  .bb{background:var(--blue-l);color:var(--blue)}
+  .bo{background:var(--orange-l);color:var(--orange)}
+  .bpu{background:var(--purple-l);color:var(--purple)}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px}
+  .ladder-box{border:2px solid var(--border);border-radius:6px;overflow:hidden}
+  .ladder-box.green{border-color:var(--green)}.ladder-box.orange{border-color:var(--orange)}
+  .lhdr{padding:8px 12px;font-weight:700;font-size:12px}
+  .lhdr.green{background:var(--green-l);color:var(--green)}.lhdr.orange{background:var(--orange-l);color:var(--orange)}
+  .risk-box{background:var(--red-l);border:1px solid #f0c0c0;border-radius:4px;padding:8px 10px;margin-top:4px;font-size:11px;color:var(--red)}
+  .risk-box strong{display:block;margin-bottom:3px;font-size:11px}
+  .intel-item{display:flex;gap:0;margin-bottom:4px;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+  .il{background:var(--green-l);color:var(--green);font-weight:700;font-size:11px;padding:8px 10px;min-width:160px;border-right:2px solid var(--green);display:flex;align-items:flex-start}
+  .it{padding:8px 10px;font-size:12px;color:var(--muted);background:var(--gray);flex:1}
+  .footer{text-align:center;color:var(--muted);font-size:11px;padding:20px 0 10px;border-top:1px solid var(--border);margin-top:24px}
+  nav.top{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+  nav.top a{padding:5px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;transition:all .15s}
+  nav.top a:hover{background:var(--hdr);color:#fff;border-color:var(--hdr)}
+  @media print{nav.top{display:none}body{font-size:11px}.page{max-width:100%;padding:0}}
+  @media(max-width:600px){.two-col{grid-template-columns:1fr}.intel-item{flex-direction:column}.il{min-width:unset;border-right:none;border-bottom:2px solid var(--green)}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="header">
+  <h1>RICH MENDEZ — MASTER PROTOCOL REFERENCE</h1>
+  <p>July 2026 &nbsp;·&nbsp; Household: Rich · Claudia · Dom &nbsp;·&nbsp; Clinical oversight: Claudia (RN) &nbsp;·&nbsp; All clinical decisions run through Claudia first</p>
+</div>
+
+<nav class="top">
+  <a href="#tirz">💉 Tirzepatide</a>
+  <a href="#ladder">📊 Titration</a>
+  <a href="#kpv">🧬 KPV</a>
+  <a href="#pipeline">🔬 Pipeline</a>
+  <a href="#gh">🏋️ GH Stack</a>
+  <a href="#tissue">🩹 TB4+BPC</a>
+  <a href="#ghkcu">✨ GHK-Cu</a>
+  <a href="#cognitive">🧠 Cognitive</a>
+  <a href="#supplements">💊 Supplements</a>
+  <a href="#gluta">💎 Glutathione</a>
+  <a href="#removed">🚫 Removed</a>
+  <a href="#pending">⏳ Pending</a>
+</nav>
+
+<!-- TIRZ -->
+<div id="tirz" class="sec">💉 TIER 1 — TIRZEPATIDE (ACTIVE)</div>
+<div class="analogy">Think of tirzepatide like the foundation of a house. Everything else gets built on top. You don't decorate before the foundation is solid.</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Parameter</th><th>Rich</th><th>Claudia</th><th>Dom</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Current dose</strong></td><td class="g"><strong>4.32mg (18u)</strong></td><td class="g"><strong>4.32mg (18u)</strong></td><td class="g"><strong>3.5mg (~15u)</strong></td></tr>
+    <tr><td><strong>Vendor</strong></td><td>Peptide Crafters</td><td>Peptide Crafters</td><td>LabSourceced</td></tr>
+    <tr><td><strong>Vial / concentration</strong></td><td>70mg / 3ml = 23.33mg/ml</td><td>70mg / 3ml = 23.33mg/ml</td><td>60mg / 2.5ml = 24mg/ml</td></tr>
+    <tr><td><strong>Actual COA fill</strong></td><td>~73.13mg</td><td>~73.13mg</td><td>~58.2mg</td></tr>
+    <tr><td><strong>Pin day</strong></td><td colspan="3" style="text-align:center">Every Friday</td></tr>
+    <tr><td><strong>Pre-medication</strong></td><td colspan="3" style="text-align:center">Claritin or Zyrtec — 1 hour before every pin. Non-negotiable household rule.</td></tr>
+    <tr><td><strong>Injection</strong></td><td colspan="3" style="text-align:center">SubQ abdomen, 31G 5/16", rotate sites</td></tr>
+    <tr><td><strong>BAC water</strong></td><td colspan="3" style="text-align:center">Hospira 30ml — 0.9% benzyl alcohol, pharmaceutical grade. Exclusive standard.</td></tr>
+    <tr><td><strong>Titration rule</strong></td><td colspan="3" style="text-align:center">Plateau-gated, NOT schedule-gated. See Titration section.</td></tr>
+    <tr><td><strong>Rich start / progress</strong></td><td colspan="3">Started June 7, 2026 at 375.6 lbs → ~353.5 lbs by early July (~22 lbs in ~24 days)</td></tr>
+  </tbody>
+</table></div>
+
+<div class="risk-box"><strong>⚠️ KNOWN RISKS — TIRZEPATIDE</strong>
+  <strong>Common:</strong> Nausea, vomiting, diarrhea, constipation, decreased appetite — especially during titration. Typically self-resolving. Injection site redness/bruising.<br>
+  <strong>Less common:</strong> Heart rate increase (avg +2-4 bpm), fatigue, dizziness.<br>
+  <strong>Rare but serious:</strong> Pancreatitis (stop immediately if severe abdominal pain), acute gallbladder disease, kidney injury from severe dehydration/vomiting.<br>
+  <strong>Theoretical (rodent data only):</strong> Thyroid C-cell tumors — not confirmed in humans. Contraindicated with personal/family history of MEN2 or medullary thyroid cancer.<br>
+  <strong>Rich-specific:</strong> No sulfonamide components — clear for sulfa allergy. Pre-medicate with antihistamine every pin day — non-negotiable.
+</div>
+
+<div class="success">🚪 TITRATION GATES — Minimum: gates 1+2 together. All 3 preferred.<br>
+1. Weight stalls 3–4 consecutive weekly weigh-ins at same caloric intake<br>
+2. Meaningful hunger returning between doses — actually affecting adherence, not minor<br>
+3. One slow week = noise. Do NOT gate on a single week.
+</div>
+
+<!-- TITRATION LADDER -->
+<div id="ladder" class="sec blue">📊 TITRATION LADDER — BOTH SCENARIOS</div>
+<div class="analogy">Two staircases to the same rooftop. Scenario A has more smaller steps — longer runway. Scenario B has fewer bigger steps — clinically validated, faster climb. Start with A. If A stops working twice in a row, pivot to B.</div>
+
+<div class="two-col">
+  <div class="ladder-box green">
+    <div class="lhdr green">SCENARIO A — 1.5mg LADDER (Default)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Step</th><th>Dose</th><th>Units</th><th>Jump</th></tr></thead>
+      <tbody>
+        <tr class="done"><td>Done</td><td>2.5mg</td><td>—</td><td>—</td></tr>
+        <tr class="done"><td>Done</td><td>5.0mg</td><td>—</td><td>—</td></tr>
+        <tr class="now"><td>📍 NOW</td><td>4.32mg</td><td>18u</td><td>Active</td></tr>
+        <tr><td>1</td><td class="g">6.0mg</td><td>26u</td><td>+1.68mg</td></tr>
+        <tr><td>2</td><td class="g">7.5mg</td><td>32u</td><td>+1.5mg</td></tr>
+        <tr><td>3</td><td class="g">9.0mg</td><td>39u</td><td>+1.5mg</td></tr>
+        <tr><td>4</td><td class="g">10.5mg</td><td>45u</td><td>+1.5mg</td></tr>
+        <tr><td>5</td><td class="g">12.0mg</td><td>51u</td><td>+1.5mg</td></tr>
+        <tr><td>6</td><td class="g">13.5mg</td><td>58u</td><td>+1.5mg</td></tr>
+        <tr><td>7</td><td class="g">15.0mg</td><td>64u</td><td>+1.5mg</td></tr>
+      </tbody>
+    </table></div>
+    <div style="padding:8px 10px;font-size:11px;color:var(--green);background:var(--green-l)">7 escalations remaining · Maximum runway · Consistent steps</div>
+  </div>
+  <div class="ladder-box orange">
+    <div class="lhdr orange">SCENARIO B — 2.5mg LADDER (Pivot Only)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Step</th><th>Dose</th><th>Units</th><th>Jump</th></tr></thead>
+      <tbody>
+        <tr class="done"><td>Done</td><td>2.5mg</td><td>—</td><td>—</td></tr>
+        <tr class="done"><td>Done</td><td>5.0mg</td><td>—</td><td>—</td></tr>
+        <tr class="now"><td>📍 NOW</td><td>4.32mg</td><td>18u</td><td>Active</td></tr>
+        <tr class="pivot"><td>Reset</td><td class="o">5.0mg</td><td>21u</td><td>+0.68mg ⚠️</td></tr>
+        <tr><td>1</td><td class="o">7.5mg</td><td>32u</td><td>+2.5mg</td></tr>
+        <tr><td>2</td><td class="o">10.0mg</td><td>43u</td><td>+2.5mg</td></tr>
+        <tr><td>3</td><td class="o">12.5mg</td><td>54u</td><td>+2.5mg</td></tr>
+        <tr><td>4</td><td class="o">15.0mg</td><td>64u</td><td>+2.5mg</td></tr>
+      </tbody>
+    </table></div>
+    <div style="padding:8px 10px;font-size:11px;color:var(--orange);background:var(--orange-l)">4 escalations · Clinically validated · Pivot only</div>
+  </div>
+</div>
+
+<div class="note">⚠️ PIVOT RULE: If TWO consecutive 1.5mg steps produce zero scale movement for 3+ weeks each — pivot to Scenario B at the next clean 2.5mg step. Reset step drops slightly before climbing — mathematically correct even if psychologically uncomfortable.</div>
+<div class="alert">🚫 Never titrate early. Never titrate on schedule. The ladder only works if you respect the gates.</div>
+
+<!-- KPV -->
+<div id="kpv" class="sec">🧬 TIER 2 — KPV (ORDERED / READY TO EXECUTE)</div>
+<div class="analogy">Your body has a fire alarm stuck in the ON position — chronic inflammation keeps sending firefighters even after the fire is out. KPV walks into the alarm box and manually resets it. Fire alarm goes quiet. Tissue starts healing.</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Parameter</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Vendor / Lot</strong></td><td>Peptide Crafters — Lot PC-G2-KPV10</td></tr>
+    <tr><td><strong>Quantity</strong></td><td>3 × 10mg vials = 30mg total</td></tr>
+    <tr><td><strong>Reconstitution</strong></td><td>1ml Hospira BAC water per vial = 10mg/ml. Open one vial at a time.</td></tr>
+    <tr><td><strong>Dose</strong></td><td>500mcg daily = 50 units U-100 &nbsp;·&nbsp; 100mcg=10u &nbsp;·&nbsp; 300mcg=30u</td></tr>
+    <tr><td><strong>Timing / injection</strong></td><td>Morning SubQ abdomen, 31G 5/16", rotate sites, no food dependency</td></tr>
+    <tr><td><strong>Cycle</strong></td><td>60 days once daily — uses all 3 vials. Reconstituted: fridge 2-8°C, 28 days max.</td></tr>
+    <tr><td><strong>Primary condition</strong></td><td>Recurring staph cellulitis, chronic systemic inflammation, NF-κB reset</td></tr>
+    <tr><td><strong>Secondary benefits</strong></td><td>Hair growth (L'Oreal patent US6,001,812 — anagen phase extension), antimicrobial against Staph + Candida</td></tr>
+    <tr><td><strong>Gate / sign-off</strong></td><td>Month 3 minimum. <span class="r"><strong>Claudia sign-off required before starting.</strong></span></td></tr>
+  </tbody>
+</table></div>
+<div class="risk-box"><strong>⚠️ KNOWN RISKS — KPV</strong>
+  <strong>Common:</strong> Mild injection site irritation, redness. Self-resolving.<br>
+  <strong>Uncommon:</strong> No serious adverse events documented in literature or patent record.<br>
+  <strong>Theoretical:</strong> As an immune modulator — pause during active severe infection to avoid theoretically accelerating inflammation. Resume after resolution.<br>
+  <strong>Complex vs single peptide:</strong> KPV is a defined tripeptide (Lys-Pro-Val) — easier to COA verify than thymalin. Clean safety profile.<br>
+  <strong>Sulfa allergy:</strong> No sulfonamide components. Clear.
+</div>
+
+<!-- RESEARCH PIPELINE -->
+<div id="pipeline" class="sec orange">🔬 TIER 3 — LONGEVITY PIPELINE (Pending Clinical Review)</div>
+<div class="analogy">These are the renovation plans for rooms you haven't touched yet. You know what you want to build. You're waiting for the right time and permits (Claudia's sign-off and baseline labs).</div>
+<div class="note">📋 SEQUENCE IS NON-NEGOTIABLE: Tirzepatide (foundation) → SS-31 (repair mitochondria) → NAD+ (fuel them) → Thymalin (restore immune surveillance) → Epithalon (reset cellular clock). Do not reorder. Each step enables the next.</div>
+
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Compound</th><th>ELI5</th><th>Mechanism</th><th>Dose / Timing</th><th>Target Month</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>SS-31 (Elamipretide)</strong></td>
+      <td>Your mitochondria are car batteries. SS-31 reconnects the cables. Old mouse mitochondria performed like young ones after treatment.</td>
+      <td>Binds cardiolipin in inner mitochondrial membrane. Restores electron transport chain. Raises BDNF. Cuts IL-1β and IL-18 by >50%. Restores muscle force + cardiac function.</td>
+      <td>2–10mg SubQ daily, 10-day cycles</td>
+      <td>Month 6</td>
+      <td><span class="badge by">PENDING CLAUDIA + LABS</span></td>
+    </tr>
+    <tr>
+      <td><strong>NAD+ (IV or SubQ)</strong></td>
+      <td>SS-31 fixes the engine. NAD+ is the fuel. No point adding fuel before the engine works.</td>
+      <td>Mitochondrial fuel precursor via NMN/NR pathways. IV preferred ($150–250/session LA area).</td>
+      <td>IV infusion or NMN 500mg daily oral</td>
+      <td>After SS-31</td>
+      <td><span class="badge bb">TIMING PENDING</span></td>
+    </tr>
+    <tr>
+      <td><strong>Thymalin</strong></td>
+      <td>Your immune system has a school (thymus) that slowly closes as you age. Thymalin reopens it.</td>
+      <td>Polypeptide complex from calf thymus. Restores thymic function + immune surveillance. Khavinson 12-year study: 4.1x lower mortality. Human data.</td>
+      <td>10mg SubQ daily, 10-day cycles, 2–3x/year</td>
+      <td>Month 6–9</td>
+      <td><span class="badge by">PENDING CLAUDIA</span></td>
+    </tr>
+    <tr>
+      <td><strong>Epithalon</strong></td>
+      <td>A reset button for your cellular clock. Works best when your immune system can surveil cells it activates.</td>
+      <td>Telomere extension via telomerase activation. Requires functional immune surveillance first.</td>
+      <td>5–10mg SubQ daily, 10-day cycles</td>
+      <td>Year 2–3</td>
+      <td><span class="badge bpu">FUTURE</span></td>
+    </tr>
+  </tbody>
+</table></div>
+
+<div class="risk-box"><strong>⚠️ KNOWN RISKS — LONGEVITY PIPELINE</strong>
+  <strong>SS-31:</strong> Injection site reactions (mild). No serious adverse events in clinical trials to date. Long-term data limited — still in clinical development. No known drug interactions.<br>
+  <strong>Thymalin:</strong> Complex extract — COA verification harder than single peptides. Theoretical autoimmune triggering (not documented in practice). Pause during active infection. No sulfonamide components — clear for Rich.<br>
+  <strong>NAD+ IV:</strong> Flushing, burning sensation during infusion (rate-dependent — slow infusion resolves this). Headache at high doses. Oral NMN: GI upset possible. Generally very safe.<br>
+  <strong>Epithalon:</strong> Minimal documented adverse events. Theoretical concern: telomerase activation in context of occult malignancy — cancer screening baseline required before use.
+</div>
+
+<!-- GH STACK -->
+<div id="gh" class="sec blue">🏋️ TIER 3 — GH STACK: CJC-1295 (No DAC) + IPAMORELIN (Month 6)</div>
+<div class="analogy">Think of your body's growth hormone like a sprinkler system. It's supposed to pulse on and off automatically — most when you sleep, less during the day. As you age the pulses get weaker and less frequent. CJC-1295 makes the pulses stronger. Ipamorelin makes them happen on cue. Together they restore the sprinkler to how it worked when you were younger — without turning it into a firehose like full synthetic HGH would.</div>
+
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Parameter</th><th>CJC-1295 No DAC (Modified GRF 1-29)</th><th>Ipamorelin</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Class</strong></td><td>GHRH analog</td><td>GH secretagogue / GHRP</td></tr>
+    <tr><td><strong>Mechanism</strong></td><td>Amplifies natural GH pulse — extends the signal</td><td>Triggers GH release selectively — very low cortisol, prolactin, ACTH response vs GHRP-2/6</td></tr>
+    <tr><td><strong>Why pair them</strong></td><td colspan="2">CJC sets the stage. Ipamorelin pulls the trigger. Together they produce a pulse that mimics natural youthful GH secretion without supraphysiologic spikes.</td></tr>
+    <tr><td><strong>Dose</strong></td><td>100mcg per injection</td><td>100–200mcg per injection</td></tr>
+    <tr><td><strong>Timing</strong></td><td colspan="2">Before bed on empty stomach (2+ hrs post meal). GH pulses strongest during deep sleep. Take together simultaneously.</td></tr>
+    <tr><td><strong>Injection</strong></td><td colspan="2">SubQ abdomen, 31G 5/16". Rotate sites. Do NOT inject with food nearby — insulin spike blunts GH release.</td></tr>
+    <tr><td><strong>Frequency</strong></td><td colspan="2">5 days on / 2 days off to prevent receptor desensitization. Or daily — community split. Start 5/2.</td></tr>
+    <tr><td><strong>Benefits</strong></td><td colspan="2">Fat oxidation (compounds tirz), muscle preservation during aggressive cut, improved sleep quality and deep sleep architecture, recovery acceleration</td></tr>
+    <tr><td><strong>Gate</strong></td><td colspan="2">Month 6. Requires baseline IGF-1 labs before starting. IGF-1 monitoring every 3 months while active.</td></tr>
+    <tr><td><strong>Claudia sign-off</strong></td><td colspan="2" class="r"><strong>Required. Labs required first.</strong></td></tr>
+  </tbody>
+</table></div>
+
+<div class="risk-box"><strong>⚠️ KNOWN RISKS — CJC-1295 NO DAC + IPAMORELIN</strong>
+  <strong>Common:</strong> Water retention (mild, usually resolves within 2–4 weeks as body adjusts). Tingling or numbness in hands/feet (carpal tunnel-like — dose-dependent, reduce if persistent). Headache at higher doses. Mild fatigue at start.<br>
+  <strong>Metabolic:</strong> Transient blood sugar elevation possible — monitor glucose, especially stacked with berberine and tirzepatide already affecting insulin sensitivity. Take on empty stomach to minimize.<br>
+  <strong>IGF-1 elevation:</strong> Supraphysiologic IGF-1 is a theoretical cancer promoter. At standard doses with monitoring this is not a documented clinical concern — but baseline and ongoing IGF-1 monitoring is non-negotiable.<br>
+  <strong>Contraindications:</strong> Active cancer or strong family history — do not use without oncology clearance. Diabetic retinopathy.<br>
+  <strong>Why Ipamorelin specifically:</strong> Most selective GH secretagogue available — minimal cortisol, prolactin, or ACTH side effects. Safer profile than GHRP-2 or GHRP-6 which cause significant hunger/cortisol spikes.<br>
+  <strong>Sulfa allergy:</strong> No sulfonamide components. Clear.
+</div>
+
+<!-- GHK-CU -->
+<div id="ghkcu" class="sec purple">✨ GHK-Cu — RAW POWDER + SERUM (Approved — Non-Injectable Use)</div>
+<div class="analogy">Think of GHK-Cu like a renovation crew for your skin and hair follicles. It shows up, tells your body that repairs are needed, and activates the healing process. The copper part (Cu) is the tool kit the crew carries — copper is essential for collagen cross-linking and tissue remodeling.</div>
+
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Parameter</th><th>Raw Powder</th><th>Topical Serum</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Vendor</strong></td><td>Verified Peptides — 1000mg / $33 (Janoshik purity)</td><td>Formulate from raw powder or source pre-made serum</td></tr>
+    <tr><td><strong>Cost</strong></td><td>$0.033/mg — best price on board</td><td>Variable</td></tr>
+    <tr><td><strong>Concentration (topical)</strong></td><td colspan="2">Standard cosmetic: 0.1–2% w/v. Start 0.1%, titrate up.</td></tr>
+    <tr><td><strong>Application</strong></td><td colspan="2">Scalp (hair growth), face/skin (collagen stimulation), wound sites</td></tr>
+    <tr><td><strong>Timing</strong></td><td colspan="2">Once daily. Nighttime application preferred — skin repair peaks during sleep.</td></tr>
+    <tr><td><strong>Primary uses</strong></td><td colspan="2">Hair follicle reactivation, collagen stimulation, wound healing acceleration, anti-inflammatory, skin tightening during aggressive fat loss</td></tr>
+    <tr><td><strong>Mechanism</strong></td><td colspan="2">Activates TGF-β and VEGF signaling, upregulates collagen synthesis, stimulates copper-dependent enzymes, promotes anagen phase extension (L'Oreal patent US6,001,812)</td></tr>
+    <tr><td><strong>Lab verification</strong></td><td>Janoshik purity — acceptable for topical/non-injectable</td><td>Same raw powder source</td></tr>
+    <tr><td><strong>Claudia sign-off</strong></td><td colspan="2">Topical use — lower bar. Claudia awareness recommended given active skin condition protocol.</td></tr>
+  </tbody>
+</table></div>
+<div class="note">📦 MAKING A SERUM FROM RAW POWDER: Dissolve in distilled water or a carrier (hyaluronic acid serum works well). Use a sterile mixing environment. Standard ratio: 100mg powder per 100ml solution = 0.1% concentration. Store refrigerated, use within 30 days. Do NOT inject — Janoshik purity alone is not sufficient for injectable use.</div>
+<div class="risk-box"><strong>⚠️ KNOWN RISKS — GHK-Cu (Topical)</strong>
+  <strong>Common:</strong> Mild skin tingling at higher concentrations (normal — indicates activity). Temporary blue-green tint on skin from copper — washes off.<br>
+  <strong>Uncommon:</strong> Skin irritation at concentrations above 2% — start low.<br>
+  <strong>Systemic (topical route):</strong> Minimal systemic absorption through intact skin. Not a meaningful risk at standard topical concentrations.<br>
+  <strong>Copper accumulation:</strong> Theoretical at very high systemic doses — not relevant at topical cosmetic concentrations.<br>
+  <strong>Active wounds:</strong> May accelerate healing but also stimulate VEGF — consistent with prior BPC-157 concern flag. Discuss with Claudia if applying to active cellulitis sites.<br>
+  <strong>Sulfa allergy:</strong> No sulfonamide components. Clear.
+</div>
+
+<!-- COGNITIVE STACK -->
+<div id="cognitive" class="sec purple">🧠 TIER 4 — COGNITIVE STACK</div>
+<div class="analogy">Your brain is a garden. Some things are already growing (current supplements). Some you plant now and wait (Lion's Mane, Bacopa). Some you bring in later when the garden is ready (Semax, Selank, Adamax). Don't plant all seeds at once — you won't know which one grew.</div>
+
+<div class="sec purple" style="font-size:11px;margin-top:8px">Already Active</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Compound</th><th>Cognitive Mechanism</th></tr></thead>
+  <tbody>
+    <tr><td>Creatine</td><td>Brain ATP — working memory + processing speed</td></tr>
+    <tr><td>Magnesium (Triple Complex)</td><td>Sleep architecture → memory consolidation overnight</td></tr>
+    <tr><td>KSM-66 Ashwagandha</td><td>Cortisol reduction → PFC performance. Documented memory improvement.</td></tr>
+    <tr><td>NAC</td><td>Glutamate regulation — neuroprotective</td></tr>
+    <tr><td>ALA 600mg</td><td>Crosses blood-brain barrier — neural antioxidant</td></tr>
+    <tr><td>Tirzepatide</td><td>Dopamine stabilization, neuroinflammation reduction, hippocampal protection</td></tr>
+    <tr><td>L-Theanine 200mg</td><td>Alpha wave production — calm focused alertness. With morning coffee.</td></tr>
+  </tbody>
+</table></div>
+
+<div class="sec purple" style="font-size:11px;margin-top:8px">Add Now — OTC Tier 1</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Compound</th><th>Dose</th><th>Timing</th><th>Why</th><th>Risks</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Lion's Mane</strong></td><td>1,000–3,000mg</td><td>Any time with food</td><td>NGF + BDNF. 2023 human trial: processing speed + working memory at 4 weeks.</td><td>Rare allergic reaction. Mild GI. May interact with anticoagulants. Generally very safe.</td></tr>
+    <tr><td><strong>Bacopa Monnieri</strong></td><td>300–450mg</td><td>With fat</td><td>Memory consolidation, reduces cognitive anxiety.</td><td>GI upset early (take with fat). Processing SLOWS weeks 1–4 before improving — do not judge early. May potentiate thyroid meds.</td></tr>
+  </tbody>
+</table></div>
+
+<div class="sec purple" style="font-size:11px;margin-top:8px">Peptide Tier 2 — Month 3+ (Nasal Only). Claudia sign-off required.</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Compound</th><th>Dose</th><th>Cycle</th><th>Use Case</th><th>Sequence</th><th>Risks</th></tr></thead>
+  <tbody>
+    <tr style="background:var(--green-l)"><td><strong>Semax</strong></td><td>200–900mcg intranasal</td><td>5 on / 2 off</td><td>BDNF upregulation, dopamine + serotonin in PFC, focus. 30+ years Russian clinical data. Effect in 20–30 min.</td><td class="g"><strong>START HERE</strong></td><td>Mild headache at high doses. Occasional irritability. No serious adverse events. No hormonal interference. Fully cleared within hours.</td></tr>
+    <tr><td><strong>Selank</strong></td><td>250–500mcg intranasal</td><td>5 on / 2 off</td><td>GABA modulation — reduces cognitive anxiety/noise without sedation. Complementary to Semax.</td><td>After Semax baseline</td><td>Very clean profile. Mild sedation at high doses. No serious adverse events documented.</td></tr>
+    <tr style="background:var(--orange-l)"><td><strong>Adamax (NA-Semax Amidate)</strong></td><td>50–200mcg intranasal</td><td>5 on / 2 off</td><td>10x more potent than Semax. Longer duration 8–12hrs. Stronger BDNF pulse.</td><td class="o"><strong>LAST — after Semax baseline confirmed</strong></td><td>Headache more common than Semax. Higher potency = easier to overshoot. Weakest human evidence base of the three. Start at minimum dose.</td></tr>
+  </tbody>
+</table></div>
+<div class="alert">⚠️ VENDOR NOTE: Atomik Labz MDx accreditation expired/unverifiable for injectable scope. Nasal use only — MDx acceptable at nasal-route risk level.</div>
+
+<!-- SUPPLEMENTS -->
+<div id="supplements" class="sec">💊 CURRENT SUPPLEMENT STACK — DAILY SCHEDULE</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Time</th><th>Supplement</th><th>Dose</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr style="background:var(--green-l)"><td><strong>Friday AM only</strong></td><td class="g"><strong>Tirzepatide</strong></td><td>18u / 4.32mg</td><td>1hr after Claritin/Zyrtec. SubQ rotation.</td></tr>
+    <tr><td>Morning</td><td>L-Theanine</td><td>200mg</td><td>With coffee.</td></tr>
+    <tr><td>Morning</td><td>ALA</td><td>600mg</td><td>With food.</td></tr>
+    <tr><td>Morning</td><td>Berberine</td><td>—</td><td>⚠️ Claudia sign-off on tirz interaction pending.</td></tr>
+    <tr><td>With meals</td><td>Kirkland Fish Oil</td><td>2 caps</td><td>Confirm concentrated vs standard version.</td></tr>
+    <tr><td>With meals</td><td>Collagen peptides</td><td>—</td><td>Any meal.</td></tr>
+    <tr><td>Any time</td><td>Creatine monohydrate</td><td>5g</td><td>Timing flexible.</td></tr>
+    <tr><td>Any time</td><td>Biotin</td><td>10,000mcg</td><td>Timing flexible.</td></tr>
+    <tr><td>Spaced</td><td>NAC</td><td>—</td><td>Away from minerals + multivitamin.</td></tr>
+    <tr><td>Spaced</td><td>Members Mark Multi → EVL VitaMode</td><td>—</td><td>Swap when current supply runs out.</td></tr>
+    <tr><td>Spaced</td><td>D3K2 → Tri-K upgrade</td><td>—</td><td>MK-4 + MK-7 + K1 combo upgrade when ready.</td></tr>
+    <tr><td>Bedtime</td><td>KSM-66 Ashwagandha</td><td>—</td><td>Cortisol suppression overnight.</td></tr>
+    <tr><td>Bedtime</td><td>Nutricost Triple Magnesium Complex</td><td>—</td><td>Recovery. Upgraded from pure glycinate.</td></tr>
+    <tr><td>Bedtime</td><td>Psyllium husk</td><td>—</td><td>16oz+ water. 2+ hrs after last meal. Spaced from NAC + multi.</td></tr>
+    <tr><td>Bedtime</td><td>Probiotic 50B CFU multi-strain</td><td>—</td><td>2+ hrs from antibiotics if on a course.</td></tr>
+    <tr><td>Nighttime</td><td>GHK-Cu serum (topical)</td><td>0.1–2% solution</td><td>Scalp + skin. Nighttime preferred for absorption during sleep repair cycle.</td></tr>
+  </tbody>
+</table></div>
+
+
+<!-- TB4 + BPC-157 -->
+<div class="sec orange">🩹 TIER 3 — TISSUE REPAIR STACK: TB-500 + BPC-157 (Gated — Cancer Baseline Required)</div>
+<div class="analogy">Think of TB-500 and BPC-157 like a construction crew that repairs damaged buildings. TB-500 is the crew that fixes structural damage — tendons, muscles, tissue. BPC-157 is the foreman who directs the whole site and calls in other contractors. They work best together. But before you hire a construction crew, you need to make sure there are no condemned buildings on the site that shouldn't be repaired. That's what the cancer baseline check is for — you don't want to accidentally renovate something that needs to be demolished.</div>
+
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Parameter</th><th>TB-500 (Thymosin Beta-4)</th><th>BPC-157 (Body Protection Compound)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>ELI5</strong></td><td>Your body's cellular repair signal. Tells cells to migrate to damaged areas, rebuild structure, reduce inflammation.</td><td>A 15-amino acid sequence that accelerates healing across almost every tissue type — gut lining, tendons, muscles, nerves, skin.</td></tr>
+    <tr><td><strong>Mechanism</strong></td><td>Upregulates actin — the protein cells use to move and repair. Promotes angiogenesis (new blood vessel formation), reduces inflammation, accelerates cell migration to injury sites.</td><td>Stimulates growth hormone receptors locally. Upregulates VEGF (vascular endothelial growth factor). Activates multiple repair pathways simultaneously. Anti-inflammatory via COX-2 modulation.</td></tr>
+    <tr><td><strong>Classic stack</strong></td><td colspan="2">TB-500 + BPC-157 is the most common tissue repair pairing in the peptide community. TB-500 handles structural cellular repair, BPC-157 handles vascular and receptor-level repair. Together they cover most tissue types comprehensively.</td></tr>
+    <tr><td><strong>Dose</strong></td><td>2–2.5mg twice weekly (loading phase 4–6 weeks), then 2mg weekly maintenance</td><td>200–500mcg daily SubQ or twice daily for acute injury</td></tr>
+    <tr><td><strong>Injection</strong></td><td>SubQ, rotating sites. Systemic effect — does not need to be near injury site.</td><td>SubQ near injury site OR systemic. Both approaches documented.</td></tr>
+    <tr><td><strong>Timing in protocol</strong></td><td colspan="2">Month 6+ gate — after metabolic foundation stable. VEGF/angiogenesis mechanism requires cancer baseline screening first.</td></tr>
+    <tr><td><strong>Primary use cases</strong></td><td>Tendon/ligament repair, muscle healing, post-workout recovery acceleration, systemic anti-inflammatory</td><td>Gut lining repair, joint recovery, skin wound healing, nerve regeneration, systemic tissue repair</td></tr>
+    <tr><td><strong>Cancer gate</strong></td><td colspan="2" class="r"><strong>VEGF upregulation is the mechanism that makes both effective — it is also the mechanism of concern with occult malignancy. Cancer baseline screening required before use. Claudia review required.</strong></td></tr>
+    <tr><td><strong>Crafters data</strong></td><td colspan="2">Crafters ran a TB-500 stability study showing lyophilized storage maintains potency for 3-5 years. Same stability principles apply to BPC-157 — complex peptide, exceptionally stable lyophilized and frozen.</td></tr>
+  </tbody>
+</table></div>
+
+<div class="risk-box"><strong>⚠️ KNOWN RISKS — TB-500 + BPC-157</strong>
+  <strong>Common (TB-500):</strong> Mild fatigue and head-rush feeling shortly after injection (transient). Mild injection site irritation. Occasional lethargy at higher loading doses — dose-dependent.<br>
+  <strong>Common (BPC-157):</strong> Nausea at higher doses (especially oral route). Mild injection site redness. Vivid dreams reported by some users — mechanism unclear.<br>
+  <strong>Serious flag — VEGF:</strong> Both compounds upregulate vascular endothelial growth factor (VEGF). VEGF promotes angiogenesis — the growth of new blood vessels. In healthy tissue this is the repair mechanism. In cancerous tissue, VEGF is exactly what tumors use to grow their own blood supply. This is why cancer baseline screening is non-negotiable before use — not because either compound causes cancer, but because they could accelerate an already-present occult malignancy.<br>
+  <strong>TB-500 WADA status:</strong> Banned in competitive sport. Not relevant to your protocol but noted.<br>
+  <strong>BPC-157 regulatory:</strong> No FDA approved use. RUO only. No serious adverse events documented in animal studies or community use at standard doses.<br>
+  <strong>Sulfa allergy:</strong> No sulfonamide components in either. Clear.
+</div>
+
+<!-- GLUTATHIONE -->
+<div id="gluta" class="sec purple">💎 GLUTATHIONE — ANTIOXIDANT PROTOCOL (Standalone — Any Tier)</div>
+<div class="analogy">Imagine your cells are factories. Every factory produces waste — exhaust, byproducts, garbage. Glutathione is the janitor crew. They run around cleaning up all the toxic waste before it damages the machinery. When you're doing aggressive fat loss, your cells are working overtime, producing more waste than usual. You need a bigger janitorial crew. That's glutathione.</div>
+
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Parameter</th><th>IV Glutathione</th><th>SubQ / IM Glutathione</th><th>Oral / Liposomal</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Bioavailability</strong></td><td class="g"><strong>~100% — gold standard</strong></td><td>High — ~70-90%</td><td>Low oral (~1-3%), Liposomal ~20-40%</td></tr>
+    <tr><td><strong>Dose</strong></td><td>600–1,200mg IV push (slow) or drip</td><td>200–600mg SubQ or IM</td><td>500–1,000mg liposomal daily</td></tr>
+    <tr><td><strong>Frequency</strong></td><td>1–3x weekly during active protocol</td><td>2–3x weekly</td><td>Daily</td></tr>
+    <tr><td><strong>Cost</strong></td><td>$75–150/session at LA med spas</td><td>Peptide vendor sourced</td><td>$30–60/month</td></tr>
+    <tr><td><strong>Primary benefits</strong></td><td colspan="3">Master antioxidant — neutralizes reactive oxygen species (ROS). Liver detoxification support. Skin brightening (melanin reduction via tyrosinase inhibition). Immune function support. Inflammation reduction. Mitochondrial protection — synergizes with SS-31 and NAD+.</td></tr>
+    <tr><td><strong>Timing in protocol</strong></td><td colspan="3">Can add at any tier — no gate required. Best value: liposomal oral now, upgrade to SubQ or IV when GH stack begins at Month 6 for maximum mitochondrial synergy.</td></tr>
+    <tr><td><strong>Synergy</strong></td><td colspan="3">Stacks powerfully with NAD+ (both protect mitochondria), SS-31 (reduces oxidative stress load), and tirzepatide (fat loss generates ROS). These three together form the core mitochondrial protection stack.</td></tr>
+    <tr><td><strong>Claudia sign-off</strong></td><td colspan="3">Oral/liposomal — low bar, inform Claudia. IV/SubQ — Claudia sign-off + sourcing review required.</td></tr>
+  </tbody>
+</table></div>
+
+<div class="risk-box"><strong>⚠️ KNOWN RISKS — GLUTATHIONE</strong>
+  <strong>IV route:</strong> Rare anaphylaxis (known hypersensitivity reaction — test dose first). Too-rapid IV push can cause cramping, shortness of breath, tight chest — always administer slowly. Zinc depletion at high long-term doses — supplement zinc if using IV glutathione regularly.<br>
+  <strong>Oral/liposomal:</strong> GI upset possible at higher doses. Very safe overall.<br>
+  <strong>SubQ:</strong> Injection site irritation. Some formulations use excipients — check for sulfonamide derivatives. <span class="r"><strong>Sulfa allergy flag: verify excipients in any injectable glutathione formulation with Claudia before use.</strong></span><br>
+  <strong>Skin lightening:</strong> Expected side effect at higher doses — may be desirable or undesirable depending on context. Reversible on discontinuation.<br>
+  <strong>Drug interactions:</strong> May potentiate chemotherapy agents — not relevant currently, but flag if cancer treatment ever becomes relevant.
+</div>
+
+
+<!-- REMOVED -->
+<div id="removed" class="sec red">🚫 REMOVED FROM PROTOCOL — DO NOT ADD WITHOUT RESEARCH REVIEW</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Compound</th><th>Why Removed</th><th>Reinstatement Condition</th></tr></thead>
+  <tbody>
+    <tr class="removed"><td><strong>MOTS-c</strong></td><td>FDA flagged for regulatory review. WADA banned (performance-enhancing designation). PCAC decision was pending July 23, 2026. Experimental — limited human data. Theoretical hypoglycemia risk stacked with berberine + tirz via AMPK overlap.</td><td>Pending PCAC July 23 decision. Check ruling before any consideration. If cleared — Claudia review + IGF-1 baseline required.</td></tr>
+    <tr class="removed"><td><strong>Tesamorelin</strong></td><td>Hypersensitivity risk documented. Wife contraindicated specifically.</td><td>Not being reconsidered for Claudia. Rich only — Claudia clinical review first.</td></tr>
+    <tr class="removed"><td><strong>HGH Fragment 176-191</strong></td><td>Gray market supply integrity concerns. Failed obesity development trials — mechanistic promise not confirmed in humans at this stage.</td><td>Not prioritized. CJC + Ipamorelin covers the GH optimization goal.</td></tr>
+    <tr class="removed"><td><strong>BPC-157</strong></td><td>VEGF/angiogenesis stimulation — theoretical cancer risk pending baseline cancer screening labs.</td><td>Revisit after cancer baseline screening complete. If clear — Claudia review.</td></tr>
+    <tr class="removed"><td><strong>LL-37</strong></td><td>Injectable route complex, significant pain on injection, systemic immune activation risk given active cellulitis history.</td><td>KPV addresses the antimicrobial need. LL-37 deprioritized.</td></tr>
+  </tbody>
+</table></div>
+
+<!-- PENDING -->
+<div id="pending" class="sec yellow">⏳ PENDING ACTIONS</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Item</th><th>Action Required</th><th>Gate</th></tr></thead>
+  <tbody>
+    <tr><td><strong>KPV cycle start</strong></td><td>Claudia sign-off first. Then 60-day protocol.</td><td class="r">Claudia</td></tr>
+    <tr><td><strong>SS-31 sourcing</strong></td><td>COA must explicitly name SS-31. Certified Peptides rejected — compound unnamed. Need Vanguard A2LA lab.</td><td class="r">Lab + Claudia</td></tr>
+    <tr><td><strong>IGF-1 baseline labs</strong></td><td>Required before CJC + Ipamorelin at Month 6. Monitor every 3 months while active.</td><td class="y">Labs before Month 6</td></tr>
+    <tr><td><strong>MOTS-c PCAC ruling</strong></td><td>Check PCAC July 23, 2026 decision. If cleared — bring to Claudia for protocol review.</td><td class="y">Post July 23</td></tr>
+    <tr><td><strong>Toenail fungus</strong></td><td>Itraconazole pulse dosing as terbinafine alternative. Raise at telehealth. Flag body aches, mood, GI.</td><td class="y">Telehealth</td></tr>
+    <tr><td><strong>MiteBGone eczema protocol</strong></td><td>Claudia sign-off — sulfur content flagged against sulfa allergy.</td><td class="r">Claudia</td></tr>
+    <tr><td><strong>Cream of tartar (potassium)</strong></td><td>Deferred until CMP labs confirm kidney baseline.</td><td class="y">Labs first</td></tr>
+    <tr><td><strong>Berberine + tirz interaction</strong></td><td>Claudia clinical sign-off before continuing.</td><td class="r">Claudia</td></tr>
+    <tr><td><strong>Sleep — 5.5hr average</strong></td><td>Single largest remaining cortisol + fat loss obstacle. Phone in bed = primary cause. Reading before sleep committed. Fix this before adding more compounds.</td><td class="r">Behavioral — NOW</td></tr>
+    <tr><td><strong>Cancer baseline screening</strong></td><td>Required before BPC-157 reconsideration and Epithalon long-term planning.</td><td class="y">Year 1–2</td></tr>
+    <tr><td><strong>EVL VitaMode swap</strong></td><td>Replace Members Mark when supply runs out.</td><td class="b">Supply dependent</td></tr>
+    <tr><td><strong>Cognitive stack formal start</strong></td><td>Lion's Mane now. Bacopa Month 1–2. Semax Month 3+. One at a time.</td><td class="b">Staggered</td></tr>
+  </tbody>
+</table></div>
+
+<!-- SAFETY FLAGS -->
+<div class="sec red" style="margin-top:20px">🚨 PERMANENT SAFETY FLAGS</div>
+<div class="alert"><strong>CONFIRMED SULFA DRUG ALLERGY</strong> — Sulfonamide class (Bactrim/trimethoprim-sulfamethoxazole). Flag ANY sulfonamide-class compound during supplement, topical, or medication vetting. This applies to every new compound evaluated permanently.</div>
+<div class="alert"><strong>SPINAL HISTORY</strong> — Congenitally narrow spinal canal + prior spinal cord concussion from football. All resistance training programming accounts for this. No axial loading without proper form review. No pull-up bar at current bodyweight (SM-4008 300lb user weight rating).</div>
+
+<div class="sec red">🔴 HONEST PUSH</div>
+<div class="alert">You have one of the most well-researched personal protocols in this space. The execution risk is spreading across too many fronts simultaneously. KPV hasn't started. Cognitive stack isn't formalized. GH stack is 4 months away. Sleep — which undermines all of it — hasn't been solved. A well-executed simple protocol beats a perfectly designed complex one that isn't running. Fix sleep first. Everything else compounds off that base.</div>
+
+<div class="footer">
+  Rich Mendez Master Protocol Reference &nbsp;·&nbsp; July 2026 &nbsp;·&nbsp; All clinical decisions through Claudia (RN) &nbsp;·&nbsp; Research reference only
+  <br><a href="vendor-scorecard.html" style="color:var(--green);font-size:11px;margin-top:4px;display:inline-block">→ Vendor Scorecard</a>
+</div>
+
+</div>
+</body>
+</html>
