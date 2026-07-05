@@ -237,6 +237,8 @@
       <div class="fiber-val"><span id="fiber-eaten">0</span>g / 38g</div>
     </div>
     <div class="flags-wrap" id="macro-flags"></div>
+    <button onclick="toggleNutrientDetail()" id="nutrient-toggle-btn" style="width:100%;margin-top:10px;padding:9px;background:none;border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;">▾ All Nutrients</button>
+    <div id="nutrient-detail" style="display:none;margin-top:8px;"></div>
   </div>
 
   <div class="section-title">Diary</div>
@@ -541,6 +543,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 const START_WEIGHT = 375.4;
@@ -629,6 +632,8 @@ let currentMealType = 'Breakfast';
 let currentAnalysis = null;
 let scannerStream = null;
 let scannerInterval = null;
+let zxingReader = null;
+let zxingControls = null;
 
 // ── STORAGE ───────────────────────────────────────────────────────────────────
 const todayKey = () => new Date().toISOString().slice(0,10);
@@ -889,6 +894,45 @@ function copyExport(){
 }
 
 // ── SETTINGS (manual macro/calorie override) ────────────────────────────────
+// ── EXPANDABLE MICRONUTRIENT DETAIL (Today page) ────────────────────────────
+let nutrientDetailOpen = false;
+function toggleNutrientDetail(){
+  nutrientDetailOpen = !nutrientDetailOpen;
+  document.getElementById('nutrient-detail').style.display = nutrientDetailOpen ? '' : 'none';
+  document.getElementById('nutrient-toggle-btn').textContent = nutrientDetailOpen ? '▴ Hide Nutrients' : '▾ All Nutrients';
+}
+function nutrientRow(label, val, goal, unit, invert){
+  const pct = goal ? Math.min((val/goal)*100,100) : 0;
+  const over = invert ? val > goal : (goal && val < goal);
+  const color = invert ? (val>goal?'var(--red)':'var(--blue)') : (goal && val>=goal?'var(--green)':'var(--blue)');
+  return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+      <span style="font-weight:600;">${label}</span>
+      <span>${val}${unit} <span style="color:var(--muted);">/ ${goal}${unit}${invert?' ceiling':''}</span></span>
+    </div>
+    <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;">
+      <div style="height:100%;width:${pct}%;background:${color};"></div>
+    </div>
+  </div>`;
+}
+function renderNutrientDetail(t, mt){
+  const html = `<div class="weight-card" style="padding:12px;">
+    ${nutrientRow('Sodium', Math.round(t.sodium), mt.sodium, 'mg', true)}
+    ${nutrientRow('Potassium', Math.round(t.potassium), mt.potassium, 'mg', false)}
+    ${nutrientRow('Magnesium', Math.round(t.magnesium), 400, 'mg', false)}
+    ${nutrientRow('Cholesterol', Math.round(t.cholesterol), mt.cholesterol, 'mg', true)}
+    ${nutrientRow('Saturated Fat', Math.round(t.satfat), 20, 'g', true)}
+    ${nutrientRow('Trans Fat', Math.round(t.transfat*10)/10, 0, 'g', true)}
+    ${nutrientRow('Omega-3', Math.round(t.omega3), 2600, 'mg', false)}
+    ${nutrientRow('Sugar', Math.round(t.sugar), 50, 'g', true)}
+    ${nutrientRow('Calcium', Math.round(t.calcium), 1000, 'mg', false)}
+    ${nutrientRow('Iron', Math.round(t.iron*10)/10, 8, 'mg', false)}
+    ${nutrientRow('Vitamin C', Math.round(t.vitc), 90, 'mg', false)}
+    <div style="font-size:11px;color:var(--muted);padding-top:6px;">Total Carbs (before fiber): ${Math.round(t.carbsTotal)}g</div>
+  </div>`;
+  document.getElementById('nutrient-detail').innerHTML = html;
+}
+
 function selectPerson(person){
   setCurrentPerson(person);
   renderSettings();
@@ -1037,11 +1081,14 @@ function renderToday() {
     : `<span style="font-size:16px;">${displayDate}</span>${prelogBadge}${backBtn}`;
 
   // Totals from food
-  const t={cal:0,protein:0,fat:0,carbs:0,fiber:0,sodium:0,potassium:0,cholesterol:0};
+  const t={cal:0,protein:0,fat:0,carbs:0,fiber:0,sodium:0,potassium:0,cholesterol:0,satfat:0,transfat:0,omega3:0,sugar:0,calcium:0,iron:0,vitc:0,magnesium:0,carbsTotal:0};
   MEAL_TYPES.forEach(mt=>(dayLog[mt]||[]).forEach(m=>{
     t.cal+=m.calories||0; t.protein+=m.protein_g||0; t.fat+=m.fat_total_g||0;
     t.carbs+=m.carbs_net_g||0; t.fiber+=m.fiber_g||0;
     t.sodium+=m.sodium_mg||0; t.potassium+=m.potassium_mg||0; t.cholesterol+=m.cholesterol_mg||0;
+    t.satfat+=m.fat_saturated_g||0; t.transfat+=m.fat_trans_g||0; t.omega3+=m.omega3_mg||0;
+    t.sugar+=m.sugar_g||0; t.calcium+=m.calcium_mg||0;
+    t.iron+=m.iron_mg||0; t.vitc+=m.vitamin_c_mg||0; t.magnesium+=m.magnesium_mg||0; t.carbsTotal+=m.carbs_total_g||0;
   }));
 
   // Calorie budget display — MFP style: Budget - Food + Exercise = Remaining
@@ -1093,6 +1140,7 @@ function renderToday() {
   else if(t.sodium>0) flags.push(['green','✅ Sodium OK']);
   if(t.cholesterol>mt.cholesterol) flags.push(['red','⚠️ Cholesterol over']);
   document.getElementById('macro-flags').innerHTML = flags.map(([c,txt])=>`<div class="flag flag-${c}">${txt}</div>`).join('');
+  renderNutrientDetail(t, mt);
 
   // Diary
   document.getElementById('diary-cards').innerHTML = MEAL_TYPES.map(mt=>{
@@ -1332,8 +1380,28 @@ async function startScanner(){
           } catch(e) { /* keep scanning */ }
         }
       }, 300);
+    } else if(typeof ZXing !== 'undefined') {
+      // Real fallback for iOS Safari and any browser lacking BarcodeDetector.
+      // ZXing reads EAN-13/EAN-8/UPC-A/UPC-E/Code128/QR — jsQR (previous fallback) only read QR,
+      // so every food-barcode scan on iOS was guaranteed to fail before this fix.
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.QR_CODE
+      ]);
+      const reader = new ZXing.BrowserMultiFormatReader(hints);
+      zxingReader = reader;
+      zxingControls = await reader.decodeFromVideoElement(video, (result, err) => {
+        if(result && result.getText()){
+          stopScanner();
+          fetchBarcode(result.getText());
+        }
+        // NotFoundException fires continuously while scanning with nothing in frame — expected, ignore
+      });
     } else {
-      // Fallback: jsQR canvas method
+      // Last-resort fallback: jsQR canvas method (QR codes only — will not read food barcodes)
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       scannerInterval = setInterval(()=>{
@@ -1358,6 +1426,7 @@ function stopScanner(){
   const modal=document.getElementById('scanner-modal');
   modal.classList.remove('open');
   if(scannerInterval){ clearInterval(scannerInterval); scannerInterval=null; }
+  if(zxingReader){ try{ zxingReader.reset(); }catch(e){} zxingReader=null; zxingControls=null; }
   if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream=null; }
 }
 
@@ -1409,10 +1478,12 @@ Rules:
 - Account for cooking method's effect on weight and nutrient density (e.g. raw vs. cooked weight, moisture loss from grilling/roasting, oil absorption from frying).
 - When ingredient quantities or preparation are ambiguous, make a conservative (lower-bound) estimate rather than an average-case guess — do not round up in the person's favor.
 - carbs_net_g = carbs_total_g − fiber_g.
+- fat_trans_g: most whole/unprocessed foods are ~0 — only assign a non-zero value for foods known to contain it (some fried/processed/baked goods, partially hydrogenated oils).
+- omega3_mg: estimate meaningfully for fatty fish, flaxseed, chia, walnuts, algae oil, or fish oil supplements; near-zero for foods with no meaningful omega-3 content.
 - "notes" should be one short sentence flagging anything estimated vs. known, and naming which FDC-style reference food you used as the closest match.
 
 Return exactly this JSON shape with real computed values (not placeholders):
-{"name":"descriptive meal name","calories":0,"protein_g":0,"carbs_total_g":0,"carbs_net_g":0,"fiber_g":0,"fat_total_g":0,"fat_saturated_g":0,"cholesterol_mg":0,"sodium_mg":0,"potassium_mg":0,"magnesium_mg":0,"calcium_mg":0,"iron_mg":0,"vitamin_c_mg":0,"sugar_g":0,"notes":"brief accuracy note"}
+{"name":"descriptive meal name","calories":0,"protein_g":0,"carbs_total_g":0,"carbs_net_g":0,"fiber_g":0,"fat_total_g":0,"fat_saturated_g":0,"fat_trans_g":0,"omega3_mg":0,"cholesterol_mg":0,"sodium_mg":0,"potassium_mg":0,"magnesium_mg":0,"calcium_mg":0,"iron_mg":0,"vitamin_c_mg":0,"sugar_g":0,"notes":"brief accuracy note"}
 
 Return only the JSON, nothing else.`;
 
