@@ -185,6 +185,8 @@
   <div class="topbar-title" id="topbar-title">Today</div>
   <div class="topbar-right">
     <div class="topbar-streak" id="streak-display"></div>
+    <button onclick="exportDay()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Export today's data">⬇️</button>
+    <button onclick="openCoach()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Coach">🧠</button>
     <button onclick="showPage('settings')" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Settings">⚙️</button>
     <select id="day-type-sel" onchange="setDayType(this.value)" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;font-weight:700;border-radius:8px;padding:4px 8px;outline:none;">
       <option value="rest">Rest</option>
@@ -443,6 +445,32 @@
   </div>
 </div>
 
+<!-- COACH MODAL -->
+<div id="coach-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:998;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:17px;font-weight:800;">🧠 Coach</div>
+      <button onclick="closeCoach()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div id="coach-body" style="font-size:14px;line-height:1.6;color:var(--text);white-space:pre-wrap;">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--muted);"><div class="spinner"></div>Analyzing today against protocol...</div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div id="export-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:998;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-size:17px;font-weight:800;" id="export-modal-title">⬇️ Export Today</div>
+      <button onclick="closeExport()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Copy this and paste it into any Claude chat (or Claude Code) for deeper analysis.</div>
+    <textarea id="export-text" readonly style="width:100%;height:220px;font-family:monospace;font-size:11px;border:1.5px solid var(--border);border-radius:10px;padding:10px;resize:none;background:var(--bg);color:var(--text);"></textarea>
+    <button onclick="copyExport()" style="width:100%;padding:12px;margin-top:10px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Copy to Clipboard</button>
+  </div>
+</div>
+
 <!-- BOTTOM NAV -->
 <nav class="bottom-nav">
   <button class="nav-btn active" onclick="showPage('today')" id="nav-today"><span class="icon">🏠</span>Today</button>
@@ -590,6 +618,177 @@ function showPage(id) {
   if(id==='weight') renderWeight();
   if(id==='week') renderWeek();
   if(id==='settings') renderSettings();
+}
+
+// ── PROTOCOL CONTEXT (baked in — update this manually when protocol changes) ──
+const PROTOCOL_SNAPSHOT_DATE = '2026-07-05';
+const PROTOCOL_CONTEXT = `Rich Mendez, 41, 5'8", tirzepatide-based weight loss protocol, clinically overseen (RN wife).
+Current dose: 4.32mg weekly, pinned Fridays. Weigh-ins Saturdays, plateau-gated titration.
+Non-negotiable macro floors/ceilings: Protein 200g floor (self-set), Fat ~58-65g, Net Carbs 96-140g, Fiber 38g, Sodium 2,300mg ceiling, Calories ~1,706-1,800 floor (food intake floor, NOT net-of-exercise — do not eat back exercise calories).
+Known patterns to interpret data against, not just raw numbers:
+- Sodium logging chronically underrepresents actual intake (heavy salter) — treat logged sodium as a floor, not the true number.
+- Iron is tracked as a WEEKLY aggregate (ferritin storage mechanism), not a strict daily target — don't flag one low-iron day as a failure if the week trends better.
+- Fat is a chronic structural gap (13-21g under goal most days) — this is a known, ongoing issue, not a new one each time it shows up.
+- Sleep (~5.5 hrs average) is the single largest identified obstacle to fat loss/cortisol in the whole stack — if a day's data looks off in ways diet alone doesn't explain, sleep is the more likely lever.
+- Protein under 200g is the single most important daily miss to call out directly — this is Rich's own hard floor, not a soft target.
+Coaching style requested: direct, data-driven, mentor-style feedback. No blind encouragement. Name problems honestly. Sales-pipeline framing (leading vs lagging indicators) resonates with him.`;
+
+function buildDaySnapshot(){
+  const log = getLog();
+  const key = selectedDateKey;
+  const dayLog = log[key]||{};
+  const mt = getMacroT();
+  const t={cal:0,protein:0,fat:0,carbs:0,fiber:0,sodium:0,potassium:0,cholesterol:0,iron:0};
+  const items=[];
+  MEAL_TYPES.forEach(m=>(dayLog[m]||[]).forEach(e=>{
+    t.cal+=e.calories||0; t.protein+=e.protein_g||0; t.fat+=e.fat_total_g||0;
+    t.carbs+=e.carbs_net_g||0; t.fiber+=e.fiber_g||0; t.sodium+=e.sodium_mg||0;
+    t.potassium+=e.potassium_mg||0; t.cholesterol+=e.cholesterol_mg||0; t.iron+=e.iron_mg||0;
+    items.push(`${m}: ${e.name} (${e.calories} cal, P${Math.round(e.protein_g||0)}g F${Math.round(e.fat_total_g||0)}g NC${Math.round(e.carbs_net_g||0)}g)`);
+  }));
+  const exerciseEntries = getExercise(key);
+  const exerciseCals = exerciseEntries.reduce((s,e)=>s+(e.calories||0),0);
+  const dayType = getDayType();
+  const calTarget = getCalBase(dayType);
+  return { key, dayType, calTarget, exerciseCals, totals:t, targets:mt, items,
+    exercise: exerciseEntries.map(e=>`${e.name}${e.duration?' ('+e.duration+' min)':''}: +${e.calories} cal`) };
+}
+
+function snapshotToText(snap){
+  return `DAILY LOG — ${snap.key} (${snap.dayType} day)
+Calorie target: ${snap.calTarget} | Food eaten: ${Math.round(snap.totals.cal)} | Exercise burned: ${snap.exerciseCals}
+
+Totals vs targets:
+- Protein: ${Math.round(snap.totals.protein)}g / ${snap.targets.protein}g
+- Fat: ${Math.round(snap.totals.fat)}g / ${snap.targets.fat}g
+- Net Carbs: ${Math.round(snap.totals.carbs)}g / ${snap.targets.carbs}g
+- Fiber: ${Math.round(snap.totals.fiber)}g / ${snap.targets.fiber}g
+- Sodium: ${Math.round(snap.totals.sodium)}mg / ${snap.targets.sodium}mg ceiling
+- Iron: ${Math.round(snap.totals.iron*10)/10}mg
+
+Meals logged:
+${snap.items.length ? snap.items.join('\n') : '(nothing logged yet)'}
+
+Exercise:
+${snap.exercise.length ? snap.exercise.join('\n') : '(none logged)'}`;
+}
+
+function openCoach(){
+  const modal=document.getElementById('coach-modal');
+  modal.style.display='flex';
+  document.getElementById('coach-body').innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--muted);"><div class="spinner"></div>Analyzing today against protocol...</div>`;
+  runCoachAnalysis();
+}
+function closeCoach(){ document.getElementById('coach-modal').style.display='none'; }
+
+async function runCoachAnalysis(){
+  const snap = buildDaySnapshot();
+  const dayText = snapshotToText(snap);
+  const prompt = `${PROTOCOL_CONTEXT}
+
+(Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE} — flag if this seems stale.)
+
+Today's actual data:
+${dayText}
+
+Give Rich a short (4-6 sentence) direct coaching read on today so far — call out real misses against his protocol (especially protein floor), acknowledge what's on track, and give ONE concrete, specific action for the rest of the day. No cheerleading. No restating numbers he can already see on screen — interpret them.`;
+  try {
+    const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
+    const res = await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:prompt}]})});
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message||JSON.stringify(data.error));
+    const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    document.getElementById('coach-body').textContent = text || 'No response returned.';
+  } catch(e){
+    document.getElementById('coach-body').innerHTML = `<span style="color:var(--red);">Coach analysis failed — check connection.</span>`;
+    console.error(e);
+  }
+}
+
+function buildWeekSnapshot(){
+  const log=getLog();
+  const today=new Date();
+  const mt=getMacroT();
+  const calTarget=getCalTarget();
+  const days=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(today); d.setDate(today.getDate()-i);
+    const key=d.toISOString().slice(0,10);
+    const meals=log[key]||{};
+    const exercise=getExercise(key);
+    let cal=0,protein=0,fiber=0,sodium=0,fat=0,carbs=0,iron=0;
+    MEAL_TYPES.forEach(m=>(meals[m]||[]).forEach(e=>{
+      cal+=e.calories||0; protein+=e.protein_g||0; fiber+=e.fiber_g||0;
+      sodium+=e.sodium_mg||0; fat+=e.fat_total_g||0; carbs+=e.carbs_net_g||0; iron+=e.iron_mg||0;
+    }));
+    const exCals=exercise.reduce((s,e)=>s+(e.calories||0),0);
+    days.push({label:d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),
+      cal:Math.round(cal),protein:Math.round(protein),fiber:Math.round(fiber),
+      sodium:Math.round(sodium),fat:Math.round(fat),carbs:Math.round(carbs),
+      iron:Math.round(iron*10)/10,exCals,hasData:cal>0});
+  }
+  const logged=days.filter(d=>d.hasData);
+  const avg=arr=>logged.length?Math.round(arr.reduce((s,v)=>s+v,0)/logged.length):0;
+  return { days, targets:mt, calTarget,
+    avg:{ cal:avg(logged.map(d=>d.cal)), protein:avg(logged.map(d=>d.protein)),
+      fiber:avg(logged.map(d=>d.fiber)), sodium:avg(logged.map(d=>d.sodium)),
+      fat:avg(logged.map(d=>d.fat)), carbs:avg(logged.map(d=>d.carbs)), iron:avg(logged.map(d=>d.iron)) },
+    daysLogged:logged.length };
+}
+
+function weekSnapshotToText(w){
+  const dayLines = w.days.map(d=>d.hasData
+    ? `${d.label}: ${d.cal} cal | P${d.protein}g F${d.fat}g NC${d.carbs}g Fiber${d.fiber}g Sodium${d.sodium}mg Iron${d.iron}mg${d.exCals?` | +${d.exCals} exercise cal`:''}`
+    : `${d.label}: (nothing logged)`).join('\n');
+  return `WEEKLY LOG — last 7 days (${w.daysLogged}/7 days with data)
+Calorie target: ${w.calTarget}
+
+Day-by-day:
+${dayLines}
+
+7-day averages (of logged days):
+- Calories: ${w.avg.cal} / ${w.calTarget}
+- Protein: ${w.avg.protein}g / ${w.targets.protein}g
+- Fat: ${w.avg.fat}g / ${w.targets.fat}g
+- Net Carbs: ${w.avg.carbs}g / ${w.targets.carbs}g
+- Fiber: ${w.avg.fiber}g / ${w.targets.fiber}g
+- Sodium: ${w.avg.sodium}mg / ${w.targets.sodium}mg ceiling
+- Iron (weekly aggregate, not daily): ${w.avg.iron}mg`;
+}
+
+function getActiveViewLabel(){
+  if(document.getElementById('page-week').classList.contains('active')) return 'week';
+  return 'day';
+}
+
+function exportDay(){
+  const view = getActiveViewLabel();
+  let text;
+  if(view === 'week'){
+    text = `${weekSnapshotToText(buildWeekSnapshot())}
+
+--- Protocol context (for Claude) ---
+${PROTOCOL_CONTEXT}
+(Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE})`;
+  } else {
+    const snap = buildDaySnapshot();
+    text = `${snapshotToText(snap)}
+
+--- Protocol context (for Claude) ---
+${PROTOCOL_CONTEXT}
+(Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE})`;
+  }
+  document.getElementById('export-text').value = text;
+  document.getElementById('export-modal-title').textContent = view==='week' ? '⬇️ Export This Week' : '⬇️ Export This Day';
+  document.getElementById('export-modal').style.display='flex';
+}
+function closeExport(){ document.getElementById('export-modal').style.display='none'; }
+function copyExport(){
+  const ta = document.getElementById('export-text');
+  ta.select(); ta.setSelectionRange(0,999999);
+  try { document.execCommand('copy'); showToast('Copied — paste into any Claude chat'); }
+  catch(e){ navigator.clipboard?.writeText(ta.value); showToast('Copied — paste into any Claude chat'); }
 }
 
 // ── SETTINGS (manual macro/calorie override) ────────────────────────────────
@@ -1345,6 +1544,7 @@ function renderWeek(){
   }
 
   const avg=arr=>Math.round(arr.reduce((s,v)=>s+v,0)/arr.length);
+  const wmt = getMacroT();
   const avgCal=avg(logged.map(d=>d.cal));
   const avgProt=avg(logged.map(d=>d.protein));
   const avgFiber=avg(logged.map(d=>d.fiber));
@@ -1363,21 +1563,21 @@ function renderWeek(){
   document.getElementById('week-averages').innerHTML=`
     <div class="card-title">7-Day Averages (${logged.length} days logged)</div>
     ${nr('Avg Calories',avgCal.toLocaleString()+' / '+calTarget.toLocaleString())}
-    ${nr('Avg Protein',avgProt+'g / 170g')}
-    ${nr('Avg Fiber',avgFiber+'g / 38g')}
-    ${nr('Avg Sodium',avgSodium+'mg / 2,300mg')}`;
+    ${nr('Avg Protein',avgProt+'g / '+wmt.protein+'g')}
+    ${nr('Avg Fiber',avgFiber+'g / '+wmt.fiber+'g')}
+    ${nr('Avg Sodium',avgSodium+'mg / '+wmt.sodium.toLocaleString()+'mg')}`;
 
   // MFP-style nutrient table
   const NUTR = [
-    {label:'Protein',     avg:avgProt,      goal:170,  unit:'g',  invert:false},
-    {label:'Net Carbs',   avg:avgCarbs,     goal:170,  unit:'g',  invert:false},
-    {label:'Fiber',       avg:avgFiber,     goal:38,   unit:'g',  invert:false},
+    {label:'Protein',     avg:avgProt,      goal:wmt.protein,  unit:'g',  invert:false},
+    {label:'Net Carbs',   avg:avgCarbs,     goal:wmt.carbs,    unit:'g',  invert:false},
+    {label:'Fiber',       avg:avgFiber,     goal:wmt.fiber,    unit:'g',  invert:false},
     {label:'Sugar',       avg:avgSugar,     goal:50,   unit:'g',  invert:true},
-    {label:'Fat',         avg:avgFat,       goal:65,   unit:'g',  invert:true},
+    {label:'Fat',         avg:avgFat,       goal:wmt.fat,      unit:'g',  invert:true},
     {label:'Saturated Fat',avg:avgSatfat,   goal:20,   unit:'g',  invert:true},
-    {label:'Cholesterol', avg:avgCholesterol,goal:300, unit:'mg', invert:true},
-    {label:'Sodium',      avg:avgSodium,    goal:2300, unit:'mg', invert:true},
-    {label:'Potassium',   avg:avgPotassium, goal:3500, unit:'mg', invert:false},
+    {label:'Cholesterol', avg:avgCholesterol,goal:wmt.cholesterol, unit:'mg', invert:true},
+    {label:'Sodium',      avg:avgSodium,    goal:wmt.sodium,   unit:'mg', invert:true},
+    {label:'Potassium',   avg:avgPotassium, goal:wmt.potassium,unit:'mg', invert:false},
     {label:'Vitamin C',   avg:avgVitC,      goal:90,   unit:'mg', invert:false},
     {label:'Calcium',     avg:avgCalcium,   goal:1000, unit:'mg', invert:false},
     {label:'Iron',        avg:avgIron,      goal:18,   unit:'mg', invert:false},
@@ -1416,11 +1616,11 @@ function renderWeek(){
   document.getElementById('week-flags').innerHTML=`
     <div class="card-title">Weekly Compliance</div>
     <div class="flags-wrap">
-      ${avgProt>=170?'<div class="flag flag-green">✅ Protein on target</div>':'<div class="flag flag-yellow">⚡ Protein below target</div>'}
-      ${avgFiber>=38?'<div class="flag flag-green">✅ Fiber on target</div>':'<div class="flag flag-yellow">⚡ Fiber below target</div>'}
-      ${avgSodium<=2300?'<div class="flag flag-green">✅ Sodium OK</div>':'<div class="flag flag-red">⚠️ Sodium over limit</div>'}
-      ${avgCholesterol<=300?'<div class="flag flag-green">✅ Cholesterol OK</div>':'<div class="flag flag-red">⚠️ Cholesterol over 300mg</div>'}
-      ${avgPotassium>=3500?'<div class="flag flag-green">✅ Potassium on target</div>':'<div class="flag flag-yellow">⚡ Potassium '+avgPotassium+'/3500mg</div>'}
+      ${avgProt>=wmt.protein?'<div class="flag flag-green">✅ Protein on target</div>':'<div class="flag flag-yellow">⚡ Protein below target</div>'}
+      ${avgFiber>=wmt.fiber?'<div class="flag flag-green">✅ Fiber on target</div>':'<div class="flag flag-yellow">⚡ Fiber below target</div>'}
+      ${avgSodium<=wmt.sodium?'<div class="flag flag-green">✅ Sodium OK</div>':'<div class="flag flag-red">⚠️ Sodium over limit</div>'}
+      ${avgCholesterol<=wmt.cholesterol?'<div class="flag flag-green">✅ Cholesterol OK</div>':'<div class="flag flag-red">⚠️ Cholesterol over '+wmt.cholesterol+'mg</div>'}
+      ${avgPotassium>=wmt.potassium?'<div class="flag flag-green">✅ Potassium on target</div>':'<div class="flag flag-yellow">⚡ Potassium '+avgPotassium+'/'+wmt.potassium+'mg</div>'}
       ${avgCal<=calTarget?'<div class="flag flag-green">✅ Calories in range</div>':'<div class="flag flag-red">⚠️ Calories over target</div>'}
       ${totalExCals>0?`<div class="flag flag-green">🏋️ ${totalExCals} cal burned</div>`:''}
       ${suppDays>=5?`<div class="flag flag-green">💊 Supplements ${suppDays}/7 days</div>`:suppDays>0?`<div class="flag flag-yellow">💊 Supplements ${suppDays}/7 days</div>`:''}
