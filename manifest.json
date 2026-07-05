@@ -1,8 +1,10 @@
 {
+  "id": "/peptide-calc/index",
   "name": "Peptide Calc",
   "short_name": "Peptide Calc",
   "description": "Household Tirzepatide dose calculator",
   "start_url": "./index.html",
+  "scope": "./index.html",
   "display": "standalone",
   "background_color": "#060f1e",
   "theme_color": "#060f1e",

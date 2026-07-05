@@ -1,8 +1,10 @@
 {
+  "id": "/peptide-calc/meal-tracker",
   "name": "Meal Tracker",
   "short_name": "Meal Tracker",
   "description": "Protocol meal and nutrition tracker",
   "start_url": "./meal-tracker.html",
+  "scope": "./meal-tracker.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
