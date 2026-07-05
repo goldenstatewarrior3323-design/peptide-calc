@@ -331,7 +331,13 @@
 <!-- SAVED MEALS -->
 <div class="page" id="page-saved">
   <div style="font-size:20px;font-weight:800;margin-bottom:4px;">Saved Meals</div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Tap Log to add to today's diary</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Choose where to log, then tap Log</div>
+  <select id="saved-meal-dest" onchange="this.dataset.userSet='1'" style="width:100%;padding:10px;margin-bottom:14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-weight:700;color:var(--blue);background:var(--blue-light);">
+    <option value="Breakfast">🌅 Breakfast</option>
+    <option value="Lunch">☀️ Lunch</option>
+    <option value="Dinner">🌙 Dinner</option>
+    <option value="Snacks">🍎 Snacks</option>
+  </select>
   <div id="saved-list"></div>
 </div>
 
@@ -1693,6 +1699,11 @@ function saveMeal(){
 function renderSaved(){
   const saved=getSaved();
   const el=document.getElementById('saved-list');
+  const destSel = document.getElementById('saved-meal-dest');
+  if(destSel && !destSel.dataset.userSet){
+    const hr = new Date().getHours();
+    destSel.value = hr<11 ? 'Breakfast' : hr<15 ? 'Lunch' : hr<20 ? 'Dinner' : 'Snacks';
+  }
   if(!saved.length){ el.innerHTML='<div class="empty">No saved meals yet</div>'; return; }
   el.innerHTML=saved.map((m,i)=>`
     <div class="meal-card">
@@ -1708,12 +1719,13 @@ function renderSaved(){
 
 function logSaved(idx){
   const saved=getSaved(); const meal=saved[idx];
+  const dest = document.getElementById('saved-meal-dest').value;
   const log=getLog(); const key=todayKey();
   if(!log[key]) log[key]={};
-  if(!log[key][currentMealType]) log[key][currentMealType]=[];
-  log[key][currentMealType].push({...meal,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),id:Date.now()});
+  if(!log[key][dest]) log[key][dest]=[];
+  log[key][dest].push({...meal,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),id:Date.now()});
   saveLog(log);
-  showToast(meal.name+' added to '+currentMealType);
+  showToast(meal.name+' added to '+dest);
   showPage('today');
 }
 
