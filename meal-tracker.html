@@ -896,6 +896,39 @@ function copyExport(){
 // ── SETTINGS (manual macro/calorie override) ────────────────────────────────
 // ── EXPANDABLE MICRONUTRIENT DETAIL (Today page) ────────────────────────────
 let nutrientDetailOpen = false;
+function toggleEntryDetail(mealType, idx){
+  const el = document.getElementById(`entry-detail-${mealType}-${idx}`);
+  const caret = document.getElementById(`entry-caret-${mealType}-${idx}`);
+  if(!el) return;
+  const open = el.style.display !== 'none';
+  if(open){ el.style.display='none'; caret.textContent='▾'; return; }
+  const m = (window._diaryDayLog[mealType]||[])[idx];
+  if(!m) return;
+  const row = (label, val, unit) => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;"><span style="color:var(--muted);">${label}</span><span style="font-weight:600;">${val}${unit}</span></div>`;
+  el.innerHTML = `<div style="margin-top:8px;padding:10px;background:var(--bg);border-radius:10px;">
+    ${row('Calories', Math.round(m.calories||0), '')}
+    ${row('Total Fat', Math.round((m.fat_total_g||0)*10)/10, 'g')}
+    ${row('　Saturated Fat', Math.round((m.fat_saturated_g||0)*10)/10, 'g')}
+    ${row('　Trans Fat', Math.round((m.fat_trans_g||0)*10)/10, 'g')}
+    ${row('Cholesterol', Math.round(m.cholesterol_mg||0), 'mg')}
+    ${row('Sodium', Math.round(m.sodium_mg||0), 'mg')}
+    ${row('Total Carbohydrates', Math.round((m.carbs_total_g||0)*10)/10, 'g')}
+    ${row('　Dietary Fiber', Math.round((m.fiber_g||0)*10)/10, 'g')}
+    ${row('　Sugar', Math.round((m.sugar_g||0)*10)/10, 'g')}
+    ${row('Net Carbs', Math.round((m.carbs_net_g||0)*10)/10, 'g')}
+    ${row('Protein', Math.round((m.protein_g||0)*10)/10, 'g')}
+    ${row('Potassium', Math.round(m.potassium_mg||0), 'mg')}
+    ${row('Magnesium', Math.round(m.magnesium_mg||0), 'mg')}
+    ${row('Calcium', Math.round(m.calcium_mg||0), 'mg')}
+    ${row('Iron', Math.round((m.iron_mg||0)*10)/10, 'mg')}
+    ${row('Vitamin C', Math.round(m.vitamin_c_mg||0), 'mg')}
+    ${row('Omega-3', Math.round(m.omega3_mg||0), 'mg')}
+    ${m.notes?`<div style="font-size:11px;color:var(--muted);padding-top:8px;font-style:italic;">${m.notes}</div>`:''}
+  </div>`;
+  el.style.display='block';
+  caret.textContent='▴';
+}
+
 function toggleNutrientDetail(){
   nutrientDetailOpen = !nutrientDetailOpen;
   document.getElementById('nutrient-detail').style.display = nutrientDetailOpen ? '' : 'none';
@@ -1160,9 +1193,19 @@ function renderToday() {
         </div>
         ${canLog?`<button class="log-btn" onclick="quickLog('${mt}')">Log</button>`:''}
       </div>
-      ${entries.length?`<div class="meal-entries">${entries.map((m,i)=>`<div class="meal-entry"><div class="meal-entry-name">${m.name}</div><div class="meal-entry-cals">${m.calories} cal</div>${canLog?`<button class="meal-entry-del" onclick="deleteEntry('${mt}',${i})">✕</button>`:''}</div>`).join('')}</div>`:''}`
+      ${entries.length?`<div class="meal-entries">${entries.map((m,i)=>`
+        <div class="meal-entry" onclick="toggleEntryDetail('${mt}',${i})" style="cursor:pointer;flex-direction:column;align-items:stretch;">
+          <div style="display:flex;align-items:center;width:100%;">
+            <div class="meal-entry-name" style="flex:1;">${m.name}</div>
+            <div class="meal-entry-cals">${m.calories} cal</div>
+            <span style="color:var(--muted);font-size:11px;margin-left:6px;" id="entry-caret-${mt}-${i}">▾</span>
+            ${canLog?`<button class="meal-entry-del" onclick="event.stopPropagation();deleteEntry('${mt}',${i})">✕</button>`:''}
+          </div>
+          <div id="entry-detail-${mt}-${i}" style="display:none;" onclick="event.stopPropagation();"></div>
+        </div>`).join('')}</div>`:''}`
     +'</div>';
   }).join('');
+  window._diaryDayLog = dayLog; // keep reference for expand-on-tap without re-fetching
 
   // Exercise
   const exLabel = document.getElementById('exercise-total-label');
