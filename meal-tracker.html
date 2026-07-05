@@ -392,30 +392,58 @@
 
 <div class="page" id="page-settings">
   <div style="font-size:20px;font-weight:800;margin-bottom:4px;">Goals</div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Manual targets override the weight-based auto-calc. Leave "Reset to auto" for anything you want the app to keep calculating for you.</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Manual targets override the auto-calc. "Reset to auto" for anything you want the app to keep calculating for you.</div>
 
   <div class="weight-card">
-    <div class="card-title">Calories by Day Type</div>
-    <div class="input-label">Rest Day</div>
-    <input class="field" type="number" id="set-cal-rest" placeholder="1722" style="margin-bottom:10px;"/>
-    <div class="input-label">Bike Day</div>
-    <input class="field" type="number" id="set-cal-bike" placeholder="2100" style="margin-bottom:10px;"/>
-    <div class="input-label">HIIT Day</div>
-    <input class="field" type="number" id="set-cal-hiit" placeholder="2300"/>
+    <div class="card-title">Who's logging?</div>
+    <div style="display:flex;gap:8px;">
+      <button class="person-btn" id="person-btn-rich" onclick="selectPerson('rich')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Rich</button>
+      <button class="person-btn" id="person-btn-claudia" onclick="selectPerson('claudia')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Claudia</button>
+      <button class="person-btn" id="person-btn-dom" onclick="selectPerson('dom')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Dom</button>
+    </div>
+  </div>
+
+  <div class="weight-card">
+    <div class="card-title">Calories</div>
+    <div id="cal-fields-rich" style="display:none;">
+      <div class="input-label">Rest Day</div>
+      <input class="field" type="number" id="set-cal-rest" style="margin-bottom:10px;"/>
+      <div class="input-label">Bike Day</div>
+      <input class="field" type="number" id="set-cal-bike" style="margin-bottom:10px;"/>
+      <div class="input-label">HIIT Day</div>
+      <input class="field" type="number" id="set-cal-hiit"/>
+    </div>
+    <div id="cal-fields-other" style="display:none;">
+      <div class="input-label" id="cal-other-label">Daily Target</div>
+      <input class="field" type="number" id="set-cal-rest-other"/>
+    </div>
   </div>
 
   <div class="weight-card">
     <div class="card-title">Daily Macro Goals</div>
-    <div class="input-label">Protein (g)</div>
-    <input class="field" type="number" id="set-protein" placeholder="200" style="margin-bottom:10px;"/>
+    <div class="input-label">Protein (g) — 🔒 non-negotiable, set per person, not adjustable here</div>
+    <input class="field" type="number" id="set-protein" disabled style="margin-bottom:10px;background:var(--bg);color:var(--muted);font-weight:800;"/>
     <div class="input-label">Fat (g)</div>
-    <input class="field" type="number" id="set-fat" placeholder="58" style="margin-bottom:10px;"/>
+    <input class="field" type="number" id="set-fat" style="margin-bottom:10px;"/>
     <div class="input-label">Net Carbs (g)</div>
-    <input class="field" type="number" id="set-carbs" placeholder="96" style="margin-bottom:10px;"/>
+    <input class="field" type="number" id="set-carbs" style="margin-bottom:10px;"/>
     <div class="input-label">Fiber (g)</div>
-    <input class="field" type="number" id="set-fiber" placeholder="38" style="margin-bottom:10px;"/>
+    <input class="field" type="number" id="set-fiber" style="margin-bottom:10px;"/>
     <div class="input-label">Sodium (mg ceiling)</div>
-    <input class="field" type="number" id="set-sodium" placeholder="2300"/>
+    <input class="field" type="number" id="set-sodium"/>
+  </div>
+
+  <div class="weight-card">
+    <div class="card-title">Tirzepatide Dose</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Manual entry — logged with today's date, kept as history so Coach knows how recently a dose changed.</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div style="flex:1;">
+        <div class="input-label">Dose (mg)</div>
+        <input class="field" type="number" step="0.01" id="set-dose"/>
+      </div>
+      <button onclick="saveDoseEntry()" style="padding:11px 16px;background:var(--blue);color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;">Log</button>
+    </div>
+    <div id="dose-current-label" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
   </div>
 
   <div style="display:flex;gap:10px;margin-top:4px;">
@@ -518,17 +546,79 @@
 const START_WEIGHT = 375.4;
 const INIT_WEIGHT = 365.9;
 const GOAL_WEIGHT = 210;
-const AUTO_MACRO_DEFAULTS = { protein:200, fat:58, carbs:96, fiber:38, sodium:2300, potassium:3500, cholesterol:300 };
-const AUTO_CAL_DEFAULTS = { rest:1722, bike:2100, hiit:2300 };
-const getMacroOverride = () => { try { return JSON.parse(localStorage.getItem('macroOverride')||'null'); } catch { return null; } };
-const saveMacroOverride = o => localStorage.setItem('macroOverride', JSON.stringify(o));
-const clearMacroOverride = () => localStorage.removeItem('macroOverride');
-const getCalOverride = () => { try { return JSON.parse(localStorage.getItem('calOverride')||'null'); } catch { return null; } };
-const saveCalOverride = o => localStorage.setItem('calOverride', JSON.stringify(o));
-const clearCalOverride = () => localStorage.removeItem('calOverride');
-function getMacroT(){
-  const o = getMacroOverride();
-  return o ? { ...AUTO_MACRO_DEFAULTS, ...o } : AUTO_MACRO_DEFAULTS;
+const PERSON_PROFILES = {
+  rich: {
+    label: 'Rich',
+    proteinFloor: 200, // non-negotiable — never adjustable via Settings or auto-calc
+    macroDefaults: { fat:58, carbs:96, fiber:38, sodium:2300, potassium:3500, cholesterol:300 },
+    calDefaults: { rest:1722, bike:2100, hiit:2300 },
+    doseUnit: 'mg', doseDefault: 4.32,
+    protocolContext: `Rich Mendez, 41, 5'8", tirzepatide-based weight loss protocol, clinically overseen (RN wife).
+Non-negotiable macro floors/ceilings: Protein 200g floor (self-set, HARD — never move this regardless of any other adjustment), Fat ~58-65g, Net Carbs 96-140g, Fiber 38g, Sodium 2,300mg ceiling, Calories ~1,706-1,800 floor (food intake floor, NOT net-of-exercise — do not eat back exercise calories).
+Known patterns to interpret data against, not just raw numbers:
+- Sodium logging chronically underrepresents actual intake (heavy salter) — treat logged sodium as a floor, not the true number.
+- Iron is tracked as a WEEKLY aggregate (ferritin storage mechanism), not a strict daily target.
+- Fat is a chronic structural gap (13-21g under goal most days) — known, ongoing issue.
+- Sleep (~5.5 hrs average) is the single largest identified obstacle to fat loss/cortisol in the whole stack.
+- Protein under 200g is the single most important daily miss to call out directly — his own hard floor, not a soft target.
+Coaching style: direct, data-driven, mentor-style. No blind encouragement. Sales-pipeline framing (leading vs lagging indicators) resonates.`
+  },
+  claudia: {
+    label: 'Claudia',
+    proteinFloor: 125, // non-negotiable midpoint of 120-130g "muscle shield" range
+    macroDefaults: { fat:50, carbs:110, fiber:25, sodium:2300, potassium:3500, cholesterol:300 },
+    calDefaults: { rest:1450, bike:1450, hiit:1450 },
+    doseUnit: 'mg', doseDefault: 4.32,
+    protocolContext: `Claudia Mendez, RN, female, 5'0", tirzepatide-adjusted protocol, 181→140lb goal, validated against her own nutritionist (Britton Protocol).
+Non-negotiable: Protein 125g floor (HARD — muscle preservation shield, never move this). Fat ~50g, Net Carbs ~110g, Fiber 25g+. Calories ~1,450 (range 1,400-1,500).
+CRITICAL SAFETY FLOOR: never let daily calories drop below 1,443 (her measured BMR) — flag any day at or under this immediately, this is not a soft guideline.
+Coaching style: clinical, precise, respects her own professional nutrition literacy — she is a nurse and reads her own labs. Avoid generic encouragement; she wants accurate interpretation, not cheerleading.`
+  },
+  dom: {
+    label: 'Dom',
+    proteinFloor: 225, // non-negotiable, "always first, never skipped"
+    macroDefaults: { fat:100, carbs:90, fiber:30, sodium:2300, potassium:3500, cholesterol:300 }, // fat/carbs midpoints of his ranges
+    calDefaults: { rest:2625, bike:2625, hiit:2625 }, // midpoint default; hunger-day logic nudges from here, not a low floor
+    doseUnit: 'mg', doseDefault: 3.41,
+    protocolContext: `Dom Mendez, 19, male, 6'0", 448.2lb start, tirzepatide protocol.
+Non-negotiable: Protein 225g floor (HARD — always first, never skipped, regardless of hunger level). Net Carbs 80-100g, Fat 80-120g. Calories 2,250 (low-hunger day) to 3,000 (high-hunger day) — default/midpoint 2,625, NOT a floor to coast on.
+Rules to enforce in coaching: low-hunger day → stay near 2,250 is fine and expected, not a miss. High-hunger day → push toward 3,000, don't let him default to the midpoint out of habit. Log every day, including "ugly" days — the only unacceptable pattern is a ghost day (no log at all). No russet potatoes. Add fat daily via olive oil/whole eggs/avocado.
+Target loss rate 2.5-4.0 lbs/week, safe ceiling 4.48 lbs/week (1% bodyweight) — flag anything faster as a safety concern, not a win.
+Coaching style: direct but age-appropriate for 19yo — call out under-eating on high-hunger days specifically, since defaulting to "close enough" at the low end is his known failure pattern.`
+  }
+};
+const getCurrentPerson = () => localStorage.getItem('currentPerson') || 'rich';
+const setCurrentPerson = p => localStorage.setItem('currentPerson', p);
+
+const getMacroOverride = (person) => { try { return JSON.parse(localStorage.getItem('macroOverride_'+(person||getCurrentPerson()))||'null'); } catch { return null; } };
+const saveMacroOverride = (o, person) => localStorage.setItem('macroOverride_'+(person||getCurrentPerson()), JSON.stringify(o));
+const clearMacroOverride = (person) => localStorage.removeItem('macroOverride_'+(person||getCurrentPerson()));
+const getCalOverride = (person) => { try { return JSON.parse(localStorage.getItem('calOverride_'+(person||getCurrentPerson()))||'null'); } catch { return null; } };
+const saveCalOverride = (o, person) => localStorage.setItem('calOverride_'+(person||getCurrentPerson()), JSON.stringify(o));
+const clearCalOverride = (person) => localStorage.removeItem('calOverride_'+(person||getCurrentPerson()));
+
+// Dose tracking — manual entry, kept as history so Coach can reference "titrated N days ago"
+const getDoseLog = (person) => { try { return JSON.parse(localStorage.getItem('doseLog_'+(person||getCurrentPerson()))||'[]'); } catch { return []; } };
+const saveDoseLog = (arr, person) => localStorage.setItem('doseLog_'+(person||getCurrentPerson()), JSON.stringify(arr));
+function logDose(mg, person){
+  const p = person || getCurrentPerson();
+  const log = getDoseLog(p);
+  log.unshift({ mg: parseFloat(mg), date: todayKey() });
+  saveDoseLog(log, p);
+}
+function getCurrentDose(person){
+  const p = person || getCurrentPerson();
+  const log = getDoseLog(p);
+  return log.length ? log[0] : { mg: PERSON_PROFILES[p].doseDefault, date: null };
+}
+
+function getMacroT(person){
+  const p = person || getCurrentPerson();
+  const profile = PERSON_PROFILES[p];
+  const o = getMacroOverride(p);
+  const merged = o ? { ...profile.macroDefaults, ...o } : { ...profile.macroDefaults };
+  merged.protein = profile.proteinFloor; // HARD — protein is never touched by override or auto-calc, per person
+  return merged;
 }
 // Backward-compatible getter — MACRO_T is now a live function call wrapped in a Proxy-free helper.
 // All existing "MACRO_T.x" references below are replaced with getMacroT().x via the edits in this file.
@@ -579,22 +669,29 @@ const saveSuppLog = (obj,key) => localStorage.setItem('suppLog_'+(key||todayKey(
 
 // ── CALORIE CALC ──────────────────────────────────────────────────────────────
 function calcCalTarget(weightLbs) {
-  // Mifflin-St Jeor male, 41yo, 5'8" (172.72cm), SEDENTARY base (1.2)
+  // Mifflin-St Jeor male, 41yo, 5'8" (172.72cm), SEDENTARY base (1.2) — RICH-SPECIFIC formula, not valid for other people
   const bmr = 10*(weightLbs*0.453592) + 6.25*172.72 - 5*41 + 5;
   const tdee = Math.round(bmr * 1.2);
   const base = Math.max(1200, Math.round(tdee - 1250)); // 2.5lbs/wk deficit, floor 1200
   return { tdee, base };
 }
 
-// Manual override takes priority over weight-based auto-calc when set (per day type: rest/bike/hiit)
-function getCalBase(dayType){
-  const co = getCalOverride();
+// Manual override takes priority when set. Weight-based auto-calc (Mifflin-St Jeor) currently only
+// applies to Rich — Claudia's and Dom's targets come from their own protocol docs / nutritionist,
+// not a BMR formula wired into this app, so their "auto" value is their fixed protocol default.
+function getCalBase(dayType, person){
+  const p = person || getCurrentPerson();
+  const profile = PERSON_PROFILES[p];
+  const co = getCalOverride(p);
   if(co && co[dayType] != null) return co[dayType];
-  const weights = getWeights();
-  const latest = weights.length ? weights[0].weight : INIT_WEIGHT;
-  const { base } = calcCalTarget(latest);
-  const dayMod = { rest:0, bike:300, hiit:500 };
-  return base + (dayMod[dayType]||0);
+  if(p === 'rich'){
+    const weights = getWeights();
+    const latest = weights.length ? weights[0].weight : INIT_WEIGHT;
+    const { base } = calcCalTarget(latest);
+    const dayMod = { rest:0, bike:300, hiit:500 };
+    return base + (dayMod[dayType]||0);
+  }
+  return profile.calDefaults[dayType] ?? profile.calDefaults.rest;
 }
 
 function getCalTarget(dayTypeOverride) {
@@ -620,18 +717,18 @@ function showPage(id) {
   if(id==='settings') renderSettings();
 }
 
-// ── PROTOCOL CONTEXT (baked in — update this manually when protocol changes) ──
+// ── PROTOCOL CONTEXT (baked in per-person — update PERSON_PROFILES manually when a protocol changes) ──
 const PROTOCOL_SNAPSHOT_DATE = '2026-07-05';
-const PROTOCOL_CONTEXT = `Rich Mendez, 41, 5'8", tirzepatide-based weight loss protocol, clinically overseen (RN wife).
-Current dose: 4.32mg weekly, pinned Fridays. Weigh-ins Saturdays, plateau-gated titration.
-Non-negotiable macro floors/ceilings: Protein 200g floor (self-set), Fat ~58-65g, Net Carbs 96-140g, Fiber 38g, Sodium 2,300mg ceiling, Calories ~1,706-1,800 floor (food intake floor, NOT net-of-exercise — do not eat back exercise calories).
-Known patterns to interpret data against, not just raw numbers:
-- Sodium logging chronically underrepresents actual intake (heavy salter) — treat logged sodium as a floor, not the true number.
-- Iron is tracked as a WEEKLY aggregate (ferritin storage mechanism), not a strict daily target — don't flag one low-iron day as a failure if the week trends better.
-- Fat is a chronic structural gap (13-21g under goal most days) — this is a known, ongoing issue, not a new one each time it shows up.
-- Sleep (~5.5 hrs average) is the single largest identified obstacle to fat loss/cortisol in the whole stack — if a day's data looks off in ways diet alone doesn't explain, sleep is the more likely lever.
-- Protein under 200g is the single most important daily miss to call out directly — this is Rich's own hard floor, not a soft target.
-Coaching style requested: direct, data-driven, mentor-style feedback. No blind encouragement. Name problems honestly. Sales-pipeline framing (leading vs lagging indicators) resonates with him.`;
+
+function getFullProtocolContext(person){
+  const p = person || getCurrentPerson();
+  const profile = PERSON_PROFILES[p];
+  const dose = getCurrentDose(p);
+  const doseLine = dose.date
+    ? `Current dose: ${dose.mg}${profile.doseUnit}, logged ${dose.date}.`
+    : `Current dose: ${dose.mg}${profile.doseUnit} (default — no manual dose entry logged yet).`;
+  return `${profile.protocolContext}\n${doseLine}`;
+}
 
 function buildDaySnapshot(){
   const log = getLog();
@@ -684,7 +781,7 @@ function closeCoach(){ document.getElementById('coach-modal').style.display='non
 async function runCoachAnalysis(){
   const snap = buildDaySnapshot();
   const dayText = snapshotToText(snap);
-  const prompt = `${PROTOCOL_CONTEXT}
+  const prompt = `${getFullProtocolContext()}
 
 (Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE} — flag if this seems stale.)
 
@@ -769,14 +866,14 @@ function exportDay(){
     text = `${weekSnapshotToText(buildWeekSnapshot())}
 
 --- Protocol context (for Claude) ---
-${PROTOCOL_CONTEXT}
+${getFullProtocolContext()}
 (Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE})`;
   } else {
     const snap = buildDaySnapshot();
     text = `${snapshotToText(snap)}
 
 --- Protocol context (for Claude) ---
-${PROTOCOL_CONTEXT}
+${getFullProtocolContext()}
 (Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE})`;
   }
   document.getElementById('export-text').value = text;
@@ -792,34 +889,87 @@ function copyExport(){
 }
 
 // ── SETTINGS (manual macro/calorie override) ────────────────────────────────
+function selectPerson(person){
+  setCurrentPerson(person);
+  renderSettings();
+  renderToday();
+  showToast(PERSON_PROFILES[person].label+' selected');
+}
+
 function renderSettings(){
-  const co = getCalOverride() || {};
-  const mo = getMacroOverride() || {};
-  document.getElementById('set-cal-rest').value = co.rest ?? AUTO_CAL_DEFAULTS.rest;
-  document.getElementById('set-cal-bike').value = co.bike ?? AUTO_CAL_DEFAULTS.bike;
-  document.getElementById('set-cal-hiit').value = co.hiit ?? AUTO_CAL_DEFAULTS.hiit;
-  document.getElementById('set-protein').value = mo.protein ?? AUTO_MACRO_DEFAULTS.protein;
-  document.getElementById('set-fat').value = mo.fat ?? AUTO_MACRO_DEFAULTS.fat;
-  document.getElementById('set-carbs').value = mo.carbs ?? AUTO_MACRO_DEFAULTS.carbs;
-  document.getElementById('set-fiber').value = mo.fiber ?? AUTO_MACRO_DEFAULTS.fiber;
-  document.getElementById('set-sodium').value = mo.sodium ?? AUTO_MACRO_DEFAULTS.sodium;
+  const p = getCurrentPerson();
+  const profile = PERSON_PROFILES[p];
+  ['rich','claudia','dom'].forEach(id=>{
+    const btn = document.getElementById('person-btn-'+id);
+    const active = id===p;
+    btn.style.background = active ? 'var(--blue)' : 'var(--bg)';
+    btn.style.color = active ? 'white' : 'var(--text)';
+    btn.style.borderColor = active ? 'var(--blue)' : 'var(--border)';
+  });
+
+  const isRich = p === 'rich';
+  document.getElementById('cal-fields-rich').style.display = isRich ? '' : 'none';
+  document.getElementById('cal-fields-other').style.display = isRich ? 'none' : '';
+
+  const co = getCalOverride(p) || {};
+  if(isRich){
+    document.getElementById('set-cal-rest').value = co.rest ?? profile.calDefaults.rest;
+    document.getElementById('set-cal-bike').value = co.bike ?? profile.calDefaults.bike;
+    document.getElementById('set-cal-hiit').value = co.hiit ?? profile.calDefaults.hiit;
+  } else {
+    document.getElementById('cal-other-label').textContent = p==='dom'
+      ? 'Daily Target (2,250 low-hunger – 3,000 high-hunger, default 2,625)'
+      : 'Daily Target (1,400–1,500 range, default 1,450)';
+    document.getElementById('set-cal-rest-other').value = co.rest ?? profile.calDefaults.rest;
+  }
+
+  const mo = getMacroOverride(p) || {};
+  document.getElementById('set-protein').value = profile.proteinFloor; // always locked to person's hard floor
+  document.getElementById('set-fat').value = mo.fat ?? profile.macroDefaults.fat;
+  document.getElementById('set-carbs').value = mo.carbs ?? profile.macroDefaults.carbs;
+  document.getElementById('set-fiber').value = mo.fiber ?? profile.macroDefaults.fiber;
+  document.getElementById('set-sodium').value = mo.sodium ?? profile.macroDefaults.sodium;
+
+  const dose = getCurrentDose(p);
+  document.getElementById('set-dose').value = dose.mg;
+  document.getElementById('dose-current-label').textContent = dose.date
+    ? `Current: ${dose.mg}${profile.doseUnit}, logged ${dose.date}`
+    : `Current: ${dose.mg}${profile.doseUnit} (default, not yet manually logged)`;
+}
+
+function saveDoseEntry(){
+  const p = getCurrentPerson();
+  const v = parseFloat(document.getElementById('set-dose').value);
+  if(isNaN(v) || v<=0){ showToast('Enter a valid dose'); return; }
+  logDose(v, p);
+  renderSettings();
+  showToast('Dose logged for '+PERSON_PROFILES[p].label);
 }
 
 function saveGoalSettings(){
+  const p = getCurrentPerson();
+  const isRich = p === 'rich';
   const num = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; };
-  saveCalOverride({ rest: num('set-cal-rest'), bike: num('set-cal-bike'), hiit: num('set-cal-hiit') });
+  if(isRich){
+    saveCalOverride({ rest: num('set-cal-rest'), bike: num('set-cal-bike'), hiit: num('set-cal-hiit') }, p);
+  } else {
+    const v = num('set-cal-rest-other');
+    saveCalOverride({ rest: v, bike: v, hiit: v }, p); // single daily target for non-Rich profiles
+  }
+  // Protein deliberately excluded — it is never editable, always pulled from PERSON_PROFILES[p].proteinFloor
   saveMacroOverride({
-    protein: num('set-protein'), fat: num('set-fat'), carbs: num('set-carbs'),
+    fat: num('set-fat'), carbs: num('set-carbs'),
     fiber: num('set-fiber'), sodium: num('set-sodium'),
-    potassium: AUTO_MACRO_DEFAULTS.potassium, cholesterol: AUTO_MACRO_DEFAULTS.cholesterol
-  });
+    potassium: PERSON_PROFILES[p].macroDefaults.potassium, cholesterol: PERSON_PROFILES[p].macroDefaults.cholesterol
+  }, p);
   document.getElementById('settings-status').textContent = 'Saved ✓';
   setTimeout(()=>{ const el=document.getElementById('settings-status'); if(el) el.textContent=''; }, 2000);
 }
 
 function resetGoalSettings(){
-  clearCalOverride();
-  clearMacroOverride();
+  const p = getCurrentPerson();
+  clearCalOverride(p);
+  clearMacroOverride(p);
   renderSettings();
   document.getElementById('settings-status').textContent = 'Reset to auto-calc ✓';
   setTimeout(()=>{ const el=document.getElementById('settings-status'); if(el) el.textContent=''; }, 2000);
