@@ -185,6 +185,7 @@
   <div class="topbar-title" id="topbar-title">Today</div>
   <div class="topbar-right">
     <div class="topbar-streak" id="streak-display"></div>
+    <button onclick="showPage('settings')" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Settings">⚙️</button>
     <select id="day-type-sel" onchange="setDayType(this.value)" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;font-weight:700;border-radius:8px;padding:4px 8px;outline:none;">
       <option value="rest">Rest</option>
       <option value="bike">Bike</option>
@@ -214,17 +215,17 @@
     <div class="macros-row">
       <div class="macro-item">
         <div class="macro-vals"><span id="nc-eaten">0</span>g</div>
-        <div class="macro-target">Net Carbs / 170</div>
+        <div class="macro-target" id="nc-target-label">Net Carbs / 96</div>
         <div class="macro-bar"><div class="macro-fill" id="nc-fill" style="width:0%;background:#0d9488;"></div></div>
       </div>
       <div class="macro-item" style="text-align:center;">
         <div class="macro-vals"><span id="fat-eaten">0</span>g</div>
-        <div class="macro-target">Fat / 65</div>
+        <div class="macro-target" id="fat-target-label">Fat / 58</div>
         <div class="macro-bar"><div class="macro-fill" id="fat-fill" style="width:0%;background:#7c3aed;"></div></div>
       </div>
       <div class="macro-item" style="text-align:right;">
         <div class="macro-vals"><span id="prot-eaten">0</span>g</div>
-        <div class="macro-target">Protein / 170</div>
+        <div class="macro-target" id="prot-target-label">Protein / 200</div>
         <div class="macro-bar"><div class="macro-fill" id="prot-fill" style="width:0%;background:#ea580c;"></div></div>
       </div>
     </div>
@@ -387,6 +388,41 @@
   <div class="weight-card" id="week-flags"></div>
 </div>
 
+<div class="page" id="page-settings">
+  <div style="font-size:20px;font-weight:800;margin-bottom:4px;">Goals</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Manual targets override the weight-based auto-calc. Leave "Reset to auto" for anything you want the app to keep calculating for you.</div>
+
+  <div class="weight-card">
+    <div class="card-title">Calories by Day Type</div>
+    <div class="input-label">Rest Day</div>
+    <input class="field" type="number" id="set-cal-rest" placeholder="1722" style="margin-bottom:10px;"/>
+    <div class="input-label">Bike Day</div>
+    <input class="field" type="number" id="set-cal-bike" placeholder="2100" style="margin-bottom:10px;"/>
+    <div class="input-label">HIIT Day</div>
+    <input class="field" type="number" id="set-cal-hiit" placeholder="2300"/>
+  </div>
+
+  <div class="weight-card">
+    <div class="card-title">Daily Macro Goals</div>
+    <div class="input-label">Protein (g)</div>
+    <input class="field" type="number" id="set-protein" placeholder="200" style="margin-bottom:10px;"/>
+    <div class="input-label">Fat (g)</div>
+    <input class="field" type="number" id="set-fat" placeholder="58" style="margin-bottom:10px;"/>
+    <div class="input-label">Net Carbs (g)</div>
+    <input class="field" type="number" id="set-carbs" placeholder="96" style="margin-bottom:10px;"/>
+    <div class="input-label">Fiber (g)</div>
+    <input class="field" type="number" id="set-fiber" placeholder="38" style="margin-bottom:10px;"/>
+    <div class="input-label">Sodium (mg ceiling)</div>
+    <input class="field" type="number" id="set-sodium" placeholder="2300"/>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-top:4px;">
+    <button onclick="saveGoalSettings()" style="flex:1;padding:13px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Save</button>
+    <button onclick="resetGoalSettings()" style="flex:1;padding:13px;background:var(--bg);color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Reset to Auto</button>
+  </div>
+  <div id="settings-status" style="text-align:center;font-size:12px;color:var(--green);margin-top:10px;height:14px;"></div>
+</div>
+
 <!-- SUPPLEMENT SETUP MODAL -->
 <div id="supp-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:997;align-items:flex-end;justify-content:center;">
   <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;padding-bottom:40px;">
@@ -454,7 +490,20 @@
 const START_WEIGHT = 375.4;
 const INIT_WEIGHT = 365.9;
 const GOAL_WEIGHT = 210;
-const MACRO_T = { protein:170, fat:65, carbs:170, fiber:38, sodium:2300, potassium:3500, cholesterol:300 };
+const AUTO_MACRO_DEFAULTS = { protein:200, fat:58, carbs:96, fiber:38, sodium:2300, potassium:3500, cholesterol:300 };
+const AUTO_CAL_DEFAULTS = { rest:1722, bike:2100, hiit:2300 };
+const getMacroOverride = () => { try { return JSON.parse(localStorage.getItem('macroOverride')||'null'); } catch { return null; } };
+const saveMacroOverride = o => localStorage.setItem('macroOverride', JSON.stringify(o));
+const clearMacroOverride = () => localStorage.removeItem('macroOverride');
+const getCalOverride = () => { try { return JSON.parse(localStorage.getItem('calOverride')||'null'); } catch { return null; } };
+const saveCalOverride = o => localStorage.setItem('calOverride', JSON.stringify(o));
+const clearCalOverride = () => localStorage.removeItem('calOverride');
+function getMacroT(){
+  const o = getMacroOverride();
+  return o ? { ...AUTO_MACRO_DEFAULTS, ...o } : AUTO_MACRO_DEFAULTS;
+}
+// Backward-compatible getter — MACRO_T is now a live function call wrapped in a Proxy-free helper.
+// All existing "MACRO_T.x" references below are replaced with getMacroT().x via the edits in this file.
 const MEAL_TYPES = ['Breakfast','Lunch','Dinner','Snacks'];
 const MEAL_ICONS = { Breakfast:'🌅', Lunch:'☀️', Dinner:'🌙', Snacks:'🍎' };
 
@@ -509,14 +558,21 @@ function calcCalTarget(weightLbs) {
   return { tdee, base };
 }
 
-function getCalTarget(dayTypeOverride) {
+// Manual override takes priority over weight-based auto-calc when set (per day type: rest/bike/hiit)
+function getCalBase(dayType){
+  const co = getCalOverride();
+  if(co && co[dayType] != null) return co[dayType];
   const weights = getWeights();
   const latest = weights.length ? weights[0].weight : INIT_WEIGHT;
   const { base } = calcCalTarget(latest);
   const dayMod = { rest:0, bike:300, hiit:500 };
-  const exerciseCals = getExercise().reduce((s,e)=>s+(e.calories||0),0);
+  return base + (dayMod[dayType]||0);
+}
+
+function getCalTarget(dayTypeOverride) {
   const dt = dayTypeOverride || getDayType();
-  return base + (dayMod[dt]||0) + exerciseCals;
+  const exerciseCals = getExercise().reduce((s,e)=>s+(e.calories||0),0);
+  return getCalBase(dt) + exerciseCals;
 }
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
@@ -533,6 +589,41 @@ function showPage(id) {
   if(id==='saved') renderSaved();
   if(id==='weight') renderWeight();
   if(id==='week') renderWeek();
+  if(id==='settings') renderSettings();
+}
+
+// ── SETTINGS (manual macro/calorie override) ────────────────────────────────
+function renderSettings(){
+  const co = getCalOverride() || {};
+  const mo = getMacroOverride() || {};
+  document.getElementById('set-cal-rest').value = co.rest ?? AUTO_CAL_DEFAULTS.rest;
+  document.getElementById('set-cal-bike').value = co.bike ?? AUTO_CAL_DEFAULTS.bike;
+  document.getElementById('set-cal-hiit').value = co.hiit ?? AUTO_CAL_DEFAULTS.hiit;
+  document.getElementById('set-protein').value = mo.protein ?? AUTO_MACRO_DEFAULTS.protein;
+  document.getElementById('set-fat').value = mo.fat ?? AUTO_MACRO_DEFAULTS.fat;
+  document.getElementById('set-carbs').value = mo.carbs ?? AUTO_MACRO_DEFAULTS.carbs;
+  document.getElementById('set-fiber').value = mo.fiber ?? AUTO_MACRO_DEFAULTS.fiber;
+  document.getElementById('set-sodium').value = mo.sodium ?? AUTO_MACRO_DEFAULTS.sodium;
+}
+
+function saveGoalSettings(){
+  const num = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; };
+  saveCalOverride({ rest: num('set-cal-rest'), bike: num('set-cal-bike'), hiit: num('set-cal-hiit') });
+  saveMacroOverride({
+    protein: num('set-protein'), fat: num('set-fat'), carbs: num('set-carbs'),
+    fiber: num('set-fiber'), sodium: num('set-sodium'),
+    potassium: AUTO_MACRO_DEFAULTS.potassium, cholesterol: AUTO_MACRO_DEFAULTS.cholesterol
+  });
+  document.getElementById('settings-status').textContent = 'Saved ✓';
+  setTimeout(()=>{ const el=document.getElementById('settings-status'); if(el) el.textContent=''; }, 2000);
+}
+
+function resetGoalSettings(){
+  clearCalOverride();
+  clearMacroOverride();
+  renderSettings();
+  document.getElementById('settings-status').textContent = 'Reset to auto-calc ✓';
+  setTimeout(()=>{ const el=document.getElementById('settings-status'); if(el) el.textContent=''; }, 2000);
 }
 
 let selectedDateKey = todayKey();
@@ -605,11 +696,7 @@ function renderToday() {
   }));
 
   // Calorie budget display — MFP style: Budget - Food + Exercise = Remaining
-  const weights = getWeights();
-  const latest = weights.length ? weights[0].weight : INIT_WEIGHT;
-  const { base } = calcCalTarget(latest);
-  const dayMod = {rest:0,bike:300,hiit:500};
-  const baseWithDay = base + (dayMod[getDayType()]||0);
+  const baseWithDay = getCalBase(getDayType());
   const remaining = baseWithDay - Math.round(t.cal) + exerciseCals;
 
   document.getElementById('cal-formula-label').textContent = 'Budget − Food + Exercise = Remaining';
@@ -631,26 +718,31 @@ function renderToday() {
   document.getElementById('cal-remaining-label').textContent = remaining.toLocaleString()+' remaining';
 
   // Macros
+  const mt = getMacroT();
   document.getElementById('nc-eaten').textContent = Math.round(t.carbs);
   document.getElementById('fat-eaten').textContent = Math.round(t.fat);
   document.getElementById('prot-eaten').textContent = Math.round(t.protein);
-  document.getElementById('fiber-eaten').textContent = Math.round(t.fiber);
-  document.getElementById('nc-fill').style.width = Math.min((t.carbs/MACRO_T.carbs)*100,100)+'%';
-  document.getElementById('fat-fill').style.width = Math.min((t.fat/MACRO_T.fat)*100,100)+'%';
-  document.getElementById('prot-fill').style.width = Math.min((t.protein/MACRO_T.protein)*100,100)+'%';
-  document.getElementById('fiber-fill').style.width = Math.min((t.fiber/MACRO_T.fiber)*100,100)+'%';
+  document.getElementById('nc-fill').style.width = Math.min((t.carbs/mt.carbs)*100,100)+'%';
+  document.getElementById('fat-fill').style.width = Math.min((t.fat/mt.fat)*100,100)+'%';
+  document.getElementById('prot-fill').style.width = Math.min((t.protein/mt.protein)*100,100)+'%';
+  document.getElementById('fiber-fill').style.width = Math.min((t.fiber/mt.fiber)*100,100)+'%';
+  // Keep the "/ N" target labels in the macro row honest — update them from live targets, not the stale hardcoded copy in HTML
+  document.getElementById('nc-target-label').textContent = 'Net Carbs / '+mt.carbs;
+  document.getElementById('fat-target-label').textContent = 'Fat / '+mt.fat;
+  document.getElementById('prot-target-label').textContent = 'Protein / '+mt.protein;
+  document.querySelector('.fiber-val').innerHTML = '<span id="fiber-eaten">'+Math.round(t.fiber)+'</span>g / '+mt.fiber+'g';
 
   // Flags
   const flags=[];
-  if(t.protein>=MACRO_T.protein) flags.push(['green','✅ Protein']);
-  else if(t.protein>=MACRO_T.protein*0.7) flags.push(['yellow','⚡ Protein '+Math.round(t.protein)+'/170g']);
-  else flags.push(['red','❌ Protein '+Math.round(t.protein)+'/170g']);
-  if(t.fiber>=MACRO_T.fiber) flags.push(['green','✅ Fiber']);
-  else flags.push(['yellow','⚡ Fiber '+Math.round(t.fiber)+'/38g']);
-  if(t.sodium>MACRO_T.sodium) flags.push(['red','⚠️ Sodium over']);
-  else if(t.sodium>MACRO_T.sodium*0.8) flags.push(['yellow','⚡ Sodium '+Math.round(t.sodium)+'mg']);
+  if(t.protein>=mt.protein) flags.push(['green','✅ Protein']);
+  else if(t.protein>=mt.protein*0.7) flags.push(['yellow','⚡ Protein '+Math.round(t.protein)+'/'+mt.protein+'g']);
+  else flags.push(['red','❌ Protein '+Math.round(t.protein)+'/'+mt.protein+'g']);
+  if(t.fiber>=mt.fiber) flags.push(['green','✅ Fiber']);
+  else flags.push(['yellow','⚡ Fiber '+Math.round(t.fiber)+'/'+mt.fiber+'g']);
+  if(t.sodium>mt.sodium) flags.push(['red','⚠️ Sodium over']);
+  else if(t.sodium>mt.sodium*0.8) flags.push(['yellow','⚡ Sodium '+Math.round(t.sodium)+'mg']);
   else if(t.sodium>0) flags.push(['green','✅ Sodium OK']);
-  if(t.cholesterol>MACRO_T.cholesterol) flags.push(['red','⚠️ Cholesterol over']);
+  if(t.cholesterol>mt.cholesterol) flags.push(['red','⚠️ Cholesterol over']);
   document.getElementById('macro-flags').innerHTML = flags.map(([c,txt])=>`<div class="flag flag-${c}">${txt}</div>`).join('');
 
   // Diary
@@ -959,15 +1051,21 @@ async function analyzeMeal(){
   btn.innerHTML='<div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner" style="border-top-color:white;"></div>Analyzing...</div>';
   document.getElementById('analysis-result').style.display='none';
 
-  const prompt=`You are a precise USDA-based nutrition calculator. Return ONLY valid JSON, no markdown.
+  const prompt=`You are a precise nutrition calculator. Use USDA FoodData Central (FDC) values as your reference standard for every ingredient — prefer FDC "Foundation" or "SR Legacy" entries over generic estimates when you recognize the food. Return ONLY valid JSON, no markdown.
 
-Meal: ${name||'Meal'}
+${name ? `User-provided meal name: ${name}` : `No meal name was provided — infer a short, specific, descriptive name from the ingredients below (e.g. "Grilled Chicken Caesar Salad", not "Meal" or "Food").`}
 Ingredients/Info: ${ingredients}
 
-Return exactly:
-{"name":"${name||'Meal'}","calories":0,"protein_g":0,"carbs_total_g":0,"carbs_net_g":0,"fiber_g":0,"fat_total_g":0,"fat_saturated_g":0,"cholesterol_mg":0,"sodium_mg":0,"potassium_mg":0,"magnesium_mg":0,"calcium_mg":0,"iron_mg":0,"vitamin_c_mg":0,"sugar_g":0,"notes":"brief accuracy note"}
+Rules:
+- Account for cooking method's effect on weight and nutrient density (e.g. raw vs. cooked weight, moisture loss from grilling/roasting, oil absorption from frying).
+- When ingredient quantities or preparation are ambiguous, make a conservative (lower-bound) estimate rather than an average-case guess — do not round up in the person's favor.
+- carbs_net_g = carbs_total_g − fiber_g.
+- "notes" should be one short sentence flagging anything estimated vs. known, and naming which FDC-style reference food you used as the closest match.
 
-Numbers only. Return only the JSON.`;
+Return exactly this JSON shape with real computed values (not placeholders):
+{"name":"descriptive meal name","calories":0,"protein_g":0,"carbs_total_g":0,"carbs_net_g":0,"fiber_g":0,"fat_total_g":0,"fat_saturated_g":0,"cholesterol_mg":0,"sodium_mg":0,"potassium_mg":0,"magnesium_mg":0,"calcium_mg":0,"iron_mg":0,"vitamin_c_mg":0,"sugar_g":0,"notes":"brief accuracy note"}
+
+Return only the JSON, nothing else.`;
 
   try {
     const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
@@ -1000,6 +1098,7 @@ function renderResult(m, servings) {
   document.getElementById('result-content').innerHTML=`
     <div class="result-name">${m.name}</div>
     <div class="result-notes">${m.notes||''}</div>
+    <div style="font-size:11px;color:var(--muted);background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">⚠️ AI estimates — verify packaged items against label.</div>
 
     <!-- Serving size control — MFP style -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);border-top:1px solid var(--border);margin-bottom:12px;">
