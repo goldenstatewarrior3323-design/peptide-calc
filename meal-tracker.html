@@ -187,6 +187,7 @@
     <div class="topbar-streak" id="streak-display"></div>
     <button onclick="exportDay()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Export today's data">⬇️</button>
     <button onclick="openCoach()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Coach">🧠</button>
+    <button onclick="openGapFiller()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Close the Gap">🎯</button>
     <button onclick="showPage('settings')" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Settings">⚙️</button>
     <select id="day-type-sel" onchange="setDayType(this.value)" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;font-weight:700;border-radius:8px;padding:4px 8px;outline:none;">
       <option value="rest">Rest</option>
@@ -494,6 +495,19 @@
   </div>
 </div>
 
+<!-- GAP FILLER MODAL -->
+<div id="gap-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:998;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:17px;font-weight:800;">🎯 Close the Gap</div>
+      <button onclick="closeGapFiller()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div id="gap-body" style="font-size:14px;line-height:1.6;color:var(--text);white-space:pre-wrap;">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--muted);"><div class="spinner"></div>Checking what's left to log today...</div>
+    </div>
+  </div>
+</div>
+
 <!-- EXPORT MODAL -->
 <div id="export-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:998;align-items:flex-end;justify-content:center;">
   <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
@@ -788,6 +802,69 @@ function openCoach(){
   runCoachAnalysis();
 }
 function closeCoach(){ document.getElementById('coach-modal').style.display='none'; }
+
+// ── CLOSE THE GAP ────────────────────────────────────────────────────────────
+function openGapFiller(){
+  const modal=document.getElementById('gap-modal');
+  modal.style.display='flex';
+  document.getElementById('gap-body').innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--muted);"><div class="spinner"></div>Checking what's left to log today...</div>`;
+  runGapFillerAnalysis();
+}
+function closeGapFiller(){ document.getElementById('gap-modal').style.display='none'; }
+
+async function runGapFillerAnalysis(){
+  const snap = buildDaySnapshot();
+  const mt = snap.targets;
+  const t = snap.totals;
+
+  // Remaining deficits — floor at 0 for "still needed", note if already over for ceilings like sodium
+  const remaining = {
+    protein: Math.max(0, mt.protein - t.protein),
+    fat: Math.max(0, mt.fat - t.fat),
+    carbs: Math.max(0, mt.carbs - t.carbs),
+    fiber: Math.max(0, mt.fiber - t.fiber),
+    calRemaining: (snap.calTarget + snap.exerciseCals) - t.cal,
+    sodiumRoom: Math.max(0, mt.sodium - t.sodium),
+  };
+
+  const saved = getSaved();
+  const savedListText = saved.length
+    ? saved.map(m => `- ${m.name}: ${m.calories}cal, P${Math.round(m.protein_g||0)}g F${Math.round(m.fat_total_g||0)}g NC${Math.round(m.carbs_net_g||0)}g Fiber${Math.round(m.fiber_g||0)}g`).join('\n')
+    : '(no saved/signature meals yet)';
+
+  const prompt = `${getFullProtocolContext()}
+
+(Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE})
+
+Today's remaining gaps to close before day's end:
+- Protein still needed: ${Math.round(remaining.protein)}g
+- Fat still needed: ${Math.round(remaining.fat)}g
+- Net Carbs room left: ${Math.round(remaining.carbs)}g
+- Fiber still needed: ${Math.round(remaining.fiber)}g
+- Calories remaining in budget: ${Math.round(remaining.calRemaining)}
+- Sodium room left before ceiling: ${Math.round(remaining.sodiumRoom)}mg
+
+This person's saved/signature meals (their established go-to foods):
+${savedListText}
+
+Task:
+1. First, check if any saved/signature meal(s) above would close these gaps well — recommend the single best match (or combination) by name, and say specifically which gap(s) it closes and how well.
+2. If the saved list doesn't fully close the remaining gaps (or is empty), reason beyond it — suggest 1-2 additional specific food ideas (not vague categories like "some protein") that would close what's left, accounting for their known food dislikes (never suggest broccoli, cauliflower, beets, cottage cheese, or sweet potatoes).
+3. Keep it short — 4-5 sentences max, direct and practical, no fluff. This is a "what do I eat next" answer, not a lecture.`;
+
+  try {
+    const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
+    const res = await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:prompt}]})});
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message||JSON.stringify(data.error));
+    const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    document.getElementById('gap-body').textContent = text || 'No response returned.';
+  } catch(e){
+    document.getElementById('gap-body').innerHTML = `<span style="color:var(--red);">Gap analysis failed — check connection.</span>`;
+    console.error(e);
+  }
+}
 
 async function runCoachAnalysis(){
   const snap = buildDaySnapshot();
