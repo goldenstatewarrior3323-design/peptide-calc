@@ -405,10 +405,11 @@
 
   <div class="weight-card">
     <div class="card-title">Who's logging?</div>
-    <div style="display:flex;gap:8px;">
-      <button class="person-btn" id="person-btn-rich" onclick="selectPerson('rich')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Rich</button>
-      <button class="person-btn" id="person-btn-claudia" onclick="selectPerson('claudia')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Claudia</button>
-      <button class="person-btn" id="person-btn-dom" onclick="selectPerson('dom')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Dom</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="person-btn" id="person-btn-rich" onclick="selectPerson('rich')" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Rich</button>
+      <button class="person-btn" id="person-btn-claudia" onclick="selectPerson('claudia')" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Claudia</button>
+      <button class="person-btn" id="person-btn-dom" onclick="selectPerson('dom')" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Dom</button>
+      <button class="person-btn" id="person-btn-noah" onclick="selectPerson('noah')" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-weight:700;cursor:pointer;">Noah</button>
     </div>
   </div>
 
@@ -442,7 +443,7 @@
     <input class="field" type="number" id="set-sodium"/>
   </div>
 
-  <div class="weight-card">
+  <div class="weight-card" id="dose-card">
     <div class="card-title">Tirzepatide Dose</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Manual entry — logged with today's date, kept as history so Coach knows how recently a dose changed.</div>
     <div style="display:flex;gap:8px;align-items:flex-end;">
@@ -479,6 +480,7 @@
     <input class="field" type="text" id="supp-dose-input" placeholder="Dose (e.g. 200mg, 5g, 1 cap)" style="margin-bottom:8px;"/>
     <input class="field" type="text" id="supp-timing-input" placeholder="Timing (e.g. With food, Nighttime)" style="margin-bottom:12px;"/>
     <button onclick="addSupp()" style="width:100%;padding:12px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Add Supplement</button>
+    <button onclick="resetSuppsToPreset()" style="width:100%;padding:11px;margin-top:8px;background:none;color:var(--muted);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Reset to Preset</button>
   </div>
 </div>
 
@@ -608,6 +610,17 @@ Non-negotiable: Protein 225g floor (HARD — always first, never skipped, regard
 Rules to enforce in coaching: low-hunger day → stay near 2,250 is fine and expected, not a miss. High-hunger day → push toward 3,000, don't let him default to the midpoint out of habit. Log every day, including "ugly" days — the only unacceptable pattern is a ghost day (no log at all). No russet potatoes. Add fat daily via olive oil/whole eggs/avocado.
 Target loss rate 2.5-4.0 lbs/week, safe ceiling 4.48 lbs/week (1% bodyweight) — flag anything faster as a safety concern, not a win.
 Coaching style: direct but age-appropriate for 19yo — call out under-eating on high-hunger days specifically, since defaulting to "close enough" at the low end is his known failure pattern.`
+  },
+  noah: {
+    label: 'Noah',
+    proteinFloor: 125, // non-negotiable — muscle-building floor for a growing 15yo athlete
+    macroDefaults: { fat:65, carbs:350, fiber:25, sodium:2300, potassium:3500, cholesterol:300 },
+    calDefaults: { rest:2600, bike:2600, hiit:2600 }, // surplus for muscle building, not a deficit
+    doseUnit: null, doseDefault: null, // no peptide protocol — dose tracking does not apply to Noah
+    protocolContext: `Noah, 15, male, 5'6", ~119lbs, high school wrestler in muscle-building off-season phase. NOT on any peptide protocol — this is nutrition-only, no medication involved.
+Non-negotiable: Protein 125g floor (HARD — muscle building requires this, never move it). Calories 2,600 (a SURPLUS for muscle gain, not a deficit — do not apply adult weight-loss framing). Carbs 350g — deliberately high and non-negotiable for HIIT/wrestling performance and recovery. Fat ~65g. Fiber 25g. Calcium 1,300mg (teen bone growth). Iron 11mg. Vitamin D 600IU.
+Known history to interpret data against: he previously skipped meals and dropped to 114lbs after following influencer-driven carnivore/meat-only content online — this was a direction problem, not defiance, and he responded well to a real conversation about it. Watch for meal-skipping patterns and flag them early and gently, not punitively.
+Coaching style: age-appropriate for a 15-year-old — encouraging and practical, never clinical, no adult dieting language (no "deficit," "cutting," weight-loss framing — this is about building, fueling performance, growing). Never suggest broccoli, cauliflower, beets, cottage cheese, or sweet potatoes.`
   }
 };
 const getCurrentPerson = () => localStorage.getItem('currentPerson') || 'rich';
@@ -670,27 +683,39 @@ const getExercise = (key) => { try { return JSON.parse(localStorage.getItem('exe
 const saveExercise2 = (arr, key) => localStorage.setItem('exercise_'+(key||todayKey()), JSON.stringify(arr));
 
 // Supplements
-const DEFAULT_SUPPS = [
-  {id:'s1',name:"Men's Multi",dose:'1 tablet',timing:'Morning'},
-  {id:'s2',name:'K2+D3',dose:'1 softgel (5,000IU D3)',timing:'Morning'},
+const DEFAULT_SUPPS_RICH = [
+  {id:'s1',name:"Men's Multi (EVL VitaMode)",dose:'1 tablet',timing:'Morning'},
+  {id:'s2',name:'Tri-K D3/K2 (MK-4+MK-7+K1)',dose:'800mcg K total',timing:'Morning'},
   {id:'s3',name:'Berberine + Ceylon Cinnamon',dose:'1,200mg',timing:'With meals'},
-  {id:'s4',name:'Magnesium Glycinate',dose:'200mg',timing:'With food'},
-  {id:'s5',name:'Probiotics 50B CFU',dose:'1 cap',timing:'Morning'},
-  {id:'s6',name:'Alpha Lipoic Acid',dose:'600mg',timing:'Evening'},
-  {id:'s7',name:'Omega-3 Fish Oil',dose:'2-3g',timing:'With dinner'},
-  {id:'s8',name:'Psyllium Husk',dose:'2 tbsp',timing:'Night'},
-  {id:'s9',name:'Collagen Peptides',dose:'Per label',timing:'Morning (coffee)'},
-  {id:'s10',name:'NAC + Glutathione',dose:'1,000mg NAC',timing:'1+ hr from multi'},
-  {id:'s11',name:'Creatine Monohydrate',dose:'5g',timing:'Pre-workout or AM'},
-  {id:'s12',name:'Citrulline Malate 2:1',dose:'6,000mg',timing:'30 min pre-HIIT only'},
-  {id:'s13',name:'KSM-66 Ashwagandha',dose:'600mg',timing:'Nighttime'},
-  {id:'s14',name:'L-Glutamine',dose:'5g',timing:'Post-workout'},
-  {id:'s15',name:'Pumpkin Seed Oil',dose:'1,000mg',timing:'Optional'},
+  {id:'s4',name:'Nutricost Triple Magnesium Complex',dose:'200mg',timing:'Bedtime'},
+  {id:'s5',name:'Probiotics 50B CFU',dose:'1 cap',timing:'2+ hrs from antibiotics'},
+  {id:'s6',name:'Alpha Lipoic Acid',dose:'600mg',timing:'Morning, with food'},
+  {id:'s7',name:'Kirkland Fish Oil',dose:'2 caps',timing:'With meals'},
+  {id:'s8',name:'Psyllium Husk',dose:'2 tbsp',timing:'Bedtime, 16oz+ water'},
+  {id:'s9',name:'Collagen Peptides',dose:'Per label',timing:'Any meal'},
+  {id:'s10',name:'NAC',dose:'1,000mg',timing:'Spaced from minerals/multi'},
+  {id:'s11',name:'Creatine Monohydrate',dose:'5g',timing:'Any time'},
+  {id:'s12',name:'L-Theanine',dose:'200mg',timing:'Morning, with coffee'},
+  {id:'s13',name:'KSM-66 Ashwagandha',dose:'600mg',timing:'Bedtime'},
+  {id:'s14',name:'Biotin',dose:'10,000mcg',timing:'Any time'},
+  {id:'s15',name:'KPV',dose:'500mcg SubQ',timing:'Daily, 60-day cycles'},
 ];
-const getSupps = () => { try { const s=localStorage.getItem('suppList'); return s?JSON.parse(s):DEFAULT_SUPPS; } catch { return DEFAULT_SUPPS; } };
-const saveSupps = s => localStorage.setItem('suppList', JSON.stringify(s));
-const getSuppLog = (key) => { try { return JSON.parse(localStorage.getItem('suppLog_'+(key||todayKey()))||'{}'); } catch { return {}; } };
-const saveSuppLog = (obj,key) => localStorage.setItem('suppLog_'+(key||todayKey()), JSON.stringify(obj));
+// Claudia and Dom don't have an established supplement stack documented yet —
+// starting them empty (rather than guessing) so nobody logs against a fabricated protocol.
+// Each person can add their own via the "+ Add Supplement" flow once their stack is set.
+const DEFAULT_SUPPS_BY_PERSON = { rich: DEFAULT_SUPPS_RICH, claudia: [], dom: [], noah: [] };
+
+const getSupps = (person) => {
+  const p = person || getCurrentPerson();
+  try {
+    const s = localStorage.getItem('suppList_'+p);
+    if (s) return JSON.parse(s);
+    return DEFAULT_SUPPS_BY_PERSON[p] || [];
+  } catch { return DEFAULT_SUPPS_BY_PERSON[p] || []; }
+};
+const saveSupps = (s, person) => localStorage.setItem('suppList_'+(person||getCurrentPerson()), JSON.stringify(s));
+const getSuppLog = (key, person) => { try { return JSON.parse(localStorage.getItem('suppLog_'+(person||getCurrentPerson())+'_'+(key||todayKey()))||'{}'); } catch { return {}; } };
+const saveSuppLog = (obj, key, person) => localStorage.setItem('suppLog_'+(person||getCurrentPerson())+'_'+(key||todayKey()), JSON.stringify(obj));
 
 // ── CALORIE CALC ──────────────────────────────────────────────────────────────
 function calcCalTarget(weightLbs) {
@@ -748,6 +773,7 @@ const PROTOCOL_SNAPSHOT_DATE = '2026-07-05';
 function getFullProtocolContext(person){
   const p = person || getCurrentPerson();
   const profile = PERSON_PROFILES[p];
+  if (profile.doseUnit === null) return profile.protocolContext; // no peptide protocol — no dose line to add
   const dose = getCurrentDose(p);
   const doseLine = dose.date
     ? `Current dose: ${dose.mg}${profile.doseUnit}, logged ${dose.date}.`
@@ -1059,7 +1085,7 @@ function selectPerson(person){
 function renderSettings(){
   const p = getCurrentPerson();
   const profile = PERSON_PROFILES[p];
-  ['rich','claudia','dom'].forEach(id=>{
+  ['rich','claudia','dom','noah'].forEach(id=>{
     const btn = document.getElementById('person-btn-'+id);
     const active = id===p;
     btn.style.background = active ? 'var(--blue)' : 'var(--bg)';
@@ -1090,11 +1116,17 @@ function renderSettings(){
   document.getElementById('set-fiber').value = mo.fiber ?? profile.macroDefaults.fiber;
   document.getElementById('set-sodium').value = mo.sodium ?? profile.macroDefaults.sodium;
 
-  const dose = getCurrentDose(p);
-  document.getElementById('set-dose').value = dose.mg;
-  document.getElementById('dose-current-label').textContent = dose.date
-    ? `Current: ${dose.mg}${profile.doseUnit}, logged ${dose.date}`
-    : `Current: ${dose.mg}${profile.doseUnit} (default, not yet manually logged)`;
+  const doseCard = document.getElementById('dose-card');
+  if (profile.doseUnit === null) {
+    doseCard.style.display = 'none'; // no peptide protocol for this person — nothing to show
+  } else {
+    doseCard.style.display = '';
+    const dose = getCurrentDose(p);
+    document.getElementById('set-dose').value = dose.mg;
+    document.getElementById('dose-current-label').textContent = dose.date
+      ? `Current: ${dose.mg}${profile.doseUnit}, logged ${dose.date}`
+      : `Current: ${dose.mg}${profile.doseUnit} (default, not yet manually logged)`;
+  }
 }
 
 function saveDoseEntry(){
@@ -1444,6 +1476,19 @@ function deleteSupp(idx) {
   supps.splice(idx,1);
   saveSupps(supps);
   renderSuppModalChecklist();
+}
+
+function resetSuppsToPreset() {
+  const p = getCurrentPerson();
+  const preset = DEFAULT_SUPPS_BY_PERSON[p] || [];
+  if (preset.length === 0) {
+    showToast(PERSON_PROFILES[p].label+' has no documented preset yet — list cleared instead');
+  } else {
+    showToast('Reset to '+PERSON_PROFILES[p].label+"'s preset stack");
+  }
+  saveSupps([...preset]); // copy, not reference — editing later shouldn't mutate the preset itself
+  renderSuppModalChecklist();
+  renderSupplements(selectedDateKey);
 }
 
 // ── EXERCISE ──────────────────────────────────────────────────────────────────
