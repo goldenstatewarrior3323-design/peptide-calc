@@ -445,6 +445,10 @@
         <select class="field" id="pl-peptide" onchange="onPinLogPeptideChange()">
           <option value="Tirzepatide">Tirzepatide</option>
           <option value="KPV">KPV</option>
+          <option value="GHK-Cu">GHK-Cu</option>
+          <option value="Semax Nasal">Semax Nasal</option>
+          <option value="Epithalon">Epithalon</option>
+          <option value="SS-31">SS-31</option>
         </select>
       </div>
       <div class="input-group">
@@ -500,6 +504,10 @@
           <select class="field" id="lot-peptide">
             <option value="tirz">Tirzepatide</option>
             <option value="kpv">KPV</option>
+            <option value="ghkcu">GHK-Cu</option>
+            <option value="semax">Semax Nasal</option>
+            <option value="epithalon">Epithalon</option>
+            <option value="ss31">SS-31</option>
           </select>
         </div>
         <div class="input-group" style="flex:1;">
@@ -527,10 +535,19 @@
         </div>
       </div>
       <div class="input-group">
-        <div class="input-label">Attach COA <span>— optional, stored on this device only</span></div>
-        <input class="field" type="file" accept="image/*,application/pdf" id="lot-coa-file" onchange="onLotCoaFileChange()" style="padding:8px;"/>
-        <div id="lot-coa-preview" style="margin-top:8px;display:none;"></div>
-        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Images are compressed before saving to keep this device's storage manageable. PDFs are stored as-is — a large PDF may eventually fill storage; a screenshot of the COA works just as well and stays smaller.</div>
+        <div class="input-label">Attach Reports <span>— COA, endotoxin, sterility — add as many as you have</span></div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input class="field" type="text" id="lot-attach-label" list="lot-attach-label-list" placeholder="e.g. COA" style="flex:1;"/>
+          <datalist id="lot-attach-label-list">
+            <option value="COA">
+            <option value="Endotoxin">
+            <option value="Sterility">
+          </datalist>
+        </div>
+        <input class="field" type="file" accept="image/*,application/pdf" id="lot-attach-file" style="padding:8px;margin-bottom:8px;"/>
+        <button type="button" onclick="addPendingAttachment()" style="width:100%;padding:9px;background:var(--surface);border:1.5px solid var(--border2);color:var(--text);border-radius:8px;font-weight:700;cursor:pointer;">+ Add This Attachment</button>
+        <div id="lot-pending-attachments" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Images are compressed before saving to keep this device's storage manageable. PDFs are stored as-is — a large PDF may eventually fill storage; a clear screenshot works just as well and stays smaller.</div>
       </div>
       <div class="input-group" style="margin-bottom:0;">
         <div class="input-label">Notes <span>— optional</span></div>
@@ -543,6 +560,14 @@
     <div id="lots-list"></div>
   </div>
 
+</div>
+
+<!-- ATTACHMENT LIGHTBOX — tap any attachment thumbnail to view full-size, or open PDF in new tab -->
+<div id="attachment-lightbox" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="closeLightbox()">
+  <div style="max-width:100%;max-height:100%;position:relative;" onclick="event.stopPropagation()">
+    <button onclick="closeLightbox()" style="position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;">✕</button>
+    <img id="lightbox-img" style="max-width:100%;max-height:80vh;border-radius:8px;display:none;"/>
+  </div>
 </div>
 
 <script>
@@ -930,10 +955,21 @@
   }
   function savePinLog(arr) { localStorage.setItem('pinLog', JSON.stringify(arr)); }
 
+  // Shared mapping: Pin Log's display names -> Lot tracker's short keys, and each peptide's typical dose unit
+  const PIN_LOG_PEPTIDE_MAP = {
+    'Tirzepatide': { lotKey:'tirz', unit:'mg', defaultDose:'' },
+    'KPV': { lotKey:'kpv', unit:'mcg', defaultDose:500 },
+    'GHK-Cu': { lotKey:'ghkcu', unit:'mg', defaultDose:'' },
+    'Semax Nasal': { lotKey:'semax', unit:'mcg', defaultDose:'' },
+    'Epithalon': { lotKey:'epithalon', unit:'mcg', defaultDose:'' },
+    'SS-31': { lotKey:'ss31', unit:'mg', defaultDose:'' },
+  };
+
   function onPinLogPeptideChange() {
     const pep = document.getElementById('pl-peptide').value;
-    document.getElementById('pl-dose-label').textContent = pep === 'KPV' ? 'Dose (mcg)' : 'Dose (mg)';
-    document.getElementById('pl-dose').value = pep === 'KPV' ? 500 : '';
+    const info = PIN_LOG_PEPTIDE_MAP[pep] || { unit:'mg', defaultDose:'' };
+    document.getElementById('pl-dose-label').textContent = 'Dose ('+info.unit+')';
+    document.getElementById('pl-dose').value = info.defaultDose;
     populatePinLogLotSelect();
   }
 
@@ -941,8 +977,9 @@
   function populatePinLogLotSelect(){
     const sel = document.getElementById('pl-lot-select');
     if(!sel) return;
-    const pep = document.getElementById('pl-peptide').value === 'KPV' ? 'kpv' : 'tirz';
-    const lots = getLots().filter(l => l.peptide === pep);
+    const pep = document.getElementById('pl-peptide').value;
+    const lotKey = (PIN_LOG_PEPTIDE_MAP[pep] || {}).lotKey || 'tirz';
+    const lots = getLots().filter(l => l.peptide === lotKey);
     sel.innerHTML = '<option value="">— Enter manually below —</option>' +
       lots.map(l => `<option value="${l.id}">${l.vendor} — ${l.lotNumber}${l.date?' ('+l.date+')':''}</option>`).join('');
   }
@@ -1013,23 +1050,37 @@
   // ── LOT TRACKER ──────────────────────────────────────────────────────────
   function getLots(){ try { return JSON.parse(localStorage.getItem('lotTracker')||'[]'); } catch { return []; } }
   function saveLots(arr){ localStorage.setItem('lotTracker', JSON.stringify(arr)); }
+  const LOT_PEPTIDE_LABELS = { tirz:'Tirzepatide', kpv:'KPV', ghkcu:'GHK-Cu', semax:'Semax Nasal', epithalon:'Epithalon', ss31:'SS-31' };
 
-  let pendingCoaData = null; // holds compressed image (or raw PDF) until Save Lot is tapped
+  let pendingAttachments = []; // holds compressed images / raw PDFs, each labeled, until Save Lot is tapped
+  let expandedLotIds = new Set(); // tracks which lot cards are currently expanded
 
   // Downscale + compress any uploaded image before storing, since localStorage has a hard quota
   // (typically 5-10MB total) and full-resolution phone photos would burn through that in a handful
   // of lots. PDFs are stored as-is with a warning, since they can't be shrunk the same way.
-  function onLotCoaFileChange(){
-    const file = document.getElementById('lot-coa-file').files[0];
-    const preview = document.getElementById('lot-coa-preview');
-    if(!file){ pendingCoaData = null; preview.style.display='none'; return; }
+  // Same compression approach as addPendingAttachment, but writes directly into an
+  // already-saved lot instead of the in-progress "new lot" form.
+  function addAttachmentToExistingLot(lotId){
+    const labelInput = document.getElementById('lot-attach-label-'+lotId);
+    const fileInput = document.getElementById('lot-attach-file-'+lotId);
+    const label = labelInput.value.trim() || 'Report';
+    const file = fileInput.files[0];
+    if(!file){ showToastGeneric('Choose a file first'); return; }
+
+    const finish = (attachment) => {
+      const lots = getLots();
+      const lot = lots.find(l => l.id === lotId);
+      if(!lot) return;
+      if(!lot.attachments) lot.attachments = lot.coa ? [{...lot.coa, label:'COA', id:'legacy'}] : [];
+      lot.attachments.push({ id: Date.now()+Math.random(), label, ...attachment });
+      saveLots(lots);
+      renderLotsList();
+      showToastGeneric('Attachment added');
+    };
+
     if(file.type === 'application/pdf'){
       const reader = new FileReader();
-      reader.onload = e => {
-        pendingCoaData = { type:'pdf', data:e.target.result, name:file.name };
-        preview.innerHTML = `📄 ${file.name} (attached — PDFs aren't compressed, keep an eye on device storage)`;
-        preview.style.display='block';
-      };
+      reader.onload = e => finish({ type:'pdf', data:e.target.result, name:file.name });
       reader.readAsDataURL(file);
       return;
     }
@@ -1037,20 +1088,69 @@
     const reader = new FileReader();
     reader.onload = e => {
       img.onload = () => {
-        const maxDim = 1000; // plenty for reading a COA later, far smaller than a raw phone photo
+        const maxDim = 1000;
         let w = img.width, h = img.height;
         if(w > h && w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
         else if(h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        pendingCoaData = { type:'image', data: canvas.toDataURL('image/jpeg', 0.75), name:file.name };
-        preview.innerHTML = `<img src="${pendingCoaData.data}" style="max-width:120px;border-radius:8px;border:1px solid var(--border2);"/>`;
-        preview.style.display='block';
+        finish({ type:'image', data: canvas.toDataURL('image/jpeg', 0.75), name:file.name });
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  }
+
+  function addPendingAttachment(){
+    const label = document.getElementById('lot-attach-label').value.trim() || 'Report';
+    const fileInput = document.getElementById('lot-attach-file');
+    const file = fileInput.files[0];
+    if(!file){ showToastGeneric('Choose a file first'); return; }
+
+    const finish = (attachment) => {
+      pendingAttachments.push({ id: Date.now()+Math.random(), label, ...attachment });
+      renderPendingAttachments();
+      document.getElementById('lot-attach-label').value='';
+      fileInput.value='';
+    };
+
+    if(file.type === 'application/pdf'){
+      const reader = new FileReader();
+      reader.onload = e => finish({ type:'pdf', data:e.target.result, name:file.name });
+      reader.readAsDataURL(file);
+      return;
+    }
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        const maxDim = 1000; // plenty for reading a report later, far smaller than a raw phone photo
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        finish({ type:'image', data: canvas.toDataURL('image/jpeg', 0.75), name:file.name });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removePendingAttachment(id){
+    pendingAttachments = pendingAttachments.filter(a => a.id !== id);
+    renderPendingAttachments();
+  }
+
+  function renderPendingAttachments(){
+    const el = document.getElementById('lot-pending-attachments');
+    el.innerHTML = pendingAttachments.map(a => `
+      <div style="display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;font-size:12px;">
+        <span>${a.type==='pdf'?'📄':'🖼️'} ${a.label}</span>
+        <button onclick="removePendingAttachment(${a.id})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;">✕</button>
+      </div>`).join('');
   }
 
   function saveLotEntry(){
@@ -1069,15 +1169,16 @@
       id: Date.now(), peptide, date, vendor, lotNumber,
       fill: fill ? parseFloat(fill) : null,
       purity: purity ? parseFloat(purity) : null,
-      coa: pendingCoaData, notes,
+      attachments: pendingAttachments,
+      reconDates: [],
+      notes,
     });
     saveLots(lots);
 
     // Reset form
     ['lot-vendor','lot-number','lot-fill','lot-purity','lot-notes'].forEach(id => document.getElementById(id).value='');
-    document.getElementById('lot-coa-file').value='';
-    document.getElementById('lot-coa-preview').style.display='none';
-    pendingCoaData = null;
+    pendingAttachments = [];
+    renderPendingAttachments();
 
     renderLotsList();
     populateLotSelect(); populatePinLogLotSelect();
@@ -1086,8 +1187,54 @@
 
   function deleteLotEntry(id){
     saveLots(getLots().filter(l => l.id !== id));
+    expandedLotIds.delete(id);
     renderLotsList();
     populateLotSelect(); populatePinLogLotSelect();
+  }
+
+  function toggleLotExpand(id){
+    if(expandedLotIds.has(id)) expandedLotIds.delete(id); else expandedLotIds.add(id);
+    renderLotsList();
+  }
+
+  function addReconDate(lotId){
+    const dateInput = document.getElementById('recon-date-'+lotId);
+    const noteInput = document.getElementById('recon-note-'+lotId);
+    const date = dateInput.value;
+    if(!date){ showToastGeneric('Pick a date first'); return; }
+    const lots = getLots();
+    const lot = lots.find(l => l.id === lotId);
+    if(!lot) return;
+    if(!lot.reconDates) lot.reconDates = [];
+    lot.reconDates.unshift({ date, note: noteInput.value.trim() });
+    saveLots(lots);
+    renderLotsList();
+  }
+
+  function deleteReconDate(lotId, idx){
+    const lots = getLots();
+    const lot = lots.find(l => l.id === lotId);
+    if(!lot || !lot.reconDates) return;
+    lot.reconDates.splice(idx, 1);
+    saveLots(lots);
+    renderLotsList();
+  }
+
+  // Attachment viewer — images open in an in-page lightbox; PDFs open in a new tab
+  // (browsers render PDF data URIs natively, so no extra viewer code is needed for those).
+  function openAttachment(data, type){
+    if(type === 'pdf'){
+      const win = window.open();
+      win.document.write(`<iframe src="${data}" style="width:100%;height:100vh;border:none;"></iframe>`);
+      return;
+    }
+    document.getElementById('lightbox-img').src = data;
+    document.getElementById('lightbox-img').style.display = 'block';
+    document.getElementById('attachment-lightbox').style.display = 'flex';
+  }
+  function closeLightbox(){
+    document.getElementById('attachment-lightbox').style.display = 'none';
+    document.getElementById('lightbox-img').src = '';
   }
 
   function renderLotsList(){
@@ -1099,25 +1246,62 @@
 
     if(!lots.length){ el.innerHTML = '<div class="empty"><div class="empty-text">No lots saved yet</div></div>'; return; }
     el.innerHTML = lots.map(l => {
-      const pepLabel = l.peptide === 'kpv' ? 'KPV' : 'Tirzepatide';
+      const pepLabel = LOT_PEPTIDE_LABELS[l.peptide] || l.peptide;
       const bits = [];
       if(l.fill != null) bits.push(`Fill: ${l.fill}mg`);
       if(l.purity != null) bits.push(`Purity: ${l.purity}%`);
-      const coaThumb = l.coa && l.coa.type === 'image'
-        ? `<img src="${l.coa.data}" style="max-width:70px;border-radius:6px;border:1px solid var(--border2);margin-top:6px;"/>`
-        : l.coa && l.coa.type === 'pdf'
-          ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">📄 ${l.coa.name}</div>`
-          : '';
+      const isOpen = expandedLotIds.has(l.id);
+      const attachments = l.attachments || (l.coa ? [{...l.coa, label:'COA', id:'legacy'}] : []); // back-compat with old single-coa lots
+      const reconDates = l.reconDates || [];
+
+      const attachmentChips = attachments.length
+        ? attachments.map(a => `
+            <button onclick='openAttachment(${JSON.stringify(a.data)}, "${a.type}")' style="display:flex;align-items:center;gap:5px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);cursor:pointer;">
+              ${a.type==='pdf'?'📄':'🖼️'} ${a.label}
+            </button>`).join('')
+        : `<div style="font-size:11px;color:var(--muted);">No reports attached</div>`;
+
+      const reconList = reconDates.length
+        ? reconDates.map((r,idx) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #0f2035;font-size:12px;">
+              <span>${r.date}${r.note?' — '+r.note:''}</span>
+              <button onclick="deleteReconDate(${l.id},${idx})" style="background:none;border:none;color:#ef4444;cursor:pointer;">✕</button>
+            </div>`).join('')
+        : `<div style="font-size:11px;color:var(--muted);">No reconstitution dates logged</div>`;
+
       return `
-      <div class="pinlog-row" style="align-items:flex-start;">
-        <div>
-          <div class="pinlog-row-main">${l.vendor} — ${l.lotNumber}</div>
-          <div class="pinlog-row-sub">${pepLabel}${l.date?' · '+l.date:''}</div>
-          <div class="pinlog-row-sub" style="color:#f59e0b;">${bits.join(' · ')}</div>
-          ${l.notes?`<div class="pinlog-row-sub">${l.notes}</div>`:''}
-          ${coaThumb}
+      <div class="pinlog-row" style="align-items:flex-start;flex-direction:column;">
+        <div style="display:flex;justify-content:space-between;width:100%;cursor:pointer;" onclick="toggleLotExpand(${l.id})">
+          <div>
+            <div class="pinlog-row-main">${l.vendor} — ${l.lotNumber}</div>
+            <div class="pinlog-row-sub">${pepLabel}${l.date?' · '+l.date:''}</div>
+            <div class="pinlog-row-sub" style="color:#f59e0b;">${bits.join(' · ')}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:var(--muted);font-size:12px;">${isOpen?'▴':'▾'}</span>
+            <button class="pinlog-del" onclick="event.stopPropagation();deleteLotEntry(${l.id})">✕</button>
+          </div>
         </div>
-        <button class="pinlog-del" onclick="deleteLotEntry(${l.id})">✕</button>
+        ${isOpen ? `
+        <div style="width:100%;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border2);">
+          ${l.notes?`<div class="pinlog-row-sub" style="margin-bottom:10px;">${l.notes}</div>`:''}
+
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Reports</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">${attachmentChips}</div>
+          <div style="display:flex;gap:8px;margin-bottom:6px;">
+            <input class="field" type="text" id="lot-attach-label-${l.id}" list="lot-attach-label-list" placeholder="e.g. Endotoxin" style="flex:1;"/>
+          </div>
+          <input class="field" type="file" accept="image/*,application/pdf" id="lot-attach-file-${l.id}" style="padding:8px;margin-bottom:8px;"/>
+          <button onclick="addAttachmentToExistingLot(${l.id})" style="width:100%;padding:9px;background:var(--surface);border:1.5px solid var(--border2);color:var(--text);border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:14px;">+ Add Attachment</button>
+
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Reconstitution Dates</div>
+          <div style="margin-bottom:8px;">${reconList}</div>
+          <div style="display:flex;gap:8px;">
+            <input class="field" type="date" id="recon-date-${l.id}" style="flex:1;"/>
+            <input class="field" type="text" id="recon-note-${l.id}" placeholder="note (optional)" style="flex:1;"/>
+          </div>
+          <button onclick="addReconDate(${l.id})" style="width:100%;margin-top:8px;padding:9px;background:var(--surface);border:1.5px solid var(--border2);color:var(--text);border-radius:8px;font-weight:700;cursor:pointer;">+ Add Reconstitution Date</button>
+        </div>` : ''}
       </div>`;
     }).join('');
   }
