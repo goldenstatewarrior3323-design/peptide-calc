@@ -447,6 +447,12 @@
           <option value="KPV">KPV</option>
         </select>
       </div>
+      <div class="input-group">
+        <div class="input-label">Select Lot <span>— auto-fills vendor/fill/purity below</span></div>
+        <select class="field" id="pl-lot-select" onchange="applySelectedPinLogLot()">
+          <option value="">— Enter manually below —</option>
+        </select>
+      </div>
       <div style="display:flex;gap:10px;">
         <div class="input-group" style="flex:1;">
           <div class="input-label">Date</div>
@@ -647,7 +653,7 @@
     document.getElementById('ci-vial').value = state.vialMg;
     document.getElementById('ci-bac').value = state.bacMl;
 
-    populateLotSelect();
+    populateLotSelect(); populatePinLogLotSelect();
     buildDoseGrid();
     recalc();
   }
@@ -928,6 +934,27 @@
     const pep = document.getElementById('pl-peptide').value;
     document.getElementById('pl-dose-label').textContent = pep === 'KPV' ? 'Dose (mcg)' : 'Dose (mg)';
     document.getElementById('pl-dose').value = pep === 'KPV' ? 500 : '';
+    populatePinLogLotSelect();
+  }
+
+  // Populates the Pin Log's "Select Lot" dropdown, filtered to whichever peptide is selected there
+  function populatePinLogLotSelect(){
+    const sel = document.getElementById('pl-lot-select');
+    if(!sel) return;
+    const pep = document.getElementById('pl-peptide').value === 'KPV' ? 'kpv' : 'tirz';
+    const lots = getLots().filter(l => l.peptide === pep);
+    sel.innerHTML = '<option value="">— Enter manually below —</option>' +
+      lots.map(l => `<option value="${l.id}">${l.vendor} — ${l.lotNumber}${l.date?' ('+l.date+')':''}</option>`).join('');
+  }
+
+  function applySelectedPinLogLot(){
+    const id = parseFloat(document.getElementById('pl-lot-select').value);
+    if(!id) return;
+    const lot = getLots().find(l => l.id === id);
+    if(!lot) return;
+    document.getElementById('pl-vendor').value = lot.vendor + (lot.lotNumber ? ' — '+lot.lotNumber : '');
+    document.getElementById('pl-fill').value = lot.fill != null ? lot.fill : '';
+    document.getElementById('pl-purity').value = lot.purity != null ? lot.purity : '';
   }
 
   function savePinLogEntry() {
@@ -1053,14 +1080,14 @@
     pendingCoaData = null;
 
     renderLotsList();
-    populateLotSelect();
+    populateLotSelect(); populatePinLogLotSelect();
     showToastGeneric('Lot saved');
   }
 
   function deleteLotEntry(id){
     saveLots(getLots().filter(l => l.id !== id));
     renderLotsList();
-    populateLotSelect();
+    populateLotSelect(); populatePinLogLotSelect();
   }
 
   function renderLotsList(){
@@ -1146,7 +1173,7 @@
   buildDoseGrid();
   recalc();
   renderHousehold();
-  populateLotSelect();
+  populateLotSelect(); populatePinLogLotSelect();
 
   // Default pin log date/time to now for fast entry
   (function initPinLogDefaults(){
