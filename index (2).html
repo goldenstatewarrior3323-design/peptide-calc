@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#060f1e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Peptide Calc" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <title>Peptide Calc</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #060f1e;
+      --surface: #0d1f35;
+      --border: #1e2d45;
+      --border2: #1e3a5f;
+      --text: #e2e8f0;
+      --muted: #475569;
+      --dim: #334155;
+      --accent: #00c896;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    body {
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bottom);
+    }
+
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px 16px 60px;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .eyebrow { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 4px; transition: color 0.3s; }
+    h1 { font-size: 26px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.5px; }
+    .subtitle { font-size: 11px; color: var(--muted); margin-top: 4px; margin-bottom: 20px; }
+
+    /* Top-level app tabs */
+    .app-tabs { display: flex; background: var(--surface); border-radius: 10px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--border); }
+    .app-tab-btn {
+      flex: 1; padding: 9px 4px; border-radius: 7px; border: none;
+      background: transparent; color: var(--muted);
+      font-weight: 700; font-size: 11px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      transition: all 0.2s; -webkit-tap-highlight-color: transparent;
+    }
+    .app-tab-btn.active { background: var(--accent); color: #060f1e; }
+    .app-tab-page { display: none; }
+    .app-tab-page.active { display: block; }
+
+    /* Person switcher */
+    .persons { display: flex; gap: 8px; margin-bottom: 20px; }
+    .person-btn {
+      flex: 1; padding: 12px 8px; border-radius: 10px;
+      border: 2px solid var(--border);
+      background: transparent; color: var(--muted);
+      font-weight: 700; font-size: 14px; cursor: pointer;
+      transition: all 0.2s; text-align: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .person-btn .sub { font-size: 10px; font-weight: 400; margin-top: 2px; opacity: 0.8; }
+    .person-btn.active { color: var(--accent); }
+
+    /* Peptide toggle (replaces old Quick/What-If mode toggle) */
+    .mode-wrap { display: flex; background: var(--surface); border-radius: 10px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--border); }
+    .mode-btn {
+      flex: 1; padding: 8px; border-radius: 7px; border: none;
+      background: transparent; color: var(--muted);
+      font-weight: 700; font-size: 11px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 1px;
+      transition: all 0.2s; -webkit-tap-highlight-color: transparent;
+    }
+    .mode-btn.active { color: #060f1e; }
+
+    /* Section label */
+    .section-label { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+
+    /* Dose pills */
+    .syringe-size-btn {
+      flex: 1; padding: 10px 8px; border-radius: 8px;
+      border: 2px solid var(--border);
+      background: var(--surface); color: var(--muted);
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      text-align: center; transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .syringe-size-btn.active { border-color: var(--accent); background: rgba(0,200,150,0.12); color: var(--accent); }
+
+    .dose-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .dose-btn {
+      padding: 10px 14px; border-radius: 8px;
+      border: 2px solid var(--border);
+      background: var(--surface); color: var(--muted);
+      font-weight: 500; font-size: 14px; cursor: pointer;
+      transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .dose-btn.active { font-weight: 700; }
+    .dose-btn.done { opacity: 0.4; text-decoration: line-through; cursor: default; }
+
+    /* Quick stats row */
+    .stats-row { display: flex; gap: 10px; margin-bottom: 20px; }
+    .stat-box { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+    .stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .stat-val { font-size: 18px; font-weight: 800; color: #f1f5f9; margin-top: 2px; }
+
+    /* Input card (unified — replaces separate What-If card) */
+    .preset-btn {
+      padding: 7px 11px; border-radius: 7px;
+      border: 1px solid #f59e0b60; background: #f59e0b12;
+      color: #f59e0b; font-size: 12px; font-weight: 600;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      transition: all 0.15s;
+    }
+    .preset-btn.active { background: #f59e0b; color: #060f1e; }
+    .whatif-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+    .whatif-eyebrow { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 14px; }
+    .input-group { margin-bottom: 12px; }
+    .input-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .input-label span { color: var(--dim); }
+    .field {
+      width: 100%; padding: 11px 12px;
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; color: #f1f5f9; font-size: 16px;
+      outline: none; -webkit-appearance: none;
+    }
+    .field:focus { border-color: #f59e0b; }
+    select.field { -webkit-appearance: none; appearance: none; }
+
+    /* Results card */
+    .results-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 14px; padding: 20px;
+      transition: border-color 0.3s;
+      margin-bottom: 20px;
+    }
+    .results-eyebrow { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; transition: color 0.3s; }
+    .big-number { font-size: 64px; font-weight: 900; line-height: 1; letter-spacing: -3px; text-align: center; transition: color 0.3s; }
+    .big-label { font-size: 13px; color: #94a3b8; text-align: center; margin-top: 4px; margin-bottom: 20px; }
+
+    /* Syringe */
+    .syringe-wrap { margin-bottom: 8px; }
+    .syringe-row { display: flex; align-items: center; }
+    .plunger-cap { width: 14px; height: 38px; background: #475569; border-radius: 3px 0 0 3px; flex-shrink: 0; border: 1px solid #64748b; }
+    .plunger-rod { width: 10px; height: 12px; background: var(--dim); flex-shrink: 0; }
+    .barrel {
+      position: relative; flex: 1; height: 46px;
+      background: #d4eaf5; border-top: 2px solid #94a3b8; border-bottom: 2px solid #94a3b8;
+      overflow: visible;
+    }
+    .barrel-fill {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      background: linear-gradient(90deg, var(--accent-a, #00c89655), var(--accent-b, #00c89699));
+      transition: width 0.4s ease; pointer-events: none;
+    }
+    .tick {
+      position: absolute; top: 0; width: 1px; background: #334155; pointer-events: none;
+    }
+    .tick.major { height: 55%; opacity: 1; }
+    .tick.mid   { height: 38%; opacity: 0.6; }
+    .tick.minor { height: 22%; opacity: 0.4; }
+    .tick-label {
+      position: absolute; bottom: -19px;
+      font-size: 9px; color: var(--muted); font-weight: 600;
+      transform: translateX(-50%); white-space: nowrap;
+    }
+    .draw-line {
+      position: absolute; top: 0; bottom: 0; width: 2px;
+      transition: left 0.4s ease; pointer-events: none; z-index: 2;
+    }
+    .draw-tag {
+      position: absolute; top: -24px;
+      font-size: 10px; font-weight: 800;
+      padding: 2px 6px; border-radius: 4px; color: #060f1e;
+      transform: translateX(-50%); white-space: nowrap;
+      transition: left 0.4s ease;
+    }
+    .needle-hub { width: 16px; height: 46px; background: #cbd5e1; border-top: 2px solid #94a3b8; border-bottom: 2px solid #94a3b8; flex-shrink: 0; }
+    .needle-tip { width: 26px; height: 4px; background: #94a3b8; border-radius: 0 3px 3px 0; align-self: center; flex-shrink: 0; }
+    .tick-labels-row { padding: 0; margin-top: 22px; margin-bottom: 4px; position: relative; height: 14px; }
+
+    /* Result stats grid */
+    .result-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    .result-stat { background: var(--bg); border-radius: 8px; padding: 10px 12px; border: 1px solid var(--border); }
+    .rs-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .rs-val { font-size: 15px; font-weight: 700; color: var(--text); margin-top: 3px; }
+
+    /* Warnings */
+    .warn { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+    .warn-red { background: #ef444415; border: 1px solid #ef4444; color: #ef4444; }
+    .warn-yellow { background: #f59e0b15; border: 1px solid #f59e0b; color: #f59e0b; }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 32px 0; color: var(--dim); }
+    .empty-icon { font-size: 36px; margin-bottom: 10px; }
+    .empty-text { font-size: 13px; }
+
+    /* Household summary */
+    .household-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .household-label { font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; }
+    .household-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #0f2035; }
+    .household-row:last-of-type { border-bottom: none; }
+    .hr-name { font-weight: 700; font-size: 14px; }
+    .hr-dose { color: var(--muted); font-size: 12px; margin-left: 8px; }
+    .hr-units { font-size: 22px; font-weight: 800; color: #f1f5f9; }
+    .hr-vol { font-size: 10px; color: var(--muted); text-align: right; }
+    .household-note { margin-top: 10px; font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+    /* Titration tab */
+    .titr-card { border-radius: 14px; padding: 16px; margin-bottom: 16px; border: 2px solid; }
+    .titr-card.scenario-a { border-color: #00c896; background: #00c89610; }
+    .titr-card.scenario-b { border-color: #f59e0b; background: #f59e0b10; }
+    .titr-title { font-size: 14px; font-weight: 800; margin-bottom: 12px; }
+    .scenario-a .titr-title { color: #00c896; }
+    .scenario-b .titr-title { color: #f59e0b; }
+    .titr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .titr-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); padding: 6px 4px; border-bottom: 1px solid var(--border); }
+    .titr-table td { padding: 8px 4px; border-bottom: 1px solid #0f2035; }
+    .titr-done { opacity: 0.4; text-decoration: line-through; }
+    .titr-now { background: rgba(0,200,150,0.15); font-weight: 800; }
+    .titr-now td { color: #00c896; }
+    .titr-footer { font-size: 11px; color: var(--muted); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .callout { border-radius: 10px; padding: 12px; font-size: 12px; line-height: 1.6; margin-bottom: 14px; }
+    .callout-warn { background: #f59e0b12; border: 1px solid #f59e0b50; color: #f59e0b; }
+    .callout-danger { background: #ef444412; border: 1px solid #ef444450; color: #ef4444; }
+
+    /* Pin Log tab */
+    .pinlog-form { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .pinlog-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+    .pinlog-row-main { font-size: 14px; font-weight: 700; }
+    .pinlog-row-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .pinlog-del { background: none; border: none; color: #ef4444; font-size: 16px; cursor: pointer; padding: 4px 8px; }
+    .btn-primary { width: 100%; padding: 13px; background: var(--accent); color: #060f1e; border: none; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; }
+
+    .footer { font-size: 10px; color: #1e2d45; text-align: center; margin-top: 32px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="eyebrow" id="eyebrow">Household Protocol</div>
+  <h1>Peptide Calc</h1>
+  <p class="subtitle" id="subtitle">Tirzepatide & KPV · Reconstitution, titration, and pin log</p>
+
+  <!-- Top-level tabs -->
+  <div class="app-tabs">
+    <button class="app-tab-btn active" id="apptab-calc" onclick="showAppTab('calc')">Calculator</button>
+    <button class="app-tab-btn" id="apptab-titr" onclick="showAppTab('titr')">Titration</button>
+    <button class="app-tab-btn" id="apptab-pinlog" onclick="showAppTab('pinlog')">Pin Log</button>
+    <button class="app-tab-btn" id="apptab-lots" onclick="showAppTab('lots')">Lots</button>
+  </div>
+
+  <!-- ══════════════════ CALCULATOR TAB ══════════════════ -->
+  <div class="app-tab-page active" id="tab-calc">
+
+    <!-- Person switcher -->
+    <div class="persons">
+      <button class="person-btn active" data-person="rich" data-color="#00c896" onclick="setPerson(this)">
+        Rich<div class="sub" id="person-sub-rich">4.32mg</div>
+      </button>
+      <button class="person-btn" data-person="wife" data-color="#a78bfa" onclick="setPerson(this)">
+        Claudia<div class="sub" id="person-sub-wife">4.32mg</div>
+      </button>
+      <button class="person-btn" data-person="son" data-color="#38bdf8" onclick="setPerson(this)">
+        Dom<div class="sub" id="person-sub-son">3.41mg</div>
+      </button>
+    </div>
+
+    <!-- Peptide toggle (replaces old Quick/What-If mode toggle) -->
+    <div class="mode-wrap">
+      <button class="mode-btn active" id="btn-tirz" onclick="setPeptide('tirz')">Tirzepatide</button>
+      <button class="mode-btn" id="btn-kpv" onclick="setPeptide('kpv')">KPV</button>
+    </div>
+
+    <!-- Unified input panel -->
+    <div class="whatif-card">
+      <div class="whatif-eyebrow" id="panel-eyebrow">Dose &amp; Reconstitution</div>
+
+      <!-- Dose ladder (tirzepatide only) -->
+      <div id="ladder-wrap" style="margin-bottom:14px;">
+        <div class="input-label" id="ladder-wrap-label">Quick-select dose (mg) <span>— tap your active or a reference step</span></div>
+        <div class="dose-grid" id="dose-grid"></div>
+      </div>
+
+      <!-- Dose input (always editable, unit adapts to peptide) -->
+      <div class="input-group">
+        <div class="input-label" id="dose-input-label">Dose (mg) <span>— your injection dose</span></div>
+        <input class="field" type="number" id="ci-dose" inputmode="decimal" oninput="onDoseInput()" />
+      </div>
+
+      <!-- Vial size presets -->
+      <div class="input-group">
+        <div class="input-label">Vial Size (mg total) <span>— tap a preset or enter custom</span></div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;" id="vial-presets">
+          <button class="preset-btn" onclick="setVialPreset(10, 1.0)">10mg</button>
+          <button class="preset-btn" onclick="setVialPreset(15, 1.5)">15mg</button>
+          <button class="preset-btn" onclick="setVialPreset(30, 2.0)">30mg</button>
+          <button class="preset-btn" onclick="setVialPreset(50, 2.5)">50mg</button>
+          <button class="preset-btn" onclick="setVialPreset(70, 2.0)">70mg</button>
+          <button class="preset-btn" onclick="setVialPreset(100, 3.0)">100mg</button>
+          <button class="preset-btn" onclick="setVialPreset(180, 4.0)">180mg</button>
+          <button class="preset-btn" onclick="setVialPreset(300, 5.0)">300mg</button>
+        </div>
+        <input class="field" type="number" id="ci-vial" placeholder="e.g. 70" inputmode="decimal" oninput="onVialInput()" />
+      </div>
+
+      <!-- COA correction — optional, only fill in if your COA reports these -->
+      <div class="input-group" style="border-top:1px dashed var(--border2);padding-top:12px;">
+        <div class="input-label">Select Lot <span>— auto-fills fill/purity below from your Lots tab</span></div>
+        <select class="field" id="ci-lot-select" onchange="applySelectedLot()">
+          <option value="">— Enter manually below —</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <div class="input-label">COA Actual Fill (mg) <span>— optional, overrides labeled vial size if set</span></div>
+        <input class="field" type="number" id="ci-fill-override" placeholder="Leave blank to use labeled vial size" inputmode="decimal" oninput="onFillOverrideInput()" />
+      </div>
+      <div class="input-group">
+        <div class="input-label">COA Purity % <span>— optional, only used if Actual Fill above is blank</span></div>
+        <input class="field" type="number" id="ci-purity" placeholder="e.g. 98.7 — leave blank for 100%" inputmode="decimal" oninput="onPurityInput()" />
+      </div>
+      <div id="coa-effective-note" style="font-size:11px;color:#f59e0b;display:none;margin-top:-4px;margin-bottom:12px;"></div>
+
+      <!-- BAC water — auto-suggested but fully editable -->
+      <div class="input-group" style="margin-bottom:0">
+        <div class="input-label">BAC Water (mL) <span id="bac-hint">— mL added to vial</span></div>
+        <input class="field" type="number" id="ci-bac" placeholder="e.g. 2.0" inputmode="decimal" oninput="onBacInput()" />
+        <div id="bac-suggestion" style="display:none; margin-top:6px; font-size:11px; color:#f59e0b;">
+          💡 <span id="bac-suggestion-text"></span> — tap to apply
+        </div>
+      </div>
+    </div>
+
+    <!-- Syringe size selector -->
+    <div style="margin-bottom:20px;">
+      <div class="section-label">Syringe Size</div>
+      <div style="display:flex;gap:8px;">
+        <button class="syringe-size-btn active" data-capacity="0.5" data-units="50" onclick="setSyringeSize(this)">0.5mL<div style="font-size:9px;opacity:0.7;margin-top:2px;">50 units</div></button>
+        <button class="syringe-size-btn" data-capacity="1" data-units="100" onclick="setSyringeSize(this)">1mL<div style="font-size:9px;opacity:0.7;margin-top:2px;">100 units</div></button>
+        <button class="syringe-size-btn" data-capacity="3" data-units="300" onclick="setSyringeSize(this)">3mL<div style="font-size:9px;opacity:0.7;margin-top:2px;">300 units</div></button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="results-card" id="results-card">
+      <div class="results-eyebrow" id="results-eyebrow">Results</div>
+      <div id="results-content">
+        <div class="empty">
+          <div class="empty-icon">💉</div>
+          <div class="empty-text">Enter values above to calculate</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Household summary (tirzepatide only — KPV is currently Rich-only per protocol) -->
+    <div class="household-card" id="household-card">
+      <div class="household-label" id="household-label">Friday Pin — All Three</div>
+      <div id="household-rows"></div>
+      <div class="household-note" id="household-note"></div>
+    </div>
+
+    <div class="footer">Peptide Calc · Personal protocol reference only · July 2026</div>
+  </div>
+
+  <!-- ══════════════════ TITRATION TAB ══════════════════ -->
+  <div class="app-tab-page" id="tab-titr">
+    <div class="section-label">Rich — Tirzepatide Titration Ladder</div>
+    <div class="callout callout-warn">
+      Start with Scenario A. If a dose stops producing scale movement for two consecutive 1.5mg steps (3+ weeks each), pivot to Scenario B at the next clean 2.5mg step.
+    </div>
+
+    <div class="titr-card scenario-a">
+      <div class="titr-title">SCENARIO A — 1.5mg Ladder (Default)</div>
+      <table class="titr-table">
+        <tr><th>Step</th><th>Dose</th><th>Units*</th><th>Jump</th></tr>
+        <tr class="titr-done"><td>Done</td><td>2.5mg</td><td>—</td><td>—</td></tr>
+        <tr class="titr-done"><td>Done</td><td>5.0mg</td><td>—</td><td>—</td></tr>
+        <tr class="titr-now"><td>📍 NOW</td><td>4.32mg</td><td>18u</td><td>Active</td></tr>
+        <tr><td>1</td><td>6.0mg</td><td>26u</td><td>+1.68mg</td></tr>
+        <tr><td>2</td><td>7.5mg</td><td>32u</td><td>+1.5mg</td></tr>
+        <tr><td>3</td><td>9.0mg</td><td>39u</td><td>+1.5mg</td></tr>
+        <tr><td>4</td><td>10.5mg</td><td>45u</td><td>+1.5mg</td></tr>
+        <tr><td>5</td><td>12.0mg</td><td>51u</td><td>+1.5mg</td></tr>
+        <tr><td>6</td><td>13.5mg</td><td>58u</td><td>+1.5mg</td></tr>
+        <tr><td>7</td><td>15.0mg</td><td>64u</td><td>+1.5mg</td></tr>
+      </table>
+      <div class="titr-footer">7 escalations remaining · Maximum runway · Consistent steps</div>
+    </div>
+
+    <div class="titr-card scenario-b">
+      <div class="titr-title">SCENARIO B — 2.5mg Ladder (Pivot Only)</div>
+      <table class="titr-table">
+        <tr><th>Step</th><th>Dose</th><th>Units*</th><th>Jump</th></tr>
+        <tr class="titr-done"><td>Done</td><td>2.5mg</td><td>—</td><td>—</td></tr>
+        <tr class="titr-done"><td>Done</td><td>5.0mg</td><td>—</td><td>—</td></tr>
+        <tr class="titr-now"><td>📍 NOW</td><td>4.32mg</td><td>18u</td><td>Active</td></tr>
+        <tr><td>Reset</td><td>5.0mg</td><td>21u</td><td>+0.68mg ⚠️</td></tr>
+        <tr><td>1</td><td>7.5mg</td><td>32u</td><td>+2.5mg</td></tr>
+        <tr><td>2</td><td>10.0mg</td><td>43u</td><td>+2.5mg</td></tr>
+        <tr><td>3</td><td>12.5mg</td><td>54u</td><td>+2.5mg</td></tr>
+        <tr><td>4</td><td>15.0mg</td><td>64u</td><td>+2.5mg</td></tr>
+      </table>
+      <div class="titr-footer">4 escalations · Clinically validated · Pivot only</div>
+    </div>
+
+    <div class="callout callout-warn">
+      ⚠️ Pivot rule: if two consecutive 1.5mg steps produce zero scale movement for 3+ weeks each, pivot to Scenario B at the next clean 2.5mg step. The Reset step drops slightly before climbing — mathematically correct even if psychologically uncomfortable.
+    </div>
+    <div class="callout callout-danger">
+      🚫 Never titrate early. Never titrate on schedule. The ladder only works if you respect the gates.
+    </div>
+    <div style="font-size:10px;color:var(--muted);text-align:center;">*Units shown at 4.32mg-equivalent concentration — verify against your actual vial/BAC combo in the Calculator tab before drawing.</div>
+  </div>
+
+  <!-- ══════════════════ PIN LOG TAB ══════════════════ -->
+  <div class="app-tab-page" id="tab-pinlog">
+    <div class="section-label">Log a Pin</div>
+    <div class="pinlog-form">
+      <div class="input-group">
+        <div class="input-label">Person</div>
+        <select class="field" id="pl-person">
+          <option value="Rich">Rich</option>
+          <option value="Claudia">Claudia</option>
+          <option value="Dom">Dom</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Peptide</div>
+        <select class="field" id="pl-peptide" onchange="onPinLogPeptideChange()">
+          <option value="Tirzepatide">Tirzepatide</option>
+          <option value="KPV">KPV</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">Date</div>
+          <input class="field" type="date" id="pl-date" />
+        </div>
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">Time</div>
+          <input class="field" type="time" id="pl-time" />
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="input-group" style="flex:1;">
+          <div class="input-label" id="pl-dose-label">Dose (mg)</div>
+          <input class="field" type="number" step="0.01" id="pl-dose" inputmode="decimal" />
+        </div>
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">Vendor / Lot</div>
+          <input class="field" type="text" id="pl-vendor" placeholder="e.g. Peptide Crafters" />
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;border-top:1px dashed var(--border2);padding-top:12px;">
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">COA Fill (mg) <span>— optional</span></div>
+          <input class="field" type="number" step="0.01" id="pl-fill" placeholder="if reported" inputmode="decimal" />
+        </div>
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">COA Purity % <span>— optional</span></div>
+          <input class="field" type="number" step="0.1" id="pl-purity" placeholder="e.g. 98.7" inputmode="decimal" />
+        </div>
+      </div>
+      <button class="btn-primary" onclick="savePinLogEntry()">Log Pin</button>
+    </div>
+
+    <div class="section-label">History</div>
+    <div id="pinlog-list"></div>
+  </div>
+
+  <!-- ══════════════════ LOTS TAB ══════════════════ -->
+  <div class="app-tab-page" id="tab-lots">
+    <div class="section-label">Add a Lot</div>
+    <div class="pinlog-form">
+      <div style="display:flex;gap:10px;">
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">Peptide</div>
+          <select class="field" id="lot-peptide">
+            <option value="tirz">Tirzepatide</option>
+            <option value="kpv">KPV</option>
+          </select>
+        </div>
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">Date Purchased</div>
+          <input class="field" type="date" id="lot-date"/>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Vendor</div>
+        <input class="field" type="text" id="lot-vendor" list="lot-vendor-list" placeholder="e.g. Peptide Crafters"/>
+        <datalist id="lot-vendor-list"></datalist>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Lot / Batch Number</div>
+        <input class="field" type="text" id="lot-number" placeholder="e.g. LOT-2026-0614"/>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">Fill (mg)</div>
+          <input class="field" type="number" step="0.01" id="lot-fill" placeholder="e.g. 73.36"/>
+        </div>
+        <div class="input-group" style="flex:1;">
+          <div class="input-label">Purity %</div>
+          <input class="field" type="number" step="0.001" id="lot-purity" placeholder="e.g. 99.837"/>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Attach COA <span>— optional, stored on this device only</span></div>
+        <input class="field" type="file" accept="image/*,application/pdf" id="lot-coa-file" onchange="onLotCoaFileChange()" style="padding:8px;"/>
+        <div id="lot-coa-preview" style="margin-top:8px;display:none;"></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Images are compressed before saving to keep this device's storage manageable. PDFs are stored as-is — a large PDF may eventually fill storage; a screenshot of the COA works just as well and stays smaller.</div>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <div class="input-label">Notes <span>— optional</span></div>
+        <input class="field" type="text" id="lot-notes" placeholder="e.g. VialTalk-verified, A2LA cert #..."/>
+      </div>
+      <button class="btn-primary" onclick="saveLotEntry()" style="margin-top:14px;">Save Lot</button>
+    </div>
+
+    <div class="section-label">Saved Lots</div>
+    <div id="lots-list"></div>
+  </div>
+
+</div>
+
+<script>
+  // ── STATE ─────────────────────────────────────────────────────────────────
+  const state = {
+    peptide: 'tirz',        // 'tirz' | 'kpv'
+    person: 'rich',
+    color: '#00c896',
+    dose: 4.32,
+    vialMg: 70,
+    bacMl: 2.0,
+    fillOverrideMg: null,   // COA-reported actual fill — takes priority over labeled vialMg when set
+    purityPct: null,        // COA-reported purity % — only applied if fillOverrideMg is not set
+    syringeCapacity: 0.5,
+    syringeUnits: 50,
+  };
+
+  // Tirzepatide ladder — Scenario A, from Rich's official titration schedule.
+  // "done" entries are past steps shown for context; not selectable.
+  const TIRZ_LADDER = [
+    { dose: 2.5, done: true },
+    { dose: 5.0, done: true },
+    { dose: 4.32, done: false }, // current active dose
+    { dose: 6.0, done: false },
+    { dose: 7.5, done: false },
+    { dose: 9.0, done: false },
+    { dose: 10.5, done: false },
+    { dose: 12.0, done: false },
+    { dose: 13.5, done: false },
+    { dose: 15.0, done: false },
+  ];
+
+  // KPV has no titration ladder (it's a fixed protocol dose, not weight-titrated) — this is just
+  // a quick-select reference range, 200-1000mcg in 50mcg steps, not a progression like TIRZ_LADDER.
+  const KPV_DEFAULT_MCG = 500;
+  const KPV_LADDER = [200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000]
+    .map(dose => ({ dose, done: false }));
+
+  const PERSONS = [
+    { id: 'rich',  label: 'Rich',    defaultDoseTirz: 4.32, defaultDoseKpv: 500, color: '#00c896' },
+    { id: 'wife',  label: 'Claudia', defaultDoseTirz: 4.32, defaultDoseKpv: null, color: '#a78bfa' },
+    { id: 'son',   label: 'Dom',     defaultDoseTirz: 3.41, defaultDoseKpv: null, color: '#38bdf8' },
+  ];
+
+  // ── APP-LEVEL TABS ───────────────────────────────────────────────────────
+  function showAppTab(name) {
+    ['calc','titr','pinlog','lots'].forEach(t => {
+      document.getElementById('tab-'+t).classList.toggle('active', t===name);
+      document.getElementById('apptab-'+t).classList.toggle('active', t===name);
+    });
+    if (name === 'pinlog') renderPinLog();
+    if (name === 'lots') renderLotsList();
+  }
+
+  // ── CALC CORE ────────────────────────────────────────────────────────────
+  // unit-aware: vial is always entered in mg (how vendors label it); for mcg-dosed
+  // peptides (KPV) we convert vial mg -> mcg internally so the math matches the dose unit.
+  function calc(dose, vialMg, bacMl, unit) {
+    if (!dose || !vialMg || !bacMl || isNaN(dose) || isNaN(vialMg) || isNaN(bacMl)) return null;
+    const vialInDoseUnit = unit === 'mcg' ? vialMg * 1000 : vialMg;
+    const conc = vialInDoseUnit / bacMl; // dose-unit per mL
+    const vol = dose / conc;
+    const units = vol * 100;
+    return { conc, vol, units };
+  }
+
+  function hexAlpha(hex, alpha) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function currentUnit() { return state.peptide === 'kpv' ? 'mcg' : 'mg'; }
+
+  // ── PEPTIDE TOGGLE (replaces old Quick/What-If mode toggle) ─────────────
+  function setPeptide(p) {
+    state.peptide = p;
+    document.getElementById('btn-tirz').classList.toggle('active', p==='tirz');
+    document.getElementById('btn-kpv').classList.toggle('active', p==='kpv');
+    document.getElementById('btn-tirz').style.background = p==='tirz' ? state.color : '';
+    document.getElementById('btn-tirz').style.color = p==='tirz' ? '#060f1e' : '';
+    document.getElementById('btn-kpv').style.background = p==='kpv' ? state.color : '';
+    document.getElementById('btn-kpv').style.color = p==='kpv' ? '#060f1e' : '';
+
+    const unit = currentUnit();
+    document.getElementById('dose-input-label').innerHTML = unit==='mcg'
+      ? 'Dose (mcg) <span>— your injection dose</span>'
+      : 'Dose (mg) <span>— your injection dose</span>';
+    document.getElementById('panel-eyebrow').textContent = p==='kpv' ? 'KPV — Dose & Reconstitution' : 'Tirzepatide — Dose & Reconstitution';
+    // Ladder now shows for both peptides — Tirzepatide's titration schedule and KPV's mcg quick-select range
+    document.getElementById('ladder-wrap-label').innerHTML = 'Quick-select dose ('+unit+') <span>— tap your active or a reference step</span>';
+    document.getElementById('household-card').style.display = p==='tirz' ? '' : 'none';
+    document.getElementById('household-label').textContent = p==='tirz' ? 'Friday Pin — All Three' : 'KPV — Rich Only';
+
+    // Set sensible defaults per peptide
+    const person = PERSONS.find(x => x.id === state.person);
+    if (p === 'kpv') {
+      state.dose = person.defaultDoseKpv || KPV_DEFAULT_MCG;
+      state.vialMg = 10; // KPV typically comes in smaller vials, e.g. 10mg
+      state.bacMl = 3.0; // per protocol notes — adjust as needed per vial
+    } else {
+      state.dose = person.defaultDoseTirz;
+      state.vialMg = 70;
+      state.bacMl = 2.0;
+    }
+    document.getElementById('ci-dose').value = state.dose;
+    document.getElementById('ci-vial').value = state.vialMg;
+    document.getElementById('ci-bac').value = state.bacMl;
+
+    populateLotSelect();
+    buildDoseGrid();
+    recalc();
+  }
+
+  function onDoseInput() {
+    const v = parseFloat(document.getElementById('ci-dose').value);
+    state.dose = v;
+    buildDoseGrid();
+    recalc();
+  }
+
+  // Dose ladder — Tirzepatide uses the mg titration schedule; KPV uses the mcg quick-select range
+  function buildDoseGrid() {
+    const grid = document.getElementById('dose-grid');
+    grid.innerHTML = '';
+    const ladder = state.peptide === 'tirz' ? TIRZ_LADDER : KPV_LADDER;
+    const unit = currentUnit();
+    ladder.forEach(step => {
+      const btn = document.createElement('button');
+      btn.className = 'dose-btn' + (step.done ? ' done' : '') + (step.dose === state.dose ? ' active' : '');
+      btn.textContent = step.dose + unit;
+      if (step.done) {
+        btn.disabled = true;
+      } else {
+        btn.onclick = () => {
+          state.dose = step.dose;
+          document.getElementById('ci-dose').value = step.dose;
+          buildDoseGrid();
+          recalc();
+        };
+      }
+      if (step.dose === state.dose && !step.done) {
+        btn.style.borderColor = state.color;
+        btn.style.background = hexAlpha(state.color, 0.12);
+        btn.style.color = state.color;
+      }
+      grid.appendChild(btn);
+    });
+  }
+
+  function setPerson(btn) {
+    document.querySelectorAll('.person-btn').forEach(b => {
+      b.classList.remove('active');
+      b.style.borderColor = '';
+      b.style.background = '';
+      b.style.color = '';
+    });
+    btn.classList.add('active');
+    state.person = btn.dataset.person;
+    state.color = btn.dataset.color;
+    btn.style.borderColor = state.color;
+    btn.style.background = hexAlpha(state.color, 0.1);
+    btn.style.color = state.color;
+
+    document.getElementById('eyebrow').style.color = state.color;
+    document.getElementById('results-eyebrow').style.color = state.color;
+
+    const activeMode = document.querySelector('.mode-btn.active');
+    if (activeMode) activeMode.style.background = state.color;
+
+    const person = PERSONS.find(x => x.id === state.person);
+    state.dose = state.peptide === 'kpv' ? (person.defaultDoseKpv || KPV_DEFAULT_MCG) : person.defaultDoseTirz;
+    document.getElementById('ci-dose').value = state.dose;
+
+    buildDoseGrid();
+    recalc();
+  }
+
+  function setSyringeSize(btn) {
+    document.querySelectorAll('.syringe-size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.syringeCapacity = parseFloat(btn.dataset.capacity);
+    state.syringeUnits = parseInt(btn.dataset.units);
+    recalc();
+  }
+
+  function buildSyringe(units, color) {
+    const maxUnits = state.syringeUnits;
+    const pct = Math.min(Math.max(units / maxUnits, 0), 1);
+    let ticks = '';
+    for (let i = 2; i <= 98; i += 2) {
+      const isMajor = i % 10 === 0;
+      const isMid = i % 5 === 0 && !isMajor;
+      const cls = isMajor ? 'major' : isMid ? 'mid' : 'minor';
+      const label = isMajor ? `<div class="tick-label">${i}</div>` : '';
+      ticks += `<div class="tick ${cls}" style="left:${i}%">${label}</div>`;
+    }
+    const fillA = hexAlpha(color, 0.35);
+    const fillB = hexAlpha(color, 0.65);
+    const drawLeft = (pct * 100).toFixed(2);
+    return `
+      <div class="syringe-wrap">
+        <div style="position:relative; padding-top:28px;">
+          <div class="draw-tag" id="draw-tag" style="left:${drawLeft}%; background:${color}; display:${units>0?'block':'none'}">
+            ${Math.round(units * 10)/10}u
+          </div>
+          <div class="syringe-row">
+            <div class="plunger-cap"></div>
+            <div class="plunger-rod"></div>
+            <div class="barrel">
+              <div class="barrel-fill" style="width:${drawLeft}%; background:linear-gradient(90deg,${fillA},${fillB})"></div>
+              ${ticks}
+              <div class="draw-line" style="left:${drawLeft}%; background:${color}; display:${units>0?'block':'none'}"></div>
+            </div>
+            <div class="needle-hub"></div>
+            <div class="needle-tip"></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function recalc() {
+    const unit = currentUnit();
+    const dose = state.dose;
+    const vial = effectiveVialMg();
+    const bac = state.bacMl;
+
+    const r = calc(dose, vial, bac, unit);
+    const card = document.getElementById('results-card');
+    const content = document.getElementById('results-content');
+
+    if (!r || r.units <= 0 || !isFinite(r.units)) {
+      card.style.borderColor = '#1e2d45';
+      content.innerHTML = `<div class="empty"><div class="empty-icon">💉</div><div class="empty-text">Enter values above to calculate</div></div>`;
+      return;
+    }
+
+    card.style.borderColor = state.color;
+
+    // Show a note when a COA correction is actually changing the math, so it's never silent
+    const coaNote = document.getElementById('coa-effective-note');
+    if (vial !== state.vialMg) {
+      const pct = ((vial / state.vialMg) * 100).toFixed(1);
+      coaNote.style.display = 'block';
+      coaNote.textContent = `⚠️ Using COA-corrected fill: ${vial.toFixed(2)}mg effective (${pct}% of labeled ${state.vialMg}mg) — not the label value.`;
+    } else {
+      coaNote.style.display = 'none';
+    }
+
+    let warnings = '';
+    if (r.units > state.syringeUnits) {
+      warnings += `<div class="warn warn-red">Over ${state.syringeUnits} units — exceeds ${state.syringeCapacity}mL syringe capacity. Split dose or switch to a larger syringe.</div>`;
+    }
+    // Unit-confusion guardrail: KPV protocol dose is 500mcg — if someone accidentally
+    // enters a tirzepatide-scale number (e.g. 5) while on KPV, that would be 5mcg (harmless-low)
+    // or someone toggles peptides without updating the dose field, entering 5 as if mg on a mcg peptide.
+    // Flag anything wildly outside KPV's normal range as a sanity check, not a hard block.
+    if (unit === 'mcg' && (dose > 2000 || dose < 50)) {
+      warnings += `<div class="warn warn-yellow">⚠️ ${dose}mcg is well outside KPV's typical 500mcg daily dose — double-check you didn't enter an mg-scale number by mistake.</div>`;
+    }
+    if (unit === 'mg' && dose > 5) {
+      warnings += `<div class="warn warn-yellow">Doses over 5mg — recalculate reconstitution math. Consider less BAC water to keep units manageable.</div>`;
+    }
+
+    content.innerHTML = `
+      <div class="big-number" style="color:${state.color}">${Math.round(r.units * 10)/10}</div>
+      <div class="big-label">units on ${state.syringeCapacity}mL syringe</div>
+      ${buildSyringe(r.units, state.color)}
+      <div class="result-stats">
+        <div class="result-stat"><div class="rs-label">Dose</div><div class="rs-val">${dose}${unit}</div></div>
+        <div class="result-stat"><div class="rs-label">Draw Volume</div><div class="rs-val">${r.vol.toFixed(3)}mL</div></div>
+        <div class="result-stat"><div class="rs-label">Concentration</div><div class="rs-val">${r.conc.toFixed(unit==='mcg'?0:2)}${unit}/mL</div></div>
+        <div class="result-stat"><div class="rs-label">Syringe</div><div class="rs-val">${state.syringeCapacity}mL U-100</div></div>
+      </div>
+      ${warnings}
+    `;
+
+    renderHousehold();
+  }
+
+  function renderHousehold() {
+    if (state.peptide !== 'tirz') return; // KPV is Rich-only currently, no household view
+    const vial = effectiveVialMg();
+    const bac = state.bacMl;
+    const rowsEl = document.getElementById('household-rows');
+    const noteEl = document.getElementById('household-note');
+    if (!rowsEl) return;
+
+    const draws = PERSONS.map(p => {
+      const r = calc(p.defaultDoseTirz, vial, bac, 'mg');
+      const units = r ? Math.round(r.units * 10) / 10 : '—';
+      const vol = r ? r.vol.toFixed(3) : '—';
+      return { ...p, units, vol };
+    });
+
+    rowsEl.innerHTML = draws.map(p => `
+      <div class="household-row">
+        <div><span class="hr-name" style="color:${p.color}">${p.label}</span><span class="hr-dose">${p.defaultDoseTirz}mg</span></div>
+        <div><div class="hr-units">${p.units} units</div><div class="hr-vol">${p.vol}mL</div></div>
+      </div>`).join('');
+
+    const label = draws.map(p => `${p.label} ${p.units}`).join(' / ');
+    noteEl.textContent = `Draw all three back-to-back · Label immediately (${label}) · Inject`;
+  }
+
+  // ── VIAL / BAC PRESETS ───────────────────────────────────────────────────
+  const VIAL_BAC_DEFAULTS = {10:1.0, 15:1.5, 30:2.0, 50:2.0, 70:2.0, 100:3.0, 180:4.0, 300:5.0};
+
+  function setVialPreset(vialMg, suggestedBac) {
+    document.getElementById('ci-vial').value = vialMg;
+    state.vialMg = vialMg;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    suggestBac(vialMg, suggestedBac);
+    recalc();
+  }
+
+  function onVialInput() {
+    const vial = parseFloat(document.getElementById('ci-vial').value);
+    state.vialMg = vial;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    if (VIAL_BAC_DEFAULTS[vial]) {
+      suggestBac(vial, VIAL_BAC_DEFAULTS[vial]);
+    } else {
+      document.getElementById('bac-suggestion').style.display = 'none';
+    }
+    recalc();
+  }
+
+  function suggestBac(vialMg, suggestedBac) {
+    const bacField = document.getElementById('ci-bac');
+    const suggEl = document.getElementById('bac-suggestion');
+    const suggText = document.getElementById('bac-suggestion-text');
+
+    if (!bacField.value || bacField.dataset.suggested === bacField.value) {
+      bacField.value = suggestedBac;
+      bacField.dataset.suggested = String(suggestedBac);
+      state.bacMl = suggestedBac;
+      suggEl.style.display = 'none';
+    } else {
+      suggText.textContent = `Suggested ${suggestedBac}mL for ${vialMg}mg vial`;
+      suggEl.style.display = 'block';
+      suggEl.onclick = () => {
+        bacField.value = suggestedBac;
+        bacField.dataset.suggested = String(suggestedBac);
+        state.bacMl = suggestedBac;
+        suggEl.style.display = 'none';
+        recalc();
+      };
+    }
+    recalc();
+  }
+
+  function onBacInput() {
+    state.bacMl = parseFloat(document.getElementById('ci-bac').value);
+    recalc();
+  }
+
+  function onFillOverrideInput() {
+    const v = parseFloat(document.getElementById('ci-fill-override').value);
+    state.fillOverrideMg = isNaN(v) ? null : v;
+    recalc();
+  }
+
+  function onPurityInput() {
+    const v = parseFloat(document.getElementById('ci-purity').value);
+    state.purityPct = isNaN(v) ? null : v;
+    recalc();
+  }
+
+  // Effective vial content in mg, after COA correction:
+  // 1) Actual Fill override wins outright if the person typed one in — it's the ground truth from the lab.
+  // 2) Otherwise, if a purity % was given, apply it to the labeled vial size.
+  // 3) Otherwise, just trust the label (100% assumed) — same as before this feature existed.
+  function effectiveVialMg() {
+    if (state.fillOverrideMg != null && state.fillOverrideMg > 0) return state.fillOverrideMg;
+    if (state.purityPct != null && state.purityPct > 0) return state.vialMg * (state.purityPct / 100);
+    return state.vialMg;
+  }
+
+  // ── PIN LOG ──────────────────────────────────────────────────────────────
+  function getPinLog() {
+    try { return JSON.parse(localStorage.getItem('pinLog') || '[]'); } catch { return []; }
+  }
+  function savePinLog(arr) { localStorage.setItem('pinLog', JSON.stringify(arr)); }
+
+  function onPinLogPeptideChange() {
+    const pep = document.getElementById('pl-peptide').value;
+    document.getElementById('pl-dose-label').textContent = pep === 'KPV' ? 'Dose (mcg)' : 'Dose (mg)';
+    document.getElementById('pl-dose').value = pep === 'KPV' ? 500 : '';
+  }
+
+  function savePinLogEntry() {
+    const person = document.getElementById('pl-person').value;
+    const peptide = document.getElementById('pl-peptide').value;
+    const date = document.getElementById('pl-date').value;
+    const time = document.getElementById('pl-time').value;
+    const dose = document.getElementById('pl-dose').value;
+    const vendor = document.getElementById('pl-vendor').value;
+    const fill = document.getElementById('pl-fill').value;
+    const purity = document.getElementById('pl-purity').value;
+
+    if (!date || !dose) { alert('Date and dose are required.'); return; }
+
+    const log = getPinLog();
+    log.unshift({ id: Date.now(), person, peptide, date, time, dose, vendor, fill, purity });
+    savePinLog(log);
+
+    // Reset form but keep person/peptide selected for fast repeat entry
+    document.getElementById('pl-date').value = '';
+    document.getElementById('pl-time').value = '';
+    document.getElementById('pl-vendor').value = '';
+    document.getElementById('pl-fill').value = '';
+    document.getElementById('pl-purity').value = '';
+    renderPinLog();
+  }
+
+  function deletePinLogEntry(id) {
+    const log = getPinLog().filter(e => e.id !== id);
+    savePinLog(log);
+    renderPinLog();
+  }
+
+  function renderPinLog() {
+    const log = getPinLog();
+    const el = document.getElementById('pinlog-list');
+    if (!log.length) { el.innerHTML = '<div class="empty"><div class="empty-text">No pins logged yet</div></div>'; return; }
+    const unit = p => p === 'KPV' ? 'mcg' : 'mg';
+    el.innerHTML = log.map(e => {
+      const coaBits = [];
+      if (e.fill) coaBits.push(`Fill: ${e.fill}mg`);
+      if (e.purity) coaBits.push(`Purity: ${e.purity}%`);
+      const coaLine = coaBits.length ? `<div class="pinlog-row-sub" style="color:#f59e0b;">${coaBits.join(' · ')}</div>` : '';
+      return `
+      <div class="pinlog-row">
+        <div>
+          <div class="pinlog-row-main">${e.person} · ${e.peptide} · ${e.dose}${unit(e.peptide)}</div>
+          <div class="pinlog-row-sub">${e.date}${e.time?' at '+e.time:''}${e.vendor?' · '+e.vendor:''}</div>
+          ${coaLine}
+        </div>
+        <button class="pinlog-del" onclick="deletePinLogEntry(${e.id})">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  // ── LOT TRACKER ──────────────────────────────────────────────────────────
+  function getLots(){ try { return JSON.parse(localStorage.getItem('lotTracker')||'[]'); } catch { return []; } }
+  function saveLots(arr){ localStorage.setItem('lotTracker', JSON.stringify(arr)); }
+
+  let pendingCoaData = null; // holds compressed image (or raw PDF) until Save Lot is tapped
+
+  // Downscale + compress any uploaded image before storing, since localStorage has a hard quota
+  // (typically 5-10MB total) and full-resolution phone photos would burn through that in a handful
+  // of lots. PDFs are stored as-is with a warning, since they can't be shrunk the same way.
+  function onLotCoaFileChange(){
+    const file = document.getElementById('lot-coa-file').files[0];
+    const preview = document.getElementById('lot-coa-preview');
+    if(!file){ pendingCoaData = null; preview.style.display='none'; return; }
+    if(file.type === 'application/pdf'){
+      const reader = new FileReader();
+      reader.onload = e => {
+        pendingCoaData = { type:'pdf', data:e.target.result, name:file.name };
+        preview.innerHTML = `📄 ${file.name} (attached — PDFs aren't compressed, keep an eye on device storage)`;
+        preview.style.display='block';
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        const maxDim = 1000; // plenty for reading a COA later, far smaller than a raw phone photo
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        pendingCoaData = { type:'image', data: canvas.toDataURL('image/jpeg', 0.75), name:file.name };
+        preview.innerHTML = `<img src="${pendingCoaData.data}" style="max-width:120px;border-radius:8px;border:1px solid var(--border2);"/>`;
+        preview.style.display='block';
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function saveLotEntry(){
+    const peptide = document.getElementById('lot-peptide').value;
+    const date = document.getElementById('lot-date').value;
+    const vendor = document.getElementById('lot-vendor').value.trim();
+    const lotNumber = document.getElementById('lot-number').value.trim();
+    const fill = document.getElementById('lot-fill').value;
+    const purity = document.getElementById('lot-purity').value;
+    const notes = document.getElementById('lot-notes').value.trim();
+    if(!vendor || !lotNumber){ alert('Vendor and lot number are required.'); return; }
+    if(!fill && !purity){ alert('Enter at least a fill amount or a purity %.'); return; }
+
+    const lots = getLots();
+    lots.unshift({
+      id: Date.now(), peptide, date, vendor, lotNumber,
+      fill: fill ? parseFloat(fill) : null,
+      purity: purity ? parseFloat(purity) : null,
+      coa: pendingCoaData, notes,
+    });
+    saveLots(lots);
+
+    // Reset form
+    ['lot-vendor','lot-number','lot-fill','lot-purity','lot-notes'].forEach(id => document.getElementById(id).value='');
+    document.getElementById('lot-coa-file').value='';
+    document.getElementById('lot-coa-preview').style.display='none';
+    pendingCoaData = null;
+
+    renderLotsList();
+    populateLotSelect();
+    showToastGeneric('Lot saved');
+  }
+
+  function deleteLotEntry(id){
+    saveLots(getLots().filter(l => l.id !== id));
+    renderLotsList();
+    populateLotSelect();
+  }
+
+  function renderLotsList(){
+    const lots = getLots();
+    const el = document.getElementById('lots-list');
+    // Populate vendor autocomplete from history
+    const vendors = [...new Set(lots.map(l => l.vendor))];
+    document.getElementById('lot-vendor-list').innerHTML = vendors.map(v=>`<option value="${v}">`).join('');
+
+    if(!lots.length){ el.innerHTML = '<div class="empty"><div class="empty-text">No lots saved yet</div></div>'; return; }
+    el.innerHTML = lots.map(l => {
+      const pepLabel = l.peptide === 'kpv' ? 'KPV' : 'Tirzepatide';
+      const bits = [];
+      if(l.fill != null) bits.push(`Fill: ${l.fill}mg`);
+      if(l.purity != null) bits.push(`Purity: ${l.purity}%`);
+      const coaThumb = l.coa && l.coa.type === 'image'
+        ? `<img src="${l.coa.data}" style="max-width:70px;border-radius:6px;border:1px solid var(--border2);margin-top:6px;"/>`
+        : l.coa && l.coa.type === 'pdf'
+          ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">📄 ${l.coa.name}</div>`
+          : '';
+      return `
+      <div class="pinlog-row" style="align-items:flex-start;">
+        <div>
+          <div class="pinlog-row-main">${l.vendor} — ${l.lotNumber}</div>
+          <div class="pinlog-row-sub">${pepLabel}${l.date?' · '+l.date:''}</div>
+          <div class="pinlog-row-sub" style="color:#f59e0b;">${bits.join(' · ')}</div>
+          ${l.notes?`<div class="pinlog-row-sub">${l.notes}</div>`:''}
+          ${coaThumb}
+        </div>
+        <button class="pinlog-del" onclick="deleteLotEntry(${l.id})">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  // Populates the Calculator tab's "Select Lot" dropdown, filtered to the currently active peptide
+  function populateLotSelect(){
+    const sel = document.getElementById('ci-lot-select');
+    if(!sel) return;
+    const lots = getLots().filter(l => l.peptide === state.peptide);
+    sel.innerHTML = '<option value="">— Enter manually below —</option>' +
+      lots.map(l => `<option value="${l.id}">${l.vendor} — ${l.lotNumber}${l.date?' ('+l.date+')':''}</option>`).join('');
+  }
+
+  function applySelectedLot(){
+    const id = parseFloat(document.getElementById('ci-lot-select').value);
+    if(!id) return;
+    const lot = getLots().find(l => l.id === id);
+    if(!lot) return;
+    document.getElementById('ci-fill-override').value = lot.fill != null ? lot.fill : '';
+    document.getElementById('ci-purity').value = (lot.fill == null && lot.purity != null) ? lot.purity : '';
+    onFillOverrideInput();
+    onPurityInput();
+  }
+
+  // Lightweight toast so this doesn't depend on the meal tracker's showToast implementation
+  function showToastGeneric(msg){
+    let t = document.getElementById('generic-toast');
+    if(!t){
+      t = document.createElement('div');
+      t.id = 'generic-toast';
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1f35;color:#e2e8f0;padding:10px 18px;border-radius:8px;border:1px solid #1e3a5f;font-size:13px;z-index:9999;';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.display = 'block';
+    clearTimeout(t._hideTimer);
+    t._hideTimer = setTimeout(()=>{ t.style.display='none'; }, 2000);
+  }
+
+  // ── INIT ─────────────────────────────────────────────────────────────────
+  document.getElementById('eyebrow').style.color = state.color;
+  document.getElementById('results-eyebrow').style.color = state.color;
+  document.querySelector('.person-btn[data-person="rich"]').style.borderColor = state.color;
+  document.querySelector('.person-btn[data-person="rich"]').style.background = hexAlpha(state.color, 0.1);
+  document.querySelector('.person-btn[data-person="rich"]').style.color = state.color;
+  document.getElementById('btn-tirz').style.background = state.color;
+  document.getElementById('btn-tirz').style.color = '#060f1e';
+  document.getElementById('ci-dose').value = state.dose;
+  document.getElementById('ci-vial').value = state.vialMg;
+  document.getElementById('ci-bac').value = state.bacMl;
+  document.getElementById('ci-bac').dataset.suggested = String(state.bacMl);
+
+  buildDoseGrid();
+  recalc();
+  renderHousehold();
+  populateLotSelect();
+
+  // Default pin log date/time to now for fast entry
+  (function initPinLogDefaults(){
+    const now = new Date();
+    document.getElementById('pl-date').value = now.toISOString().slice(0,10);
+    document.getElementById('pl-time').value = now.toTimeString().slice(0,5);
+    document.getElementById('lot-date').value = now.toISOString().slice(0,10);
+  })();
+
+  // Service worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
