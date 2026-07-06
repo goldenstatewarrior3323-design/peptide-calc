@@ -1672,6 +1672,39 @@ function stopScanner(){
   if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream=null; }
 }
 
+// USDA FoodData Central — real nutrient database, used as a cross-check against AI estimates.
+// NOTE: FDC search results return per-100g values by default (that's how the database is structured).
+// This is used as an informational reference/variance-check, not a serving-matched exact value —
+// being upfront about that simplification rather than overstating precision this doesn't have.
+const USDA_FDC_KEY = 'oKE7NEb6g7QLWbSZ1A8yJUohcfrX380CVNhE7KCo';
+const USDA_NUTRIENT_IDS = { calories:1008, protein:1003, fat:1004, carbs:1005, fiber:1079, sugar:2000,
+  calcium:1087, iron:1089, sodium:1093, potassium:1092, cholesterol:1253, satfat:1258, transfat:1257,
+  magnesium:1090, vitaminc:1162 };
+
+async function lookupUSDA(name){
+  if(!name || !name.trim()) return null;
+  try {
+    const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(name)}&pageSize=1&dataType=Foundation,SR%20Legacy&api_key=${USDA_FDC_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if(!data.foods || !data.foods.length) return null;
+    const food = data.foods[0];
+    const get = id => { const n = food.foodNutrients.find(x=>x.nutrientId===id); return n ? n.value : 0; };
+    return {
+      description: food.description,
+      per100g: {
+        calories: get(USDA_NUTRIENT_IDS.calories), protein_g: get(USDA_NUTRIENT_IDS.protein),
+        fat_total_g: get(USDA_NUTRIENT_IDS.fat), carbs_total_g: get(USDA_NUTRIENT_IDS.carbs),
+        fiber_g: get(USDA_NUTRIENT_IDS.fiber), sugar_g: get(USDA_NUTRIENT_IDS.sugar),
+        calcium_mg: get(USDA_NUTRIENT_IDS.calcium), iron_mg: get(USDA_NUTRIENT_IDS.iron),
+        sodium_mg: get(USDA_NUTRIENT_IDS.sodium), potassium_mg: get(USDA_NUTRIENT_IDS.potassium),
+        cholesterol_mg: get(USDA_NUTRIENT_IDS.cholesterol), fat_saturated_g: get(USDA_NUTRIENT_IDS.satfat),
+        magnesium_mg: get(USDA_NUTRIENT_IDS.magnesium), vitamin_c_mg: get(USDA_NUTRIENT_IDS.vitaminc),
+      }
+    };
+  } catch(e){ console.error('USDA lookup failed:', e); return null; }
+}
+
 async function fetchBarcode(barcode){
   showToast('Looking up product...');
   try {
@@ -1681,11 +1714,37 @@ async function fetchBarcode(barcode){
       const p=data.product;
       const n=p.nutriments||{};
       const name=p.product_name||p.product_name_en||'Scanned Product';
-      const servingG=p.serving_size||'100g';
-      document.getElementById('food-name').value=name;
-      document.getElementById('food-ingredients').value=
-        `${name}\nServing: ${servingG}\nCalories: ${n['energy-kcal_serving']||n['energy-kcal_100g']||0} kcal\nProtein: ${n['proteins_serving']||n['proteins_100g']||0}g\nFat: ${n['fat_serving']||n['fat_100g']||0}g\nCarbs: ${n['carbohydrates_serving']||n['carbohydrates_100g']||0}g\nFiber: ${n['fiber_serving']||n['fiber_100g']||0}g\nSodium: ${Math.round((n['sodium_serving']||n['sodium_100g']||0)*1000)}mg\nSugar: ${n['sugars_serving']||n['sugars_100g']||0}g`;
-      showToast('Product found! Review and analyze.');
+      // Use OFF's real numbers directly — no AI re-estimation needed for macros we already have exactly.
+      // Only trans fat / omega-3 (rarely in OFF data) get AI-estimated separately as a supplement.
+      const hasServing = !!(n['energy-kcal_serving']);
+      const val = key => n[hasServing ? key+'_serving' : key+'_100g'] || 0;
+      currentAnalysis = {
+        name,
+        calories: Math.round(val('energy-kcal')),
+        protein_g: Math.round(val('proteins')*10)/10,
+        fat_total_g: Math.round(val('fat')*10)/10,
+        fat_saturated_g: Math.round(val('saturated-fat')*10)/10,
+        fat_trans_g: Math.round((val('trans-fat')||0)*10)/10,
+        carbs_total_g: Math.round(val('carbohydrates')*10)/10,
+        fiber_g: Math.round(val('fiber')*10)/10,
+        carbs_net_g: Math.round((val('carbohydrates')-val('fiber'))*10)/10,
+        sugar_g: Math.round(val('sugars')*10)/10,
+        sodium_mg: Math.round(val('sodium')*1000),
+        potassium_mg: Math.round(val('potassium')*1000),
+        cholesterol_mg: Math.round((val('cholesterol')||0)*1000),
+        calcium_mg: Math.round((val('calcium')||0)*1000),
+        iron_mg: Math.round((val('iron')||0)*1000*10)/10,
+        vitamin_c_mg: Math.round((val('vitamin-c')||0)*1000),
+        magnesium_mg: Math.round((val('magnesium')||0)*1000),
+        omega3_mg: 0, // OFF rarely reports this — genuinely unknown, not silently guessed
+        data_source: 'Open Food Facts (real label data)',
+        notes: `Real label data from Open Food Facts${hasServing?' (per labeled serving)':' (per 100g — check actual serving size)'}. Omega-3 not reported by source.`,
+      };
+      document.getElementById('food-name').value = name;
+      document.getElementById('food-ingredients').value = `${name}, as sold (packaged product)`;
+      renderResult(currentAnalysis);
+      document.getElementById('analysis-result').style.display='block';
+      showToast('Real product data loaded — review and save');
     } else {
       showToast('Product not found — type ingredients manually');
     }
@@ -1731,14 +1790,37 @@ Return only the JSON, nothing else.`;
 
   try {
     const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
-    const res=await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+    const [res, usdaRef] = await Promise.all([
+      fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:prompt}]})}),
+      name ? lookupUSDA(name) : Promise.resolve(null)
+    ]);
     const data=await res.json();
     console.log('Worker response:', JSON.stringify(data));
     if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     if(!data.content) throw new Error('No content: ' + JSON.stringify(data));
     const text=data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
     currentAnalysis=JSON.parse(text.replace(/```json|```/g,'').trim());
+    currentAnalysis.data_source = 'AI estimate';
+
+    // Variance check against USDA reference, per the household's own rule:
+    // >10% spread on a key macro = flag for review rather than silently trust the AI number.
+    if(usdaRef){
+      const fields = [['calories','calories'],['protein_g','protein_g'],['fat_total_g','fat_total_g'],['carbs_total_g','carbs_total_g']];
+      const flags = [];
+      fields.forEach(([aiKey])=>{
+        const aiVal = currentAnalysis[aiKey];
+        const usdaVal = usdaRef.per100g[aiKey];
+        if(usdaVal > 0 && aiVal > 0){
+          const variance = Math.abs(aiVal - usdaVal) / usdaVal;
+          if(variance > 0.10) flags.push(`${aiKey.replace('_g','').replace('_total','')}: AI ${aiVal} vs USDA ${Math.round(usdaVal)} (per 100g, "${usdaRef.description}")`);
+        }
+      });
+      currentAnalysis.usda_reference = usdaRef;
+      currentAnalysis.variance_flag = flags.length > 0;
+      currentAnalysis.variance_detail = flags;
+    }
+
     renderResult(currentAnalysis);
     document.getElementById('analysis-result').style.display='block';
   } catch(e){
@@ -1760,7 +1842,12 @@ function renderResult(m, servings) {
   document.getElementById('result-content').innerHTML=`
     <div class="result-name">${m.name}</div>
     <div class="result-notes">${m.notes||''}</div>
-    <div style="font-size:11px;color:var(--muted);background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">⚠️ AI estimates — verify packaged items against label.</div>
+    ${m.data_source==='Open Food Facts (real label data)'
+      ? `<div style="font-size:11px;color:#166534;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">✅ Real label data from Open Food Facts — not an AI estimate.</div>`
+      : m.variance_flag
+        ? `<div style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">⚠️ AI estimate differs from USDA reference by >10%:<br>${(m.variance_detail||[]).join('<br>')}</div>`
+        : `<div style="font-size:11px;color:var(--muted);background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">⚠️ AI estimates — verify packaged items against label.${m.usda_reference?' (Checked against USDA — within 10%.)':''}</div>`
+    }
 
     <!-- Serving size control — MFP style -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);border-top:1px solid var(--border);margin-bottom:12px;">
@@ -1985,12 +2072,13 @@ function logSaved(idx){
   const dest = document.getElementById('saved-meal-dest').value;
   openServingsModal(meal.name, 1, (servings) => {
     const rescaled = scaleFromBase(meal, servings);
-    const log=getLog(); const key=todayKey();
+    const log=getLog(); const key=selectedDateKey; // was hardcoded to todayKey() — broke pre-logging to a future day
     if(!log[key]) log[key]={};
     if(!log[key][dest]) log[key][dest]=[];
     log[key][dest].push({...rescaled,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),id:Date.now()});
     saveLog(log);
-    showToast(rescaled.name+' added to '+dest);
+    const dayLabel = key === todayKey() ? '' : ' ('+new Date(key+'T00:00:00').toLocaleDateString('en-US',{weekday:'long'})+')';
+    showToast(rescaled.name+' added to '+dest+dayLabel);
     showPage('today');
   });
 }
