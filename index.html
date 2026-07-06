@@ -294,7 +294,7 @@
 
       <!-- Dose ladder (tirzepatide only) -->
       <div id="ladder-wrap" style="margin-bottom:14px;">
-        <div class="input-label">Quick-select dose (mg) <span>— tap your active or a reference step</span></div>
+        <div class="input-label" id="ladder-wrap-label">Quick-select dose (mg) <span>— tap your active or a reference step</span></div>
         <div class="dose-grid" id="dose-grid"></div>
       </div>
 
@@ -569,8 +569,11 @@
     { dose: 15.0, done: false },
   ];
 
-  // KPV has no titration ladder — fixed protocol dose, cycled (60 days on / 4 weeks off), not weight-titrated.
+  // KPV has no titration ladder (it's a fixed protocol dose, not weight-titrated) — this is just
+  // a quick-select reference range, 200-1000mcg in 50mcg steps, not a progression like TIRZ_LADDER.
   const KPV_DEFAULT_MCG = 500;
+  const KPV_LADDER = [200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000]
+    .map(dose => ({ dose, done: false }));
 
   const PERSONS = [
     { id: 'rich',  label: 'Rich',    defaultDoseTirz: 4.32, defaultDoseKpv: 500, color: '#00c896' },
@@ -624,7 +627,8 @@
       ? 'Dose (mcg) <span>— your injection dose</span>'
       : 'Dose (mg) <span>— your injection dose</span>';
     document.getElementById('panel-eyebrow').textContent = p==='kpv' ? 'KPV — Dose & Reconstitution' : 'Tirzepatide — Dose & Reconstitution';
-    document.getElementById('ladder-wrap').style.display = p==='tirz' ? '' : 'none';
+    // Ladder now shows for both peptides — Tirzepatide's titration schedule and KPV's mcg quick-select range
+    document.getElementById('ladder-wrap-label').innerHTML = 'Quick-select dose ('+unit+') <span>— tap your active or a reference step</span>';
     document.getElementById('household-card').style.display = p==='tirz' ? '' : 'none';
     document.getElementById('household-label').textContent = p==='tirz' ? 'Friday Pin — All Three' : 'KPV — Rich Only';
 
@@ -655,15 +659,16 @@
     recalc();
   }
 
-  // Dose ladder — tirzepatide only (KPV has no titration ladder)
+  // Dose ladder — Tirzepatide uses the mg titration schedule; KPV uses the mcg quick-select range
   function buildDoseGrid() {
     const grid = document.getElementById('dose-grid');
     grid.innerHTML = '';
-    if (state.peptide !== 'tirz') return;
-    TIRZ_LADDER.forEach(step => {
+    const ladder = state.peptide === 'tirz' ? TIRZ_LADDER : KPV_LADDER;
+    const unit = currentUnit();
+    ladder.forEach(step => {
       const btn = document.createElement('button');
       btn.className = 'dose-btn' + (step.done ? ' done' : '') + (step.dose === state.dose ? ' active' : '');
-      btn.textContent = step.dose + 'mg';
+      btn.textContent = step.dose + unit;
       if (step.done) {
         btn.disabled = true;
       } else {
