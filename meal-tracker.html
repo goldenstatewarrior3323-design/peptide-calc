@@ -683,6 +683,7 @@ let scannerStream = null;
 let scannerInterval = null;
 let zxingReader = null;
 let zxingControls = null;
+let zxingTimeoutHint = null;
 
 // ── STORAGE ───────────────────────────────────────────────────────────────────
 const todayKey = () => new Date().toISOString().slice(0,10);
@@ -1556,6 +1557,7 @@ async function startScanner(){
 
     // Try native BarcodeDetector first (Android Chrome 83+)
     if('BarcodeDetector' in window) {
+      status.textContent = 'Scanning (native detector)...';
       const detector = new BarcodeDetector({ formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code'] });
       scannerInterval = setInterval(async()=>{
         if(video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -1572,6 +1574,7 @@ async function startScanner(){
       // Real fallback for iOS Safari and any browser lacking BarcodeDetector.
       // ZXing reads EAN-13/EAN-8/UPC-A/UPC-E/Code128/QR — jsQR (previous fallback) only read QR,
       // so every food-barcode scan on iOS was guaranteed to fail before this fix.
+      status.textContent = 'Scanning (ZXing)...';
       const hints = new Map();
       hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
         ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
@@ -1581,12 +1584,22 @@ async function startScanner(){
       ]);
       const reader = new ZXing.BrowserMultiFormatReader(hints);
       zxingReader = reader;
+      let zxingTimeoutHint_local = setTimeout(()=>{
+        if(status.textContent === 'Scanning (ZXing)...'){
+          status.textContent = 'Still scanning — try moving closer, steadying the phone, or better lighting';
+        }
+      }, 8000);
+      zxingTimeoutHint = zxingTimeoutHint_local;
       zxingControls = await reader.decodeFromVideoElement(video, (result, err) => {
         if(result && result.getText()){
+          clearTimeout(zxingTimeoutHint_local);
           stopScanner();
           fetchBarcode(result.getText());
+        } else if(err && err.name !== 'NotFoundException'){
+          // NotFoundException fires continuously while scanning with nothing in frame — expected, ignore.
+          // Anything else is a real error worth seeing if this needs debugging later.
+          console.error('ZXing decode error:', err);
         }
-        // NotFoundException fires continuously while scanning with nothing in frame — expected, ignore
       });
     } else {
       // Last-resort fallback: jsQR canvas method (QR codes only — will not read food barcodes).
@@ -1618,6 +1631,7 @@ function stopScanner(){
   const modal=document.getElementById('scanner-modal');
   modal.classList.remove('open');
   if(scannerInterval){ clearInterval(scannerInterval); scannerInterval=null; }
+  if(zxingTimeoutHint){ clearTimeout(zxingTimeoutHint); zxingTimeoutHint=null; }
   if(zxingReader){ try{ zxingReader.reset(); }catch(e){} zxingReader=null; zxingControls=null; }
   if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream=null; }
 }
