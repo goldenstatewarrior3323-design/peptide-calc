@@ -1839,15 +1839,25 @@ function renderResult(m, servings) {
     const c=inv?(v>hi?'#dc2626':v>lo?'#d97706':'#059669'):(v>=hi?'#059669':v>=lo?'#d97706':'#dc2626');
     return `<span class="n-dot" style="background:${c}"></span>`;
   };
+  // Editable field: shows the current scaled value, but writing to it corrects the
+  // underlying per-1-serving base (value / current servings), so re-scaling and saving
+  // both reflect the correction — not just a cosmetic override of what's on screen.
+  const editField = (field, decimals) => `<input type="number" step="${decimals?'0.1':'1'}" value="${decimals?sc(m[field]):sci(m[field])}"
+    onchange="editNutrientField('${field}', this.value)"
+    style="width:64px;text-align:right;border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:13px;font-weight:700;color:var(--text);background:var(--white);"/>`;
+
   document.getElementById('result-content').innerHTML=`
     <div class="result-name">${m.name}</div>
     <div class="result-notes">${m.notes||''}</div>
-    ${m.data_source==='Open Food Facts (real label data)'
+    ${m.manually_corrected
+      ? `<div style="font-size:11px;color:#1e3a8a;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">✏️ Manually corrected — your entered values, not an estimate.</div>`
+      : m.data_source==='Open Food Facts (real label data)'
       ? `<div style="font-size:11px;color:#166534;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">✅ Real label data from Open Food Facts — not an AI estimate.</div>`
       : m.variance_flag
         ? `<div style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">⚠️ AI estimate differs from USDA reference by >10%:<br>${(m.variance_detail||[]).join('<br>')}</div>`
         : `<div style="font-size:11px;color:var(--muted);background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">⚠️ AI estimates — verify packaged items against label.${m.usda_reference?' (Checked against USDA — within 10%.)':''}</div>`
     }
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Any number below can be tapped and corrected against the real label — corrections apply no matter how this item was originally analyzed.</div>
 
     <!-- Serving size control — MFP style -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);border-top:1px solid var(--border);margin-bottom:12px;">
@@ -1856,31 +1866,52 @@ function renderResult(m, servings) {
         <button onclick="adjustServings(-0.25)" style="width:28px;height:28px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);">−</button>
         <input type="number" id="servings-input" value="${s}" min="0.25" step="0.25"
           style="width:52px;text-align:center;border:1.5px solid var(--blue);border-radius:8px;padding:4px;font-size:15px;font-weight:700;color:var(--blue);outline:none;"
-          oninput="updateServings(this.value)"/>
+          onchange="updateServings(this.value)"/>
         <button onclick="adjustServings(0.25)" style="width:28px;height:28px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);">+</button>
       </div>
     </div>
 
-    <div class="result-cals" id="scaled-cals">${sci(m.calories)}</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">calories${s!==1?' ('+s+'x serving)':''}</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <input type="number" id="edit-calories" value="${sci(m.calories)}" onchange="editNutrientField('calories', this.value)"
+        style="width:110px;text-align:center;font-size:40px;font-weight:800;color:var(--blue);border:none;border-bottom:2px solid var(--blue);outline:none;background:transparent;"/>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-align:center;">calories${s!==1?' ('+s+'x serving)':''}</div>
     <div class="result-macros">
-      <div class="rmacro"><div class="rmacro-val" style="color:#0d9488" id="sc-carbs">${sc(m.carbs_net_g)}g</div><div class="rmacro-lbl">Net Carbs</div></div>
-      <div class="rmacro"><div class="rmacro-val" style="color:#7c3aed" id="sc-fat">${sc(m.fat_total_g)}g</div><div class="rmacro-lbl">Fat</div></div>
-      <div class="rmacro"><div class="rmacro-val" style="color:#ea580c" id="sc-prot">${sc(m.protein_g)}g</div><div class="rmacro-lbl">Protein</div></div>
-      <div class="rmacro"><div class="rmacro-val" style="color:#059669" id="sc-fiber">${sc(m.fiber_g)}g</div><div class="rmacro-lbl">Fiber</div></div>
+      <div class="rmacro"><div class="rmacro-val" style="color:#0d9488;"><input type="number" step="0.1" id="edit-carbs_net_g" value="${sc(m.carbs_net_g)}" onchange="editNutrientField('carbs_net_g', this.value)" style="width:56px;text-align:center;border:1px solid var(--border);border-radius:6px;font-size:15px;font-weight:800;color:#0d9488;background:var(--white);"/>g</div><div class="rmacro-lbl">Net Carbs</div></div>
+      <div class="rmacro"><div class="rmacro-val" style="color:#7c3aed;"><input type="number" step="0.1" id="edit-fat_total_g" value="${sc(m.fat_total_g)}" onchange="editNutrientField('fat_total_g', this.value)" style="width:56px;text-align:center;border:1px solid var(--border);border-radius:6px;font-size:15px;font-weight:800;color:#7c3aed;background:var(--white);"/>g</div><div class="rmacro-lbl">Fat</div></div>
+      <div class="rmacro"><div class="rmacro-val" style="color:#ea580c;"><input type="number" step="0.1" id="edit-protein_g" value="${sc(m.protein_g)}" onchange="editNutrientField('protein_g', this.value)" style="width:56px;text-align:center;border:1px solid var(--border);border-radius:6px;font-size:15px;font-weight:800;color:#ea580c;background:var(--white);"/>g</div><div class="rmacro-lbl">Protein</div></div>
+      <div class="rmacro"><div class="rmacro-val" style="color:#059669;"><input type="number" step="0.1" id="edit-fiber_g" value="${sc(m.fiber_g)}" onchange="editNutrientField('fiber_g', this.value)" style="width:56px;text-align:center;border:1px solid var(--border);border-radius:6px;font-size:15px;font-weight:800;color:#059669;background:var(--white);"/>g</div><div class="rmacro-lbl">Fiber</div></div>
     </div>
     <div id="sc-nutrients">
-      ${nr('Total Carbs',sc(m.carbs_total_g)+'g')}
-      ${nr('Saturated Fat',sc(m.fat_saturated_g)+'g')}
-      ${nr('Cholesterol',sci(m.cholesterol_mg)+'mg',dot(sci(m.cholesterol_mg),100,200,true))}
-      ${nr('Sodium',sci(m.sodium_mg)+'mg',dot(sci(m.sodium_mg),500,1000,true))}
-      ${nr('Potassium',sci(m.potassium_mg)+'mg',dot(sci(m.potassium_mg),400,800,false))}
-      ${nr('Magnesium',sc(m.magnesium_mg)+'mg')}
-      ${nr('Calcium',sc(m.calcium_mg)+'mg')}
-      ${nr('Iron',sc(m.iron_mg)+'mg')}
-      ${nr('Vitamin C',sc(m.vitamin_c_mg)+'mg')}
-      ${nr('Sugar',sc(m.sugar_g)+'g')}
+      ${nr('Total Carbs',editField('carbs_total_g',true))}
+      ${nr('Saturated Fat',editField('fat_saturated_g',true))}
+      ${nr('Trans Fat',editField('fat_trans_g',true))}
+      ${nr('Cholesterol',editField('cholesterol_mg',false),dot(sci(m.cholesterol_mg),100,200,true))}
+      ${nr('Sodium',editField('sodium_mg',false),dot(sci(m.sodium_mg),500,1000,true))}
+      ${nr('Potassium',editField('potassium_mg',false),dot(sci(m.potassium_mg),400,800,false))}
+      ${nr('Magnesium',editField('magnesium_mg',true))}
+      ${nr('Calcium',editField('calcium_mg',true))}
+      ${nr('Iron',editField('iron_mg',true))}
+      ${nr('Vitamin C',editField('vitamin_c_mg',true))}
+      ${nr('Sugar',editField('sugar_g',true))}
+      ${nr('Omega-3',editField('omega3_mg',false))}
     </div>`;
+}
+
+// Universal correction handler — applies to every food type, every analysis path (AI, USDA-checked,
+// or Open Food Facts). Corrects the underlying per-1-serving base so future serving-scaling and
+// diary-saving both reflect the fix, not just what's momentarily on screen.
+function editNutrientField(field, newDisplayedValue){
+  if(!currentAnalysis) return;
+  const servingsInput = document.getElementById('servings-input');
+  const s = servingsInput ? (parseFloat(servingsInput.value)||1) : 1;
+  const v = parseFloat(newDisplayedValue);
+  if(isNaN(v)){ showToast('Enter a valid number'); return; }
+  currentAnalysis[field] = v / s; // store corrected per-1-serving base
+  currentAnalysis.manually_corrected = true;
+  currentAnalysis.variance_flag = false; // a manual correction supersedes the earlier AI/USDA variance flag
+  renderResult(currentAnalysis, s);
+  showToast('Updated');
 }
 
 function adjustServings(delta) {
@@ -1895,35 +1926,7 @@ function adjustServings(delta) {
 function updateServings(val) {
   const s = parseFloat(val);
   if(!s || s <= 0 || !currentAnalysis) return;
-  const m = currentAnalysis;
-  const sc = v => Math.round((v||0) * s * 10) / 10;
-  const sci = v => Math.round((v||0) * s);
-  const dot=(v,lo,hi,inv)=>{
-    const c=inv?(v>hi?'#dc2626':v>lo?'#d97706':'#059669'):(v>=hi?'#059669':v>=lo?'#d97706':'#dc2626');
-    return `<span class="n-dot" style="background:${c}"></span>`;
-  };
-  const calsEl=document.getElementById('scaled-cals');
-  const carbsEl=document.getElementById('sc-carbs');
-  const fatEl=document.getElementById('sc-fat');
-  const protEl=document.getElementById('sc-prot');
-  const fiberEl=document.getElementById('sc-fiber');
-  const nutrEl=document.getElementById('sc-nutrients');
-  if(calsEl) calsEl.textContent=sci(m.calories);
-  if(carbsEl) carbsEl.textContent=sc(m.carbs_net_g)+'g';
-  if(fatEl) fatEl.textContent=sc(m.fat_total_g)+'g';
-  if(protEl) protEl.textContent=sc(m.protein_g)+'g';
-  if(fiberEl) fiberEl.textContent=sc(m.fiber_g)+'g';
-  if(nutrEl) nutrEl.innerHTML=`
-    ${nr('Total Carbs',sc(m.carbs_total_g)+'g')}
-    ${nr('Saturated Fat',sc(m.fat_saturated_g)+'g')}
-    ${nr('Cholesterol',sci(m.cholesterol_mg)+'mg',dot(sci(m.cholesterol_mg),100,200,true))}
-    ${nr('Sodium',sci(m.sodium_mg)+'mg',dot(sci(m.sodium_mg),500,1000,true))}
-    ${nr('Potassium',sci(m.potassium_mg)+'mg',dot(sci(m.potassium_mg),400,800,false))}
-    ${nr('Magnesium',sc(m.magnesium_mg)+'mg')}
-    ${nr('Calcium',sc(m.calcium_mg)+'mg')}
-    ${nr('Iron',sc(m.iron_mg)+'mg')}
-    ${nr('Vitamin C',sc(m.vitamin_c_mg)+'mg')}
-    ${nr('Sugar',sc(m.sugar_g)+'g')}`;
+  renderResult(currentAnalysis, s);
 }
 
 function nr(l,v,dot){ return `<div class="nutrient-row"><span class="n-label">${l}</span><span class="n-val">${v}${dot||''}</span></div>`; }
