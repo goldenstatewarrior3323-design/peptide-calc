@@ -582,6 +582,14 @@
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.21.3"></script>
+<script type="module">
+  // zbar-wasm: WebAssembly barcode reader, documented to outperform pure-JS decoders (like ZXing)
+  // specifically on iOS/Safari, which has no native BarcodeDetector at all. This is the new
+  // primary path for iPhone; ZXing stays as a fallback in case this CDN fails to load.
+  import * as zbarWasm from 'https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.11.0/dist/index.js';
+  window.zbarWasm = zbarWasm;
+  window.zbarWasmReady = true;
+</script>
 <script>
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 const START_WEIGHT = 375.4;
@@ -1570,6 +1578,34 @@ async function startScanner(){
           } catch(e) { /* keep scanning */ }
         }
       }, 300);
+    } else if(window.zbarWasmReady && window.zbarWasm) {
+      // Primary path for iOS Safari (no native BarcodeDetector). zbar-wasm is a WebAssembly
+      // build of the battle-tested ZBar C library — documented to outperform pure-JS decoders
+      // like ZXing specifically in real-world conditions (curved surfaces, glare, motion).
+      status.textContent = 'Scanning (ZBar)...';
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      let zbarBusy = false;
+      zxingTimeoutHint = setTimeout(()=>{
+        if(status.textContent === 'Scanning (ZBar)...'){
+          status.textContent = 'Still scanning — try moving closer, steadying the phone, or better lighting';
+        }
+      }, 8000);
+      scannerInterval = setInterval(async()=>{
+        if(zbarBusy || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+        zbarBusy = true;
+        try {
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const symbols = await window.zbarWasm.scanImageData(imageData);
+          if(symbols && symbols.length > 0){
+            const text = symbols[0].decode();
+            if(text){ stopScanner(); fetchBarcode(text); }
+          }
+        } catch(e){ console.error('zbar-wasm decode error:', e); }
+        zbarBusy = false;
+      }, 250);
     } else if(typeof ZXing !== 'undefined') {
       // Real fallback for iOS Safari and any browser lacking BarcodeDetector.
       // ZXing reads EAN-13/EAN-8/UPC-A/UPC-E/Code128/QR — jsQR (previous fallback) only read QR,
