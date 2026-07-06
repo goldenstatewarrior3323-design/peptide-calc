@@ -581,7 +581,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3"></script>
 <script>
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 const START_WEIGHT = 375.4;
@@ -1589,7 +1589,11 @@ async function startScanner(){
         // NotFoundException fires continuously while scanning with nothing in frame — expected, ignore
       });
     } else {
-      // Last-resort fallback: jsQR canvas method (QR codes only — will not read food barcodes)
+      // Last-resort fallback: jsQR canvas method (QR codes only — will not read food barcodes).
+      // If we've hit this branch, ZXing failed to load — tell the person directly rather than
+      // silently scanning in a mode that can never succeed on a real food package.
+      status.textContent = '⚠️ Barcode reader failed to load — QR codes only in this mode. Try typing ingredients instead.';
+      console.warn('ZXing failed to load — falling back to QR-only scanning, which cannot read UPC/EAN food barcodes.');
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       scannerInterval = setInterval(()=>{
