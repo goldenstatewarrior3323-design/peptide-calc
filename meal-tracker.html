@@ -575,6 +575,14 @@
     </div>
     <div class="input-label">Name</div>
     <input class="field" type="text" id="fe-name" style="margin-bottom:14px;"/>
+
+    <div class="input-label">Quick oz ↔ g Converter <span>— for reference while correcting values below</span></div>
+    <div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+      <input class="field" type="number" id="fe-conv-oz" placeholder="oz" inputmode="decimal" oninput="convertOzToG('fe-conv-oz','fe-conv-g')" style="text-align:center;flex:1;"/>
+      <div style="font-size:13px;color:var(--muted);font-weight:700;">=</div>
+      <input class="field" type="number" id="fe-conv-g" placeholder="g" inputmode="decimal" oninput="convertGToOz('fe-conv-oz','fe-conv-g')" style="text-align:center;flex:1;"/>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div><div class="input-label">Calories</div><input class="field" type="number" id="fe-calories"/></div>
       <div><div class="input-label">Protein (g)</div><input class="field" type="number" step="0.1" id="fe-protein_g"/></div>
@@ -2110,15 +2118,17 @@ function updateServings(val) {
 
 function nr(l,v,dot){ return `<div class="nutrient-row"><span class="n-label">${l}</span><span class="n-val">${v}${dot||''}</span></div>`; }
 
-// ── OZ/G QUICK CONVERTER ─────────────────────────────────────────────────────
+// ── OZ/G QUICK CONVERTER — generalized so it can be reused anywhere in the app ──
 const OZ_TO_G = 28.3495;
-function convertOzToG(){
-  const oz = parseFloat(document.getElementById('conv-oz').value);
-  document.getElementById('conv-g').value = isNaN(oz) ? '' : Math.round(oz * OZ_TO_G * 10) / 10;
+function convertOzToG(ozId, gId){
+  ozId = ozId || 'conv-oz'; gId = gId || 'conv-g';
+  const oz = parseFloat(document.getElementById(ozId).value);
+  document.getElementById(gId).value = isNaN(oz) ? '' : Math.round(oz * OZ_TO_G * 10) / 10;
 }
-function convertGToOz(){
-  const g = parseFloat(document.getElementById('conv-g').value);
-  document.getElementById('conv-oz').value = isNaN(g) ? '' : Math.round((g / OZ_TO_G) * 100) / 100;
+function convertGToOz(ozId, gId){
+  ozId = ozId || 'conv-oz'; gId = gId || 'conv-g';
+  const g = parseFloat(document.getElementById(gId).value);
+  document.getElementById(ozId).value = isNaN(g) ? '' : Math.round((g / OZ_TO_G) * 100) / 100;
 }
 
 function clearAnalysis(){
@@ -2195,6 +2205,8 @@ function openFoodEditModal(type, a, b){
   }
   if(!record) return;
   document.getElementById('fe-name').value = record.name || '';
+  document.getElementById('fe-conv-oz').value = '';
+  document.getElementById('fe-conv-g').value = '';
   FE_FIELDS.forEach(f => { document.getElementById('fe-'+f).value = record[f] ?? 0; });
   document.getElementById('food-edit-modal').style.display = 'flex';
 }
