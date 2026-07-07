@@ -527,6 +527,38 @@
   </div>
 </div>
 
+<!-- FOOD EDIT MODAL — rename + full nutrient correction, shared by diary entries and saved meals -->
+<div id="food-edit-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:17px;font-weight:800;">Edit Food</div>
+      <button onclick="closeFoodEditModal()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="input-label">Name</div>
+    <input class="field" type="text" id="fe-name" style="margin-bottom:14px;"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><div class="input-label">Calories</div><input class="field" type="number" id="fe-calories"/></div>
+      <div><div class="input-label">Protein (g)</div><input class="field" type="number" step="0.1" id="fe-protein_g"/></div>
+      <div><div class="input-label">Fat (g)</div><input class="field" type="number" step="0.1" id="fe-fat_total_g"/></div>
+      <div><div class="input-label">Saturated Fat (g)</div><input class="field" type="number" step="0.1" id="fe-fat_saturated_g"/></div>
+      <div><div class="input-label">Trans Fat (g)</div><input class="field" type="number" step="0.1" id="fe-fat_trans_g"/></div>
+      <div><div class="input-label">Total Carbs (g)</div><input class="field" type="number" step="0.1" id="fe-carbs_total_g"/></div>
+      <div><div class="input-label">Net Carbs (g)</div><input class="field" type="number" step="0.1" id="fe-carbs_net_g"/></div>
+      <div><div class="input-label">Fiber (g)</div><input class="field" type="number" step="0.1" id="fe-fiber_g"/></div>
+      <div><div class="input-label">Sugar (g)</div><input class="field" type="number" step="0.1" id="fe-sugar_g"/></div>
+      <div><div class="input-label">Cholesterol (mg)</div><input class="field" type="number" id="fe-cholesterol_mg"/></div>
+      <div><div class="input-label">Sodium (mg)</div><input class="field" type="number" id="fe-sodium_mg"/></div>
+      <div><div class="input-label">Potassium (mg)</div><input class="field" type="number" id="fe-potassium_mg"/></div>
+      <div><div class="input-label">Magnesium (mg)</div><input class="field" type="number" step="0.1" id="fe-magnesium_mg"/></div>
+      <div><div class="input-label">Calcium (mg)</div><input class="field" type="number" step="0.1" id="fe-calcium_mg"/></div>
+      <div><div class="input-label">Iron (mg)</div><input class="field" type="number" step="0.1" id="fe-iron_mg"/></div>
+      <div><div class="input-label">Vitamin C (mg)</div><input class="field" type="number" step="0.1" id="fe-vitamin_c_mg"/></div>
+      <div><div class="input-label">Omega-3 (mg)</div><input class="field" type="number" id="fe-omega3_mg"/></div>
+    </div>
+    <button onclick="saveFoodEdit()" style="width:100%;padding:13px;margin-top:16px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Save Changes</button>
+  </div>
+</div>
+
 <div id="export-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:998;align-items:flex-end;justify-content:center;">
   <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -1339,7 +1371,8 @@ function renderToday() {
             <div class="meal-entry-name" style="flex:1;">${m.name}</div>
             <div class="meal-entry-cals">${m.calories} cal</div>
             <span style="color:var(--muted);font-size:11px;margin-left:6px;" id="entry-caret-${mt}-${i}">▾</span>
-            ${canLog?`<button class="meal-entry-del" onclick="event.stopPropagation();editDiaryEntryServings('${mt}',${i})" style="color:var(--blue);">✏️</button>`:''}
+            ${canLog?`<button class="meal-entry-del" onclick="event.stopPropagation();editDiaryEntryServings('${mt}',${i})" style="color:var(--blue);" title="Adjust servings">✏️</button>`:''}
+            ${canLog?`<button class="meal-entry-del" onclick="event.stopPropagation();openFoodEditModal('diary','${mt}',${i})" style="color:var(--green);" title="Edit name & nutrients">📝</button>`:''}
             ${canLog?`<button class="meal-entry-del" onclick="event.stopPropagation();deleteEntry('${mt}',${i})">✕</button>`:''}
           </div>
           <div id="entry-detail-${mt}-${i}" style="display:none;" onclick="event.stopPropagation();"></div>
@@ -1986,6 +2019,65 @@ function openServingsModal(name, currentServings, onConfirm){
 }
 function closeServingsModal(){ document.getElementById('servings-modal').style.display='none'; }
 
+// ── FOOD EDIT (rename + full nutrient correction) ───────────────────────────
+const FE_FIELDS = ['calories','protein_g','fat_total_g','fat_saturated_g','fat_trans_g','carbs_total_g',
+  'carbs_net_g','fiber_g','sugar_g','cholesterol_mg','sodium_mg','potassium_mg','magnesium_mg',
+  'calcium_mg','iron_mg','vitamin_c_mg','omega3_mg'];
+
+let foodEditContext = null; // { type:'diary', mealType, idx } or { type:'saved', idx }
+
+function openFoodEditModal(type, a, b){
+  let record;
+  if(type === 'diary'){
+    const log = getLog();
+    record = (log[selectedDateKey]?.[a]||[])[b];
+    foodEditContext = { type:'diary', mealType:a, idx:b };
+  } else {
+    record = getSaved()[a];
+    foodEditContext = { type:'saved', idx:a };
+  }
+  if(!record) return;
+  document.getElementById('fe-name').value = record.name || '';
+  FE_FIELDS.forEach(f => { document.getElementById('fe-'+f).value = record[f] ?? 0; });
+  document.getElementById('food-edit-modal').style.display = 'flex';
+}
+function closeFoodEditModal(){ document.getElementById('food-edit-modal').style.display='none'; foodEditContext=null; }
+
+function saveFoodEdit(){
+  if(!foodEditContext) return;
+  const updates = { name: document.getElementById('fe-name').value.trim() || 'Food' };
+  FE_FIELDS.forEach(f => { updates[f] = parseFloat(document.getElementById('fe-'+f).value) || 0; });
+
+  if(foodEditContext.type === 'diary'){
+    const { mealType, idx } = foodEditContext;
+    const log = getLog(); const key = selectedDateKey;
+    const entry = (log[key]?.[mealType]||[])[idx];
+    if(!entry) return;
+    // Corrected values become the new base at servings=1 going forward — a manual correction
+    // supersedes whatever scaling history the entry had before.
+    log[key][mealType][idx] = { ...entry, ...updates, _base:{...updates}, servings:1, manually_corrected:true };
+    saveLog(log);
+    renderToday();
+  } else {
+    const saved = getSaved();
+    const idx = foodEditContext.idx;
+    if(!saved[idx]) return;
+    saved[idx] = { ...saved[idx], ...updates };
+    saveSaved(saved);
+    renderSaved();
+  }
+  closeFoodEditModal();
+  showToast('Updated');
+}
+
+function deleteSavedMeal(idx){
+  const saved = getSaved();
+  saved.splice(idx, 1);
+  saveSaved(saved);
+  renderSaved();
+  showToast('Removed from saved meals');
+}
+
 // Edit servings on an already-logged diary entry. Legacy entries saved before this
 // feature existed have no _base — for those, this treats the currently-displayed
 // values as the base (servings=1) starting now, since there's no earlier snapshot to recover.
@@ -2065,7 +2157,11 @@ function renderSaved(){
           <div class="meal-card-name">${m.name}</div>
           <div class="meal-card-cals">${m.calories} cal · P:${m.protein_g}g · Fiber:${m.fiber_g}g · Na:${m.sodium_mg}mg</div>
         </div>
-        <button class="log-btn" onclick="logSaved(${i})">Log</button>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <button onclick="openFoodEditModal('saved',${i})" style="background:none;border:none;color:var(--green);font-size:16px;cursor:pointer;padding:6px;" title="Edit name & nutrients">📝</button>
+          <button onclick="deleteSavedMeal(${i})" style="background:none;border:none;color:#d1d5db;font-size:15px;cursor:pointer;padding:6px;" title="Delete">✕</button>
+          <button class="log-btn" onclick="logSaved(${i})">Log</button>
+        </div>
       </div>
     </div>`).join('');
 }
