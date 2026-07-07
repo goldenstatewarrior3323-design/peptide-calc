@@ -316,6 +316,19 @@
   </div>
 
   <div class="input-group">
+    <div class="input-label">Quick oz ↔ g Converter <span>— weigh on a scale, convert, then describe below</span></div>
+    <div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+      <div style="flex:1;">
+        <input class="field" type="number" id="conv-oz" placeholder="oz" inputmode="decimal" oninput="convertOzToG()" style="text-align:center;"/>
+      </div>
+      <div style="font-size:13px;color:var(--muted);font-weight:700;">=</div>
+      <div style="flex:1;">
+        <input class="field" type="number" id="conv-g" placeholder="g" inputmode="decimal" oninput="convertGToOz()" style="text-align:center;"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-group">
     <div class="input-label">Ingredients & Amounts (or describe the food)</div>
     <textarea class="field" id="food-ingredients" placeholder="e.g.&#10;2 servings egg whites&#10;1 whole russet potato&#10;2oz light soyrizo&#10;1 Mission carb balance burrito tortilla&#10;Homemade salsa&#10;&#10;Or: '1 cup Chobani plain Greek yogurt 0% fat'&#10;Or: scanned product info will appear here"></textarea>
   </div>
@@ -354,8 +367,13 @@
     </div>
     <div class="weight-stats">
       <div class="wstat"><div class="wstat-val" id="wstat-lost">—</div><div class="wstat-lbl">Lost</div></div>
-      <div class="wstat"><div class="wstat-val">210</div><div class="wstat-lbl">Goal</div></div>
+      <div class="wstat"><div class="wstat-val" id="wstat-goal">—</div><div class="wstat-lbl">Goal</div></div>
       <div class="wstat"><div class="wstat-val" id="wstat-remain">—</div><div class="wstat-lbl">To Go</div></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;margin-bottom:10px;">
+      <div style="font-size:12px;color:var(--muted);white-space:nowrap;">Goal weight:</div>
+      <input class="field" type="number" id="goal-weight-input" step="0.1" style="padding:6px 10px;font-size:14px;" onchange="saveGoalWeight()"/>
+      <div style="font-size:12px;color:var(--muted);">lbs</div>
     </div>
     <div class="weight-log-row">
       <input class="weight-input" type="number" id="weight-input" placeholder="Enter weight (lbs)" inputmode="decimal" step="0.1"/>
@@ -461,6 +479,22 @@
     <button onclick="resetGoalSettings()" style="flex:1;padding:13px;background:var(--bg);color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Reset to Auto</button>
   </div>
   <div id="settings-status" style="text-align:center;font-size:12px;color:var(--green);margin-top:10px;height:14px;"></div>
+
+  <div class="weight-card">
+    <div class="card-title">Backup Your Data</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;">
+      Everything lives only on this device — diary history, weight logs, saved meals, lot records, and any attached COA photos. Download a full backup regularly and save it somewhere safe (Google Drive, email to yourself). This covers both Alchemy and the Peptide Calculator, since they share the same on-device storage.
+    </div>
+    <button onclick="exportAllData()" style="width:100%;padding:13px;background:var(--green);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">⬇️ Export All Data</button>
+  </div>
+
+  <div class="weight-card">
+    <div class="card-title">AI Usage This Session</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Meal analysis, Coach, and Close the Gap all use the Claude API (~$0.003/call). Tracked locally on this device only — not a shared household total.</div>
+    <div class="nutrient-row"><span class="n-label">Calls today</span><span class="n-val" id="usage-today">—</span></div>
+    <div class="nutrient-row"><span class="n-label">Calls all-time (this device)</span><span class="n-val" id="usage-total">—</span></div>
+    <div class="nutrient-row"><span class="n-label">Est. cost all-time</span><span class="n-val" id="usage-cost">—</span></div>
+  </div>
 </div>
 
 <!-- SUPPLEMENT SETUP MODAL -->
@@ -626,7 +660,7 @@
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 const START_WEIGHT = 375.4;
 const INIT_WEIGHT = 365.9;
-const GOAL_WEIGHT = 210;
+// GOAL_WEIGHT removed — replaced by per-person, user-editable goal weight (see GOAL_WEIGHT_DEFAULTS below)
 const PERSON_PROFILES = {
   rich: {
     label: 'Rich',
@@ -689,19 +723,28 @@ const getCalOverride = (person) => { try { return JSON.parse(localStorage.getIte
 const saveCalOverride = (o, person) => localStorage.setItem('calOverride_'+(person||getCurrentPerson()), JSON.stringify(o));
 const clearCalOverride = (person) => localStorage.removeItem('calOverride_'+(person||getCurrentPerson()));
 
-// Dose tracking — manual entry, kept as history so Coach can reference "titrated N days ago"
-const getDoseLog = (person) => { try { return JSON.parse(localStorage.getItem('doseLog_'+(person||getCurrentPerson()))||'[]'); } catch { return []; } };
-const saveDoseLog = (arr, person) => localStorage.setItem('doseLog_'+(person||getCurrentPerson()), JSON.stringify(arr));
-function logDose(mg, person){
-  const p = person || getCurrentPerson();
-  const log = getDoseLog(p);
-  log.unshift({ mg: parseFloat(mg), date: todayKey() });
-  saveDoseLog(log, p);
-}
+// Dose tracking — now reads directly from the Peptide Calculator's Pin Log (shared localStorage,
+// same origin). This used to be a completely separate doseLog_* system that Coach quietly relied on
+// even though nobody was writing to it from the actual pin-logging flow — a real disconnect, fixed here.
+const PIN_LOG_PERSON_NAMES = { rich:'Rich', claudia:'Claudia', dom:'Dom', noah:'Noah' };
 function getCurrentDose(person){
   const p = person || getCurrentPerson();
-  const log = getDoseLog(p);
-  return log.length ? log[0] : { mg: PERSON_PROFILES[p].doseDefault, date: null };
+  const profile = PERSON_PROFILES[p];
+  try {
+    const pinLog = JSON.parse(localStorage.getItem('pinLog') || '[]');
+    const personName = PIN_LOG_PERSON_NAMES[p];
+    // Pin Log entries are unshifted (newest first), so the first match is the most recent —
+    // filtered specifically to Tirzepatide, since that's the protocol-relevant dose for Coach's
+    // weight-loss context; other logged peptides (KPV, etc.) aren't what "current dose" means here.
+    const match = pinLog.find(e => e.person === personName && e.peptide === 'Tirzepatide');
+    if(match) return { mg: parseFloat(match.dose), date: match.date };
+  } catch(e){ console.error('Pin Log read failed:', e); }
+  // Fall back to the old per-app doseLog if it has anything (from before this fix), then the profile default
+  try {
+    const legacy = JSON.parse(localStorage.getItem('doseLog_'+p) || '[]');
+    if(legacy.length) return legacy[0];
+  } catch(e){}
+  return { mg: profile.doseDefault, date: null };
 }
 
 function getMacroT(person){
@@ -731,8 +774,21 @@ const getLog = () => { try { return JSON.parse(localStorage.getItem('mealLog3')|
 const saveLog = l => localStorage.setItem('mealLog3', JSON.stringify(l));
 const getSaved = () => { try { return JSON.parse(localStorage.getItem('savedMeals3')||'[]'); } catch { return []; } };
 const saveSaved = m => localStorage.setItem('savedMeals3', JSON.stringify(m));
-const getWeights = () => { try { return JSON.parse(localStorage.getItem('weightLog2')||'[]'); } catch { return []; } };
-const saveWeights = w => localStorage.setItem('weightLog2', JSON.stringify(w));
+const getWeights = (person) => { try { return JSON.parse(localStorage.getItem('weightLog_'+(person||getCurrentPerson()))||'[]'); } catch { return []; } };
+const saveWeights = (w, person) => localStorage.setItem('weightLog_'+(person||getCurrentPerson()), JSON.stringify(w));
+const GOAL_WEIGHT_DEFAULTS = { rich:210, claudia:140, dom:350, noah:150 }; // reasonable per-person starting defaults, editable by anyone
+function getGoalWeight(person){
+  const p = person || getCurrentPerson();
+  const v = localStorage.getItem('goalWeight_'+p);
+  return v != null ? parseFloat(v) : (GOAL_WEIGHT_DEFAULTS[p] || 180);
+}
+function saveGoalWeight(){
+  const v = parseFloat(document.getElementById('goal-weight-input').value);
+  if(isNaN(v) || v <= 0){ showToast('Enter a valid goal weight'); return; }
+  localStorage.setItem('goalWeight_'+getCurrentPerson(), v);
+  renderWeight();
+  showToast('Goal weight updated');
+}
 const getWater = () => parseInt(localStorage.getItem('water2_'+todayKey())||'0');
 const saveWater = v => localStorage.setItem('water2_'+todayKey(), v);
 const getDayType = () => localStorage.getItem('dayType2_'+todayKey())||'rest';
@@ -939,6 +995,7 @@ Task:
     const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
     const res = await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:prompt}]})});
+    trackApiUsage();
     const data = await res.json();
     if(data.error) throw new Error(data.error.message||JSON.stringify(data.error));
     const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
@@ -964,6 +1021,7 @@ Give Rich a short (4-6 sentence) direct coaching read on today so far — call o
     const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
     const res = await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:prompt}]})});
+    trackApiUsage();
     const data = await res.json();
     if(data.error) throw new Error(data.error.message||JSON.stringify(data.error));
     const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
@@ -1142,6 +1200,7 @@ function selectPerson(person){
 function renderSettings(){
   const p = getCurrentPerson();
   const profile = PERSON_PROFILES[p];
+  renderUsageMeter();
   ['rich','claudia','dom','noah'].forEach(id=>{
     const btn = document.getElementById('person-btn-'+id);
     const active = id===p;
@@ -1190,7 +1249,17 @@ function saveDoseEntry(){
   const p = getCurrentPerson();
   const v = parseFloat(document.getElementById('set-dose').value);
   if(isNaN(v) || v<=0){ showToast('Enter a valid dose'); return; }
-  logDose(v, p);
+  // Writes into the same 'pinLog' array the Peptide Calculator's Pin Log uses — same origin,
+  // same localStorage, so a dose logged from either app now shows up correctly in both.
+  try {
+    const pinLog = JSON.parse(localStorage.getItem('pinLog') || '[]');
+    pinLog.unshift({
+      id: Date.now(), person: PIN_LOG_PERSON_NAMES[p], peptide: 'Tirzepatide',
+      date: todayKey(), time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),
+      dose: v, vendor: '', fill: '', purity: '',
+    });
+    localStorage.setItem('pinLog', JSON.stringify(pinLog));
+  } catch(e){ console.error('Pin Log write failed:', e); }
   renderSettings();
   showToast('Dose logged for '+PERSON_PROFILES[p].label);
 }
@@ -1222,6 +1291,63 @@ function resetGoalSettings(){
   renderSettings();
   document.getElementById('settings-status').textContent = 'Reset to auto-calc ✓';
   setTimeout(()=>{ const el=document.getElementById('settings-status'); if(el) el.textContent=''; }, 2000);
+}
+
+// ── EXPORT ALL DATA ──────────────────────────────────────────────────────────
+// Dumps the entire localStorage for this origin — covers both this app and the Peptide
+// Calculator, since they share the same on-device storage. This is the single highest-value
+// fix in tonight's list: right now everything (including COA photos) lives in exactly one
+// place with no backup at all.
+function exportAllData(){
+  try {
+    const everything = {};
+    for(let i=0; i<localStorage.length; i++){
+      const key = localStorage.key(i);
+      try { everything[key] = JSON.parse(localStorage.getItem(key)); }
+      catch { everything[key] = localStorage.getItem(key); } // non-JSON values stored as-is
+    }
+    const payload = { exportedAt: new Date().toISOString(), data: everything };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'protocol-backup-' + todayKey() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Backup downloaded');
+  } catch(e){
+    console.error('Export failed:', e);
+    showToast('Export failed — check console');
+  }
+}
+
+// ── AI USAGE METER ───────────────────────────────────────────────────────────
+// Tracked on this device only, not synced across the household. Call trackApiUsage()
+// anywhere an actual Claude API call fires (meal analysis, Coach, Close the Gap).
+function trackApiUsage(){
+  try {
+    const log = JSON.parse(localStorage.getItem('apiUsageLog') || '[]');
+    log.push({ date: todayKey(), ts: Date.now() });
+    localStorage.setItem('apiUsageLog', JSON.stringify(log));
+  } catch(e){}
+}
+function renderUsageMeter(){
+  const todayEl = document.getElementById('usage-today');
+  const totalEl = document.getElementById('usage-total');
+  const costEl = document.getElementById('usage-cost');
+  if(!todayEl) return;
+  try {
+    const log = JSON.parse(localStorage.getItem('apiUsageLog') || '[]');
+    const today = todayKey();
+    const todayCount = log.filter(e => e.date === today).length;
+    todayEl.textContent = todayCount;
+    totalEl.textContent = log.length;
+    costEl.textContent = '$' + (log.length * 0.003).toFixed(2);
+  } catch(e){
+    todayEl.textContent = totalEl.textContent = costEl.textContent = '—';
+  }
 }
 
 let selectedDateKey = todayKey();
@@ -1814,7 +1940,8 @@ Rules:
 - carbs_net_g = carbs_total_g − fiber_g.
 - fat_trans_g: most whole/unprocessed foods are ~0 — only assign a non-zero value for foods known to contain it (some fried/processed/baked goods, partially hydrogenated oils).
 - omega3_mg: estimate meaningfully for fatty fish, flaxseed, chia, walnuts, algae oil, or fish oil supplements; near-zero for foods with no meaningful omega-3 content.
-- "notes" should be one short sentence flagging anything estimated vs. known, and naming which FDC-style reference food you used as the closest match.
+- USDA FDC entries store nutrition per 100g. Whenever the person's input uses oz (or any non-gram unit), state the exact gram-equivalent you actually calculated against in "notes" — e.g. "6oz = 170g, matched against USDA FDC #05178." This conversion should never happen silently; the person needs to be able to verify it against their own kitchen scale.
+- "notes" should be one short sentence flagging anything estimated vs. known, naming which FDC-style reference food you used as the closest match, and including the gram-equivalent per the rule above.
 
 Return exactly this JSON shape with real computed values (not placeholders):
 {"name":"descriptive meal name","calories":0,"protein_g":0,"carbs_total_g":0,"carbs_net_g":0,"fiber_g":0,"fat_total_g":0,"fat_saturated_g":0,"fat_trans_g":0,"omega3_mg":0,"cholesterol_mg":0,"sodium_mg":0,"potassium_mg":0,"magnesium_mg":0,"calcium_mg":0,"iron_mg":0,"vitamin_c_mg":0,"sugar_g":0,"notes":"brief accuracy note"}
@@ -1828,6 +1955,7 @@ Return only the JSON, nothing else.`;
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:prompt}]})}),
       name ? lookupUSDA(name) : Promise.resolve(null)
     ]);
+    trackApiUsage();
     const data=await res.json();
     console.log('Worker response:', JSON.stringify(data));
     if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
@@ -1963,6 +2091,17 @@ function updateServings(val) {
 }
 
 function nr(l,v,dot){ return `<div class="nutrient-row"><span class="n-label">${l}</span><span class="n-val">${v}${dot||''}</span></div>`; }
+
+// ── OZ/G QUICK CONVERTER ─────────────────────────────────────────────────────
+const OZ_TO_G = 28.3495;
+function convertOzToG(){
+  const oz = parseFloat(document.getElementById('conv-oz').value);
+  document.getElementById('conv-g').value = isNaN(oz) ? '' : Math.round(oz * OZ_TO_G * 10) / 10;
+}
+function convertGToOz(){
+  const g = parseFloat(document.getElementById('conv-g').value);
+  document.getElementById('conv-oz').value = isNaN(g) ? '' : Math.round((g / OZ_TO_G) * 100) / 100;
+}
 
 function clearAnalysis(){
   currentAnalysis=null;
@@ -2187,11 +2326,14 @@ function renderWeight(){
   const weights=getWeights();
   const latest=weights.length?weights[0].weight:INIT_WEIGHT;
   const {tdee,base}=calcCalTarget(latest);
+  const goalWeight = getGoalWeight();
   const lost=START_WEIGHT-latest;
-  const remain=latest-GOAL_WEIGHT;
+  const remain=latest-goalWeight;
   document.getElementById('current-weight-display').textContent=latest.toFixed(1);
   document.getElementById('wstat-lost').textContent=lost.toFixed(1)+'lb';
+  document.getElementById('wstat-goal').textContent=goalWeight.toFixed(0);
   document.getElementById('wstat-remain').textContent=remain.toFixed(1)+'lb';
+  document.getElementById('goal-weight-input').value=goalWeight;
   document.getElementById('tdee-display').textContent=tdee.toLocaleString()+' cal';
   document.getElementById('cal-target-weight').textContent=base.toLocaleString()+' cal';
   if(weights.length>=2){
