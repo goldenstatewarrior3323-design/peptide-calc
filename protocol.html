@@ -61,13 +61,20 @@
   nav.top{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
   nav.top a{padding:5px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;transition:all .15s}
   nav.top a:hover{background:var(--hdr);color:#fff;border-color:var(--hdr)}
-  @media print{nav.top{display:none}body{font-size:11px}.page{max-width:100%;padding:0}}
+  @media print{nav.top{display:none}.no-print{display:none!important}body{font-size:11px}.page{max-width:100%;padding:0}}
   @media(max-width:600px){.two-col{grid-template-columns:1fr}.intel-item{flex-direction:column}.il{min-width:unset;border-right:none;border-bottom:2px solid var(--green)}}
 </style>
 </head>
 <body>
 <div class="page">
 
+<div class="edit-toolbar no-print" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+  <button id="edit-mode-toggle" onclick="toggleEditMode()" style="padding:5px 14px;border-radius:20px;border:1px solid var(--blue);background:var(--blue-l);color:var(--blue);font-size:12px;font-weight:600;cursor:pointer;">✏️ Edit Mode: OFF</button>
+  <button id="save-text-btn" onclick="saveFreeformEdits()" style="display:none;padding:5px 14px;border-radius:20px;border:1px solid var(--green-m);background:var(--green-l);color:var(--green-m);font-size:12px;font-weight:600;cursor:pointer;">💾 Save Text Edits</button>
+  <button id="reset-text-btn" onclick="resetFreeformEdits()" style="display:none;padding:5px 14px;border-radius:20px;border:1px solid var(--red);background:none;color:var(--red);font-size:12px;font-weight:600;cursor:pointer;">↺ Reset to Original</button>
+</div>
+
+<div id="editable-content">
 <div class="header">
   <h1>RICH MENDEZ — MASTER PROTOCOL REFERENCE</h1>
   <p>July 2026 &nbsp;·&nbsp; Household: Rich · Claudia · Dom &nbsp;·&nbsp; Clinical oversight: Claudia (RN) &nbsp;·&nbsp; All clinical decisions run through Claudia first</p>
@@ -462,7 +469,44 @@
   Rich Mendez Master Protocol Reference &nbsp;·&nbsp; July 2026 &nbsp;·&nbsp; All clinical decisions through Claudia (RN) &nbsp;·&nbsp; Research reference only
   <br><a href="vendor-scorecard.html" style="color:var(--green);font-size:11px;margin-top:4px;display:inline-block">→ Vendor Scorecard</a>
 </div>
+</div>
 
 </div>
+<script>
+function toggleEditMode() {
+  const btn = document.getElementById('edit-mode-toggle');
+  const content = document.getElementById('editable-content');
+  const on = btn.textContent.includes('OFF');
+  btn.textContent = on ? '✏️ Edit Mode: ON' : '✏️ Edit Mode: OFF';
+  btn.style.background = on ? '#059669' : 'var(--blue-l)';
+  btn.style.color = on ? '#fff' : 'var(--blue)';
+  content.contentEditable = on ? 'true' : 'false';
+  content.style.outline = on ? '2px dashed var(--blue)' : 'none';
+  document.getElementById('save-text-btn').style.display = on ? '' : 'none';
+  document.getElementById('reset-text-btn').style.display = on ? '' : 'none';
+}
+
+const FREEFORM_KEY = 'protocolReferenceFreeform_v1';
+function loadFreeformEdits() {
+  const saved = localStorage.getItem(FREEFORM_KEY);
+  if (!saved) return;
+  try { document.getElementById('editable-content').innerHTML = saved; }
+  catch (e) { console.error('Failed to load saved edits', e); }
+}
+function saveFreeformEdits() {
+  localStorage.setItem(FREEFORM_KEY, document.getElementById('editable-content').innerHTML);
+  const btn = document.getElementById('save-text-btn');
+  const orig = btn.textContent;
+  btn.textContent = '✓ Saved';
+  setTimeout(() => { btn.textContent = orig; }, 1200);
+}
+function resetFreeformEdits() {
+  if (!confirm('Discard all your edits and restore the original protocol reference content?')) return;
+  localStorage.removeItem(FREEFORM_KEY);
+  location.reload();
+}
+
+window.addEventListener('DOMContentLoaded', loadFreeformEdits);
+</script>
 </body>
 </html>
