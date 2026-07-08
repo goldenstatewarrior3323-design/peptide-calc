@@ -255,7 +255,10 @@
           <div class="meal-card-cals" id="exercise-total-label">Nothing logged</div>
         </div>
       </div>
-      <button class="log-btn" id="exercise-log-btn" onclick="showExerciseModal()">Log</button>
+      <div style="display:flex;gap:6px;">
+        <button class="log-btn" id="exercise-routine-btn" onclick="showRoutineModal()" style="background:var(--blue-light);color:var(--blue);">Routines</button>
+        <button class="log-btn" id="exercise-log-btn" onclick="showExerciseModal()">Log</button>
+      </div>
     </div>
     <div class="exercise-entries" id="exercise-entries"></div>
   </div>
@@ -661,6 +664,31 @@
       <button onclick="hideExerciseModal()" style="flex:1;padding:12px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">Cancel</button>
       <button onclick="saveExercise()" style="flex:2;padding:12px;background:var(--green);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Save Exercise</button>
     </div>
+  </div>
+</div>
+
+<!-- ROUTINE MODAL -->
+<div id="routine-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:998;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:82vh;overflow-y:auto;padding-bottom:40px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:17px;font-weight:800;">Routines</div>
+      <button onclick="hideRoutineModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+
+    <div class="meal-type-row" style="margin-bottom:10px;">
+      <button class="meal-type-btn active" id="track-btn-machine" onclick="setRoutineTrack('machine')">🏠 Machine + Dumbbell</button>
+      <button class="meal-type-btn" id="track-btn-freeweight" onclick="setRoutineTrack('freeweight')">🏋️ Free Weights Only</button>
+    </div>
+
+    <div class="meal-type-row" id="routine-day-row" style="margin-bottom:14px;"></div>
+
+    <div id="routine-spine-note" style="font-size:11px;color:var(--muted);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">
+      No axial spine loading — favors supported/upright/anterior-loaded positions. Items marked ⚠️ CAUTION: light-moderate load only.
+    </div>
+
+    <div id="routine-exercise-list"></div>
+
+    <button onclick="logRoutineSession()" style="width:100%;margin-top:14px;padding:12px;background:var(--green);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Log This Workout</button>
   </div>
 </div>
 
@@ -1597,6 +1625,7 @@ function renderToday() {
 
   // Hide log controls on past days
   document.getElementById('exercise-log-btn').style.display = canLog ? '' : 'none';
+  document.getElementById('exercise-routine-btn').style.display = canLog ? '' : 'none';
 
   // Water
   document.getElementById('water-sub').textContent = getWater()+' oz / 135 oz';
@@ -1784,6 +1813,140 @@ function saveExercise(){
 function deleteExercise(idx){
   const arr=getExercise(); arr.splice(idx,1); saveExercise2(arr);
   renderToday();
+}
+
+// ── ROUTINES ──────────────────────────────────────────────────────────────────
+// Spine safety: no axial loading (no barbell back squat, no barbell/Smith standing
+// overhead press, no floor deadlift, no pull-up bar) — congenital narrow spinal canal
+// + prior cord concussion. caution:true = light-moderate load only.
+const ROUTINES = {
+  machine: {
+    label: 'Machine + Dumbbell',
+    days: {
+      'Push': [
+        {name:'Smith Machine Bench Press', sets:4, reps:'8-12', caution:false},
+        {name:'Smith Machine Incline Press', sets:3, reps:'10-12', caution:false},
+        {name:'Seated Dumbbell Shoulder Press', sets:3, reps:'10-12', caution:false},
+        {name:'Dumbbell Lateral Raise', sets:3, reps:'12-15', caution:false},
+        {name:'Dumbbell Overhead Tricep Extension', sets:3, reps:'10-12', caution:false},
+      ],
+      'Pull': [
+        {name:'Chest-Supported Row (incline bench)', sets:4, reps:'10-12', caution:false},
+        {name:'Single-Arm Dumbbell Row', sets:3, reps:'10-12/side', caution:false},
+        {name:'Dumbbell Rear Delt Fly', sets:3, reps:'12-15', caution:false},
+        {name:'Dumbbell Shrug', sets:3, reps:'12-15', caution:false},
+        {name:'Dumbbell Hammer Curl', sets:3, reps:'10-12', caution:false},
+        {name:'Standing Dumbbell Bicep Curl', sets:3, reps:'10-12', caution:false},
+      ],
+      'Legs': [
+        {name:'Dumbbell Goblet Squat', sets:4, reps:'10-12', caution:false},
+        {name:'Smith Machine Squat (light)', sets:3, reps:'10-12', caution:true},
+        {name:'Dumbbell Bulgarian Split Squat', sets:3, reps:'10-12/leg', caution:false},
+        {name:'Dumbbell Step-Up', sets:3, reps:'10-12/leg', caution:false},
+        {name:'Dumbbell Standing Calf Raise', sets:3, reps:'15-20', caution:false},
+        {name:'Glute Bridge', sets:3, reps:'12-15', caution:false},
+      ],
+      'Upper': [
+        {name:'Smith Machine Bench Press', sets:3, reps:'10-12', caution:false},
+        {name:'Chest-Supported Row', sets:3, reps:'10-12', caution:false},
+        {name:'Seated Dumbbell Shoulder Press', sets:3, reps:'10-12', caution:false},
+        {name:'Dumbbell Hammer Curl', sets:2, reps:'10-12', caution:false},
+        {name:'Dumbbell Tricep Kickback', sets:2, reps:'12-15', caution:false},
+      ],
+      'Lower': [
+        {name:'Dumbbell Goblet Squat', sets:4, reps:'10-12', caution:false},
+        {name:'Dumbbell Romanian Deadlift', sets:3, reps:'10-12', caution:true},
+        {name:'Dumbbell Step-Up', sets:3, reps:'10-12/leg', caution:false},
+        {name:'Dumbbell Standing Calf Raise', sets:3, reps:'15-20', caution:false},
+        {name:'Glute Bridge', sets:3, reps:'12-15', caution:false},
+      ],
+    }
+  },
+  freeweight: {
+    label: 'Free Weights Only',
+    days: {
+      'Push': [
+        {name:'Dumbbell Flat Bench Press', sets:4, reps:'8-12', caution:false},
+        {name:'Smith Machine Bench Press', sets:3, reps:'8-12', caution:false, note:'Bar rail functional even with cables down'},
+        {name:'Dumbbell Incline Press', sets:3, reps:'10-12', caution:false},
+        {name:'Seated Dumbbell Shoulder Press', sets:3, reps:'10-12', caution:false},
+        {name:'Dumbbell Lateral Raise', sets:3, reps:'12-15', caution:false},
+        {name:'Dumbbell Overhead Tricep Extension', sets:3, reps:'10-12', caution:false},
+      ],
+      'Pull': [
+        {name:'Chest-Supported Row (incline bench)', sets:4, reps:'10-12', caution:false},
+        {name:'Single-Arm Dumbbell Row', sets:3, reps:'10-12/side', caution:false},
+        {name:'Dumbbell Rear Delt Fly', sets:3, reps:'12-15', caution:false},
+        {name:'Dumbbell Shrug', sets:3, reps:'12-15', caution:false},
+        {name:'Dumbbell Hammer Curl', sets:3, reps:'10-12', caution:false},
+      ],
+      'Legs': [
+        {name:'Dumbbell Goblet Squat', sets:4, reps:'10-12', caution:false},
+        {name:'Smith Machine Squat (light)', sets:3, reps:'10-12', caution:true, note:'Bar rail functional even with cables down'},
+        {name:'Dumbbell Bulgarian Split Squat', sets:3, reps:'10-12/leg', caution:false},
+        {name:'Dumbbell Romanian Deadlift', sets:3, reps:'10-12', caution:true},
+        {name:'Dumbbell Step-Up', sets:3, reps:'10-12/leg', caution:false},
+        {name:'Dumbbell Standing Calf Raise', sets:3, reps:'15-20', caution:false},
+      ],
+    }
+  }
+};
+
+let currentRoutineTrack = 'machine';
+let currentRoutineDay = 'Push';
+
+function showRoutineModal(){
+  document.getElementById('routine-modal').style.display='flex';
+  setRoutineTrack(currentRoutineTrack);
+}
+function hideRoutineModal(){
+  document.getElementById('routine-modal').style.display='none';
+}
+
+function setRoutineTrack(track){
+  currentRoutineTrack = track;
+  document.getElementById('track-btn-machine').classList.toggle('active', track==='machine');
+  document.getElementById('track-btn-freeweight').classList.toggle('active', track==='freeweight');
+  const days = Object.keys(ROUTINES[track].days);
+  if(!days.includes(currentRoutineDay)) currentRoutineDay = days[0];
+  const dayRow = document.getElementById('routine-day-row');
+  dayRow.innerHTML = days.map(d =>
+    `<button class="meal-type-btn${d===currentRoutineDay?' active':''}" onclick="setRoutineDay('${d}')">${d}</button>`
+  ).join('');
+  renderRoutineExercises();
+}
+
+function setRoutineDay(day){
+  currentRoutineDay = day;
+  document.querySelectorAll('#routine-day-row .meal-type-btn').forEach(b=>{
+    b.classList.toggle('active', b.textContent.trim()===day);
+  });
+  renderRoutineExercises();
+}
+
+function renderRoutineExercises(){
+  const list = ROUTINES[currentRoutineTrack].days[currentRoutineDay];
+  document.getElementById('routine-exercise-list').innerHTML = list.map(ex => {
+    const sub = [`${ex.sets} sets × ${ex.reps}`];
+    if(ex.caution) sub.push('CAUTION: light-moderate load');
+    if(ex.note) sub.push(ex.note);
+    return `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--border);">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;">${ex.name}${ex.caution?' ⚠️':''}</div>
+        <div style="font-size:11px;color:var(--muted);">${sub.join(' — ')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function logRoutineSession(){
+  hideRoutineModal();
+  const trackLabel = ROUTINES[currentRoutineTrack].label;
+  document.getElementById('ex-name').value = `${currentRoutineDay} Day (${trackLabel})`;
+  document.getElementById('ex-duration').value = '';
+  document.getElementById('ex-calories').value = '';
+  document.getElementById('exercise-modal').style.display='flex';
 }
 
 // ── BARCODE SCANNER ───────────────────────────────────────────────────────────
