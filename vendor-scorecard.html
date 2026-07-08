@@ -129,6 +129,7 @@
 <body>
 <div class="page">
 
+<div id="editable-header">
   <!-- HEADER -->
   <div class="header">
     <h1>PEPTIDE VENDOR MASTER SCORECARD</h1>
@@ -139,6 +140,7 @@
   <div class="analogy">
     <strong>The Framework (5-Year-Old Version):</strong> One river feeds the whole city (Chinese API manufacturers). Treatment plants clean the water (the labs). Government-certified plants have a certificate number you can look up — A2LA or PJLA. Some plants are certified only for pool water, not drinking water (wrong scope). Trucks deliver to your door (the vendors). The one rule: a clean-looking COA from an unverifiable lab is MORE dangerous than a weak COA from a verified one — it creates false confidence.
   </div>
+</div>
 
   <!-- SEARCH + FILTER -->
   <input class="search-bar no-print" type="text" id="search" placeholder="🔍 Search vendors, labs, or status..." oninput="filterAll()">
@@ -149,6 +151,8 @@
     <button class="filter-btn yellow" onclick="setFilter('caution', this)">⚠️ Caution</button>
     <button class="filter-btn red" onclick="setFilter('fail', this)">❌ Hard Fail</button>
     <button class="filter-btn no-print" id="edit-mode-toggle" style="background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);" onclick="toggleEditMode()">✏️ Edit Mode: OFF</button>
+    <button class="filter-btn no-print" id="save-text-btn" style="display:none;background:var(--green-l);color:var(--green);border:1px solid var(--green);" onclick="saveFreeformEdits()">💾 Save Text Edits</button>
+    <button class="filter-btn no-print" id="reset-text-btn" style="display:none;background:none;color:var(--red);border:1px solid var(--red);" onclick="resetFreeformEdits()">↺ Reset to Original</button>
   </div>
 
   <!-- GENERIC EDIT MODAL (used for all sections + labs) -->
@@ -535,6 +539,7 @@
     </table>
   </div>
 
+  <div id="editable-freeform">
   <!-- QUICK RANK -->
   <div class="section-title" style="margin-top:24px;">⚡ QUICK REFERENCE — INJECTABLE TIRZ RANKING</div>
   <div class="tbl-wrap">
@@ -606,6 +611,7 @@
     Peptide Vendor Master Scorecard &nbsp;·&nbsp; Rich Mendez Protocol &nbsp;·&nbsp; July 2, 2026 &nbsp;·&nbsp; 21 vendors + 14 labs &nbsp;·&nbsp; RUO personal reference only
     <br><span style="font-size:10px;margin-top:4px;display:block;">Hosted at goldenstatewarrior3323-design.github.io — commit vendor-scorecard.html to your repo root</span>
   </div>
+  </div>
 
 </div>
 
@@ -634,7 +640,46 @@ function toggleEditMode() {
   document.getElementById('edit-mode-toggle').style.background = editMode ? 'var(--green)' : 'var(--blue-l)';
   document.getElementById('edit-mode-toggle').style.color = editMode ? '#fff' : 'var(--blue)';
   document.body.classList.toggle('edit-mode-on', editMode);
+
+  // free-form regions: title, framework, quick rank, supply plan, dosing, intel, footer
+  const header = document.getElementById('editable-header');
+  const freeform = document.getElementById('editable-freeform');
+  header.contentEditable = editMode ? 'true' : 'false';
+  freeform.contentEditable = editMode ? 'true' : 'false';
+  header.style.outline = editMode ? '2px dashed var(--blue)' : 'none';
+  freeform.style.outline = editMode ? '2px dashed var(--blue)' : 'none';
+  document.getElementById('save-text-btn').style.display = editMode ? '' : 'none';
+  document.getElementById('reset-text-btn').style.display = editMode ? '' : 'none';
+
   renderAllEditable();
+}
+
+// ── FREE-FORM TEXT REGIONS (title, framework, quick rank, supply plan, dosing, intel, footer) ──
+const FREEFORM_KEY = 'vendorScorecardFreeform_v1';
+function loadFreeformEdits() {
+  const saved = localStorage.getItem(FREEFORM_KEY);
+  if (!saved) return;
+  try {
+    const data = JSON.parse(saved);
+    if (data.header) document.getElementById('editable-header').innerHTML = data.header;
+    if (data.freeform) document.getElementById('editable-freeform').innerHTML = data.freeform;
+  } catch (e) { console.error('Failed to load freeform edits', e); }
+}
+function saveFreeformEdits() {
+  const data = {
+    header: document.getElementById('editable-header').innerHTML,
+    freeform: document.getElementById('editable-freeform').innerHTML,
+  };
+  localStorage.setItem(FREEFORM_KEY, JSON.stringify(data));
+  const btn = document.getElementById('save-text-btn');
+  const orig = btn.textContent;
+  btn.textContent = '✓ Saved';
+  setTimeout(() => { btn.textContent = orig; }, 1200);
+}
+function resetFreeformEdits() {
+  if (!confirm('Discard your text edits and restore the original title/framework/quick-rank/supply-plan/dosing/intel/footer content? This does not affect vendor or lab rows.')) return;
+  localStorage.removeItem(FREEFORM_KEY);
+  location.reload();
 }
 
 // ── TABLE SECTIONS ──────────────────────────────────────────────────────────────
@@ -955,7 +1000,7 @@ function filterAll() {
   });
 }
 // Initialize on load
-window.addEventListener("DOMContentLoaded", () => { renderAllEditable(); filterAll(); });
+window.addEventListener("DOMContentLoaded", () => { loadFreeformEdits(); renderAllEditable(); filterAll(); });
 </script>
 </body>
 </html>
