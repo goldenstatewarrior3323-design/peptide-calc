@@ -1483,6 +1483,20 @@ function renderToday() {
     t.iron+=m.iron_mg||0; t.vitc+=m.vitamin_c_mg||0; t.magnesium+=m.magnesium_mg||0; t.carbsTotal+=m.carbs_total_g||0;
   }));
 
+  // Add nutrients from any supplement actually checked as taken today. Defaults to 0 for anything
+  // not yet filled in — nothing here is guessed, only real values entered via edit or photo capture count.
+  const suppsForTotals = getSupps();
+  const suppLogForTotals = getSuppLog(key);
+  suppsForTotals.forEach(s => {
+    if(!suppLogForTotals[s.id]) return; // only count supplements actually marked taken
+    t.cal+=s.calories||0; t.protein+=s.protein_g||0; t.fat+=s.fat_total_g||0;
+    t.carbs+=s.carbs_net_g||0; t.fiber+=s.fiber_g||0;
+    t.sodium+=s.sodium_mg||0; t.potassium+=s.potassium_mg||0; t.cholesterol+=s.cholesterol_mg||0;
+    t.satfat+=s.fat_saturated_g||0; t.transfat+=s.fat_trans_g||0; t.omega3+=s.omega3_mg||0;
+    t.sugar+=s.sugar_g||0; t.calcium+=s.calcium_mg||0;
+    t.iron+=s.iron_mg||0; t.vitc+=s.vitamin_c_mg||0; t.magnesium+=s.magnesium_mg||0; t.carbsTotal+=s.carbs_total_g||0;
+  });
+
   // Calorie budget display — MFP style: Budget - Food + Exercise = Remaining
   const baseWithDay = getCalBase(getDayType());
   const remaining = baseWithDay - Math.round(t.cal) + exerciseCals;
@@ -1662,18 +1676,19 @@ function renderSupplements(key) {
           <div style="font-size:13px;font-weight:600;color:${log[s.id]?'var(--muted)':'var(--text)'};text-decoration:${log[s.id]?'line-through':'none'}">${s.name}</div>
           <div style="font-size:11px;color:var(--muted);">${s.dose} · ${s.timing}</div>
         </div>
-        <button onclick="toggleSupp('${s.id}')" style="width:28px;height:28px;border-radius:50%;border:2px solid ${log[s.id]?'var(--green)':'var(--border)'};background:${log[s.id]?'var(--green)':'white'};color:white;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+        <button onclick="toggleSupp('${s.id}',selectedDateKey)" style="width:28px;height:28px;border-radius:50%;border:2px solid ${log[s.id]?'var(--green)':'var(--border)'};background:${log[s.id]?'var(--green)':'white'};color:white;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
           ${log[s.id]?'✓':''}
         </button>
       </div>`).join('');
   }
 }
 
-function toggleSupp(id) {
-  const log = getSuppLog();
+function toggleSupp(id, key) {
+  const dateKey = key || selectedDateKey;
+  const log = getSuppLog(dateKey);
   if(log[id]) delete log[id]; else log[id] = Date.now();
-  saveSuppLog(log);
-  renderSupplements();
+  saveSuppLog(log, dateKey);
+  renderSupplements(dateKey);
 }
 
 function showSuppModal() {
@@ -1683,21 +1698,24 @@ function showSuppModal() {
 
 function hideSuppModal() {
   document.getElementById('supp-modal').style.display='none';
-  renderSupplements();
+  renderSupplements(selectedDateKey);
 }
 
 function renderSuppModalChecklist() {
   const supps = getSupps();
-  const log = getSuppLog();
+  const log = getSuppLog(selectedDateKey);
   const el = document.getElementById('supp-modal-checklist');
   if(!supps.length){ el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px 0;">No supplements added yet</div>'; return; }
   el.innerHTML = supps.map((s,i)=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-      <button onclick="toggleSupp('${s.id}');renderSuppModalChecklist();" style="width:28px;height:28px;border-radius:50%;border:2px solid ${log[s.id]?'var(--green)':'var(--border)'};background:${log[s.id]?'var(--green)':'white'};color:white;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">${log[s.id]?'✓':''}</button>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <button onclick="toggleSupp('${s.id}',selectedDateKey);renderSuppModalChecklist();" style="width:28px;height:28px;border-radius:50%;border:2px solid ${log[s.id]?'var(--green)':'var(--border)'};background:${log[s.id]?'var(--green)':'white'};color:white;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">${log[s.id]?'✓':''}</button>
       <div style="flex:1;">
         <div style="font-size:13px;font-weight:600;">${s.name}</div>
-        <div style="font-size:11px;color:var(--muted);">${s.dose} · ${s.timing}</div>
+        <div style="font-size:11px;color:var(--muted);">${s.dose} · ${s.timing}${s.magnesium_mg||s.omega3_mg||s.calcium_mg||s.iron_mg||s.potassium_mg||s.calories?' · has nutrients':''}</div>
       </div>
+      <button onclick="openFoodEditModal('supplement',${i})" style="background:none;border:none;color:var(--green);font-size:15px;cursor:pointer;padding:4px;" title="Edit nutrients">📝</button>
+      <button onclick="document.getElementById('supp-photo-input-${i}').click()" style="background:none;border:none;color:var(--blue);font-size:15px;cursor:pointer;padding:4px;" title="Photo of Supplement Facts">📷</button>
+      <input type="file" id="supp-photo-input-${i}" accept="image/*" capture="environment" style="display:none;" onchange="onSuppPhotoSelected(event,${i})"/>
       <button onclick="deleteSupp(${i})" style="background:none;border:none;color:#d1d5db;font-size:16px;cursor:pointer;">✕</button>
     </div>`).join('');
 }
@@ -1929,6 +1947,81 @@ async function lookupUSDA(name){
 // barcode scanning entirely. Built specifically because ZXing/ZBar reliability on iOS proved
 // inconsistent across real-world conditions (curved surfaces, glare, lighting) — this sidesteps
 // that whole problem since it only needs camera access, not barcode decoding.
+// ── PHOTO OF SUPPLEMENT FACTS — same vision approach as food labels, but writes the result
+// into a specific supplement's stored nutrient fields instead of creating a diary entry.
+async function onSuppPhotoSelected(event, suppIdx){
+  const file = event.target.files[0];
+  if(!file) return;
+  showToast('Reading supplement facts...');
+
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = e => {
+        img.onload = () => {
+          const maxDim = 1200;
+          let w = img.width, h = img.height;
+          if(w > h && w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
+          else if(h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const prompt = `Read the Supplement Facts panel from this photo. Return ONLY valid JSON, no markdown.
+
+Rules:
+- Read values EXACTLY as printed — this is a real photographed label, precision matters.
+- Use the label's own "per serving" amount as the basis (state the serving size in notes).
+- Most supplements have 0 calories/protein/fat/carbs — only fill those in if the label actually shows non-zero values (e.g., a protein powder or collagen product).
+- If a nutrient isn't listed on this label at all, use 0 — don't guess a plausible-sounding number for something not printed.
+- If the photo is blurry or a value is unreadable, say so in "notes".
+
+Return exactly this JSON shape:
+{"calories":0,"protein_g":0,"carbs_total_g":0,"carbs_net_g":0,"fiber_g":0,"fat_total_g":0,"fat_saturated_g":0,"fat_trans_g":0,"omega3_mg":0,"cholesterol_mg":0,"sodium_mg":0,"potassium_mg":0,"magnesium_mg":0,"calcium_mg":0,"iron_mg":0,"vitamin_c_mg":0,"sugar_g":0,"notes":"serving size used, and any readability issues"}
+
+Return only the JSON, nothing else.`;
+
+    const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
+    const res = await fetch(PROXY, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', max_tokens: 600,
+        messages: [{ role:'user', content: [
+          { type:'image', source:{ type:'base64', media_type:'image/jpeg', data:base64 } },
+          { type:'text', text: prompt }
+        ]}]
+      })
+    });
+    trackApiUsage();
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const text = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    const nutrients = JSON.parse(text.replace(/```json|```/g,'').trim());
+
+    const supps = getSupps();
+    if(!supps[suppIdx]){ showToast('Supplement not found'); return; }
+    // Merge nutrients in, preserving name/dose/timing — this photo only supplies nutrient data
+    supps[suppIdx] = { ...supps[suppIdx], ...nutrients };
+    saveSupps(supps);
+    renderSuppModalChecklist();
+    renderToday();
+    showToast('Nutrients added from label — review in ✏️ edit if needed');
+  } catch(e){
+    console.error('Supplement photo analysis failed:', e);
+    showToast('Could not read label — try again or enter manually');
+  }
+  event.target.value = '';
+}
+
 async function onLabelPhotoSelected(event){
   const file = event.target.files[0];
   if(!file) return;
@@ -2316,6 +2409,9 @@ function openFoodEditModal(type, a, b){
     const log = getLog();
     record = (log[selectedDateKey]?.[a]||[])[b];
     foodEditContext = { type:'diary', mealType:a, idx:b };
+  } else if(type === 'supplement'){
+    record = getSupps()[a];
+    foodEditContext = { type:'supplement', idx:a };
   } else {
     record = getSaved()[a];
     foodEditContext = { type:'saved', idx:a };
@@ -2343,6 +2439,15 @@ function saveFoodEdit(){
     // supersedes whatever scaling history the entry had before.
     log[key][mealType][idx] = { ...entry, ...updates, _base:{...updates}, servings:1, manually_corrected:true };
     saveLog(log);
+    renderToday();
+  } else if(foodEditContext.type === 'supplement'){
+    const supps = getSupps();
+    const idx = foodEditContext.idx;
+    if(!supps[idx]) return;
+    // Preserve dose/timing — those aren't part of FE_FIELDS, this modal only touches name+nutrients
+    supps[idx] = { ...supps[idx], ...updates };
+    saveSupps(supps);
+    renderSuppModalChecklist();
     renderToday();
   } else {
     const saved = getSaved();
