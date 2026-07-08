@@ -309,6 +309,9 @@
   </div>
 
   <button class="scan-btn" onclick="startScanner()">📷 Scan Barcode</button>
+  <button class="scan-btn" onclick="document.getElementById('label-photo-input').click()" style="background:var(--blue-light);color:var(--blue);border-color:var(--blue);">🏷️ Photo of Label</button>
+  <input type="file" id="label-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="onLabelPhotoSelected(event)"/>
+  <div id="label-photo-status" style="display:none;font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 10px;"></div>
 
   <div class="input-group">
     <div class="input-label">Food Name (optional)</div>
@@ -1922,6 +1925,86 @@ async function lookupUSDA(name){
   } catch(e){ console.error('USDA lookup failed:', e); return null; }
 }
 
+// ── PHOTO OF LABEL — reads a nutrition label photo directly via Claude's vision, bypassing
+// barcode scanning entirely. Built specifically because ZXing/ZBar reliability on iOS proved
+// inconsistent across real-world conditions (curved surfaces, glare, lighting) — this sidesteps
+// that whole problem since it only needs camera access, not barcode decoding.
+async function onLabelPhotoSelected(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('label-photo-status');
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Reading label...';
+
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = e => {
+        img.onload = () => {
+          // Downscale before sending — full-res phone photos are unnecessarily large for
+          // reading a label and would slow the upload for no accuracy benefit.
+          const maxDim = 1200;
+          let w = img.width, h = img.height;
+          if(w > h && w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
+          else if(h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]); // strip the data: prefix, API wants raw base64
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const prompt = `Read the nutrition facts panel and product name from this label photo. Use USDA FoodData Central as your reference standard where relevant. Return ONLY valid JSON, no markdown.
+
+Rules:
+- Read values EXACTLY as printed on the label — this is a real photographed label, not an estimate, so precision matters more than usual.
+- If a serving size is shown, use the label's own serving size as the basis for all values (state it in notes).
+- carbs_net_g = carbs_total_g − fiber_g.
+- If the photo is blurry, cut off, or a value is unreadable, say so explicitly in "notes" rather than guessing a plausible-looking number.
+- If this is a packaged ingredient list photo rather than a nutrition facts panel, note that in "notes" and estimate from the ingredients as a fallback.
+
+Return exactly this JSON shape:
+{"name":"product name from label/packaging","calories":0,"protein_g":0,"carbs_total_g":0,"carbs_net_g":0,"fiber_g":0,"fat_total_g":0,"fat_saturated_g":0,"fat_trans_g":0,"omega3_mg":0,"cholesterol_mg":0,"sodium_mg":0,"potassium_mg":0,"magnesium_mg":0,"calcium_mg":0,"iron_mg":0,"vitamin_c_mg":0,"sugar_g":0,"notes":"serving size used, and any readability issues"}
+
+Return only the JSON, nothing else.`;
+
+    const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
+    const res = await fetch(PROXY, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', max_tokens: 800,
+        messages: [{ role:'user', content: [
+          { type:'image', source:{ type:'base64', media_type:'image/jpeg', data:base64 } },
+          { type:'text', text: prompt }
+        ]}]
+      })
+    });
+    trackApiUsage();
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const text = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    currentAnalysis = JSON.parse(text.replace(/```json|```/g,'').trim());
+    currentAnalysis.data_source = 'Photo of label (AI-read)';
+
+    document.getElementById('food-name').value = currentAnalysis.name;
+    document.getElementById('food-ingredients').value = `${currentAnalysis.name} (read from label photo)`;
+    renderResult(currentAnalysis);
+    document.getElementById('analysis-result').style.display = 'block';
+    statusEl.textContent = 'Label read — review and save';
+    setTimeout(()=>{ statusEl.style.display='none'; }, 3000);
+  } catch(e){
+    console.error('Label photo analysis failed:', e);
+    statusEl.textContent = 'Could not read label — try again or type ingredients manually';
+  }
+  event.target.value = ''; // reset so the same photo can be re-selected if needed
+}
+
 async function fetchBarcode(barcode){
   showToast('Looking up product...');
   try {
@@ -2072,6 +2155,8 @@ function renderResult(m, servings) {
       ? `<div style="font-size:11px;color:#1e3a8a;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">✏️ Manually corrected — your entered values, not an estimate.</div>`
       : m.data_source==='Open Food Facts (real label data)'
       ? `<div style="font-size:11px;color:#166534;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">✅ Real label data from Open Food Facts — not an AI estimate.</div>`
+      : m.data_source==='Photo of label (AI-read)'
+      ? `<div style="font-size:11px;color:#1e40af;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">🏷️ Read from your label photo — double-check against the packaging, since this is AI-read, not a database match.</div>`
       : m.variance_flag
         ? `<div style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">⚠️ AI estimate differs from USDA reference by >10%:<br>${(m.variance_detail||[]).join('<br>')}</div>`
         : `<div style="font-size:11px;color:var(--muted);background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin:6px 0 12px;">⚠️ AI estimates — verify packaged items against label.${m.usda_reference?' (Checked against USDA — within 10%.)':''}</div>`
