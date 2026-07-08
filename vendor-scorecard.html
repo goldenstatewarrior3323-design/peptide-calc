@@ -148,10 +148,24 @@
     <button class="filter-btn blue" onclick="setFilter('backup', this)">🔵 Backup</button>
     <button class="filter-btn yellow" onclick="setFilter('caution', this)">⚠️ Caution</button>
     <button class="filter-btn red" onclick="setFilter('fail', this)">❌ Hard Fail</button>
+    <button class="filter-btn no-print" id="edit-mode-toggle" style="background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);" onclick="toggleEditMode()">✏️ Edit Mode: OFF</button>
+  </div>
+
+  <!-- GENERIC EDIT MODAL (used for all sections + labs) -->
+  <div id="edit-modal" class="no-print" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#fff;border-radius:8px;padding:18px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;">
+      <div id="edit-modal-title" style="font-weight:700;color:var(--hdr);margin-bottom:12px;font-size:14px;"></div>
+      <div id="edit-modal-fields"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button onclick="closeEditModal()" style="flex:1;padding:9px;background:#fff;border:1.5px solid var(--border);border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+        <button onclick="saveEditModal()" style="flex:2;padding:9px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;">Save</button>
+      </div>
+    </div>
   </div>
 
   <!-- APPROVED PRIMARY -->
   <div class="section-title" data-group="approved">✅ APPROVED — PRIMARY VENDORS</div>
+  <div id="approved-cards">
 
   <div class="vendor-card green" data-group="approved" data-search="peptide crafters primary rich claudia pharmetric vanguard janoshik triple lab">
     <div class="vendor-card-header">
@@ -175,6 +189,8 @@
       <div class="details">Lot V260211-4 010 &nbsp;·&nbsp; Purity >99.80% (3 vials) &nbsp;·&nbsp; Endotoxin LAL &lt;5.00 EU/mg &nbsp;·&nbsp; Heavy metals all ND &nbsp;·&nbsp; Bioburden USP &lt;71&gt; Fast No Growth &nbsp;·&nbsp; Fentanyl screening &nbsp;·&nbsp; BAC water Vanguard-verified (pH 7.7–7.94 — cleared given ~5wk consumption) &nbsp;·&nbsp; SAMMYC code stacks &nbsp;·&nbsp; CC accepted (Kurv) &nbsp;·&nbsp; Order #18654 placed July 2 2026</div>
       <div class="use">Use: Dom's primary. Best verified price on board. SAMMYC code stacks. Household backup when Crafters unavailable.</div>
     </div>
+  </div>
+
   </div>
 
   <!-- APPROVED BACKUP INJECTABLE -->
@@ -235,7 +251,7 @@
   <!-- POWDERS / NON-INJECTABLE -->
   <div class="section-title purple" data-group="backup">🧪 APPROVED — POWDERS / NON-INJECTABLE ONLY</div>
   <div class="tbl-wrap">
-    <table>
+    <table id="powders-table">
       <thead>
         <tr><th>Vendor</th><th>Product</th><th>$/mg</th><th>Size / Price</th><th>Lab</th><th>Notes</th></tr>
       </thead>
@@ -263,7 +279,7 @@
   <!-- CAUTION -->
   <div class="section-title yellow" data-group="caution">⚠️ CAUTION — DO NOT ORDER</div>
   <div class="tbl-wrap">
-    <table>
+    <table id="caution-table">
       <thead>
         <tr><th>Vendor</th><th>Issue</th><th>Resolution Required</th></tr>
       </thead>
@@ -320,7 +336,7 @@
   <!-- PENDING -->
   <div class="section-title blue" data-group="caution">🔍 PENDING EVALUATION</div>
   <div class="tbl-wrap">
-    <table>
+    <table id="pending-table">
       <thead>
         <tr><th>Vendor</th><th>Potential</th><th>Gate Required</th></tr>
       </thead>
@@ -348,7 +364,7 @@
   <div class="section-title red" data-group="fail">❌ HARD FAILS — DO NOT ENGAGE</div>
   <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Permanent disqualifications based on primary-source evidence. No marketing claim overrides these.</p>
   <div class="tbl-wrap">
-    <table>
+    <table id="fail-table">
       <thead>
         <tr><th>Vendor</th><th>Reason</th><th>Primary Evidence</th></tr>
       </thead>
@@ -435,7 +451,7 @@
   <!-- LAB HIERARCHY -->
   <div class="section-title" style="margin-top:24px;">🔬 COMPLETE LAB EVALUATION — 14 LABS</div>
   <div class="tbl-wrap">
-    <table>
+    <table id="labs-table">
       <thead>
         <tr><th>Lab</th><th>Cert #</th><th>Body</th><th>Scope Type</th><th>Findings</th><th>Verdict</th></tr>
       </thead>
@@ -595,6 +611,325 @@
 
 <script>
 let currentFilter = 'all';
+let editMode = false;
+
+// ── EDITABLE SECTIONS REGISTRY ─────────────────────────────────────────────────
+// format 'table': generic <table id> with data rows in tbody, columns read live from <thead>.
+// format 'cards': the approved-primary vendor-card container (5 fixed fields).
+const EDITABLE_TABLES = ['backup-table','powders-table','caution-table','pending-table','fail-table','labs-table'];
+const CARD_FIELDS = ['name','price','lab','details','use'];
+const CARD_GROUP = 'approved'; // approved-cards container is always group=approved
+
+const STORE_KEY = 'vendorScorecardEdits_v2';
+
+function getStore() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{"edits":{},"deletes":{},"additions":{}}'); }
+  catch { return {edits:{},deletes:{},additions:{}}; }
+}
+function setStore(s) { localStorage.setItem(STORE_KEY, JSON.stringify(s)); }
+
+function toggleEditMode() {
+  editMode = !editMode;
+  document.getElementById('edit-mode-toggle').textContent = editMode ? '✏️ Edit Mode: ON' : '✏️ Edit Mode: OFF';
+  document.getElementById('edit-mode-toggle').style.background = editMode ? 'var(--green)' : 'var(--blue-l)';
+  document.getElementById('edit-mode-toggle').style.color = editMode ? '#fff' : 'var(--blue)';
+  document.body.classList.toggle('edit-mode-on', editMode);
+  renderAllEditable();
+}
+
+// ── TABLE SECTIONS ──────────────────────────────────────────────────────────────
+function getTableColumns(table) {
+  return Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+}
+
+function tableRowCells(tr) {
+  return Array.from(tr.children).filter(td => !td.classList.contains('rowctl')).map(td => td.innerHTML);
+}
+
+function renderTable(tableId) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  const store = getStore();
+  const cols = getTableColumns(table);
+  const tbody = table.querySelector('tbody');
+
+  // strip any previously injected control cells/rows so re-render is idempotent
+  tbody.querySelectorAll('tr[data-injected]').forEach(r => r.remove());
+  tbody.querySelectorAll('tr.add-row-ctl').forEach(r => r.remove());
+  tbody.querySelectorAll('td.rowctl').forEach(td => td.remove());
+
+  // apply edits + deletes to seed rows, add control column
+  const seedRows = Array.from(tbody.querySelectorAll('tr:not([data-injected]):not(.add-row-ctl)'));
+  seedRows.forEach((tr, idx) => {
+    const rowId = `${tableId}-${idx}`;
+    if (store.deletes[rowId]) { tr.style.display = 'none'; tr.classList.add('row-deleted'); return; }
+    tr.classList.remove('row-deleted');
+    if (store.edits[rowId]) {
+      const vals = store.edits[rowId];
+      const dataCells = Array.from(tr.children);
+      vals.forEach((html, i) => { if (dataCells[i]) dataCells[i].innerHTML = html; });
+    } else {
+      tr.style.display = '';
+    }
+    if (editMode) {
+      const ctl = document.createElement('td');
+      ctl.className = 'rowctl no-print';
+      ctl.style.whiteSpace = 'nowrap';
+      ctl.innerHTML = `<button onclick="editTableRow('${tableId}','${rowId}',false)" style="font-size:10px;padding:3px 7px;margin-right:4px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;">Edit</button><button onclick="deleteTableRow('${tableId}','${rowId}')" style="font-size:10px;padding:3px 7px;background:none;color:var(--red);border:1px solid var(--red);border-radius:4px;cursor:pointer;">Del</button>`;
+      tr.appendChild(ctl);
+    }
+  });
+
+  // render additions (brand new rows) for this table
+  const additions = store.additions[tableId] || [];
+  additions.forEach((cells, i) => {
+    const rowId = `${tableId}-add-${i}`;
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-injected', '1');
+    tr.setAttribute('data-group', inferGroupFromTable(tableId));
+    tr.setAttribute('data-search', cells.join(' ').toLowerCase().replace(/"/g,''));
+    if (store.deletes[rowId]) { tr.classList.add('row-deleted'); tr.style.display = 'none'; }
+    cells.forEach(html => {
+      const td = document.createElement('td');
+      td.innerHTML = html;
+      tr.appendChild(td);
+    });
+    if (editMode) {
+      const ctl = document.createElement('td');
+      ctl.className = 'rowctl no-print';
+      ctl.style.whiteSpace = 'nowrap';
+      ctl.innerHTML = `<button onclick="editTableRow('${tableId}','${rowId}',true)" style="font-size:10px;padding:3px 7px;margin-right:4px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;">Edit</button><button onclick="deleteTableRow('${tableId}','${rowId}')" style="font-size:10px;padding:3px 7px;background:none;color:var(--red);border:1px solid var(--red);border-radius:4px;cursor:pointer;">Del</button>`;
+      tr.appendChild(ctl);
+    }
+    tbody.appendChild(tr);
+  });
+
+  // add-row control at bottom of table
+  let addRow = table.querySelector('tr.add-row-ctl');
+  if (addRow) addRow.remove();
+  if (editMode) {
+    addRow = document.createElement('tr');
+    addRow.className = 'add-row-ctl no-print';
+    const td = document.createElement('td');
+    td.colSpan = cols.length + 1;
+    td.style.textAlign = 'center';
+    td.style.padding = '8px';
+    td.innerHTML = `<button onclick="addTableRow('${tableId}')" style="font-size:12px;padding:6px 14px;background:var(--green-l);color:var(--green);border:1px solid var(--green);border-radius:20px;cursor:pointer;font-weight:600;">+ Add Row</button>`;
+    addRow.appendChild(td);
+    tbody.appendChild(addRow);
+  }
+}
+
+function inferGroupFromTable(tableId) {
+  if (tableId === 'backup-table' || tableId === 'powders-table') return 'backup';
+  if (tableId === 'caution-table' || tableId === 'pending-table') return 'caution';
+  if (tableId === 'fail-table') return 'fail';
+  return 'all';
+}
+
+function editTableRow(tableId, rowId, isAddition) {
+  const table = document.getElementById(tableId);
+  const cols = getTableColumns(table);
+  let currentVals;
+  if (isAddition) {
+    const store = getStore();
+    const i = parseInt(rowId.split('-add-')[1]);
+    currentVals = (store.additions[tableId] || [])[i] || cols.map(() => '');
+  } else {
+    const store = getStore();
+    if (store.edits[rowId]) {
+      currentVals = store.edits[rowId];
+    } else {
+      const idx = parseInt(rowId.split('-').pop());
+      const tr = table.querySelectorAll('tbody tr:not([data-injected])')[idx];
+      currentVals = tableRowCells(tr);
+    }
+  }
+  openEditModal(`Edit row — ${table.closest('.tbl-wrap').previousElementSibling ? '' : ''}${tableId}`, cols, currentVals, (vals) => {
+    const store = getStore();
+    if (isAddition) {
+      const i = parseInt(rowId.split('-add-')[1]);
+      store.additions[tableId][i] = vals;
+    } else {
+      store.edits[rowId] = vals;
+    }
+    setStore(store);
+    renderTable(tableId);
+    filterAll();
+  });
+}
+
+function deleteTableRow(tableId, rowId) {
+  if (!confirm('Remove this row? (You can still restore by clearing edit data — this is not permanent to the file.)')) return;
+  const store = getStore();
+  store.deletes[rowId] = true;
+  setStore(store);
+  renderTable(tableId);
+  filterAll();
+}
+
+function addTableRow(tableId) {
+  const table = document.getElementById(tableId);
+  const cols = getTableColumns(table);
+  openEditModal(`Add new row — ${tableId.replace('-table','')}`, cols, cols.map(() => ''), (vals) => {
+    const store = getStore();
+    if (!store.additions[tableId]) store.additions[tableId] = [];
+    store.additions[tableId].push(vals);
+    setStore(store);
+    renderTable(tableId);
+    filterAll();
+  });
+}
+
+// ── APPROVED CARDS SECTION ──────────────────────────────────────────────────────
+function renderCards() {
+  const container = document.getElementById('approved-cards');
+  const store = getStore();
+  const seedCards = Array.from(container.querySelectorAll('.vendor-card:not([data-injected])'));
+
+  seedCards.forEach((card, idx) => {
+    const rowId = `approved-cards-${idx}`;
+    let ctl = card.querySelector('.card-ctl');
+    if (ctl) ctl.remove();
+    if (store.deletes[rowId]) { card.style.display = 'none'; card.classList.add('row-deleted'); return; }
+    card.classList.remove('row-deleted');
+    card.style.display = '';
+    if (store.edits[rowId]) {
+      const vals = store.edits[rowId];
+      card.querySelector('.vendor-card-name').innerHTML = vals[0];
+      card.querySelector('.vendor-card-price').innerHTML = vals[1];
+      card.querySelector('.lab').innerHTML = 'Lab: ' + vals[2];
+      card.querySelector('.details').innerHTML = vals[3];
+      card.querySelector('.use').innerHTML = 'Use: ' + vals[4];
+    }
+    if (editMode) {
+      const body = card.querySelector('.vendor-card-body');
+      const div = document.createElement('div');
+      div.className = 'card-ctl no-print';
+      div.style.marginTop = '6px';
+      div.innerHTML = `<button onclick="editCard('${rowId}',false)" style="font-size:10px;padding:3px 7px;margin-right:4px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;">Edit</button><button onclick="deleteCard('${rowId}')" style="font-size:10px;padding:3px 7px;background:none;color:var(--red);border:1px solid var(--red);border-radius:4px;cursor:pointer;">Del</button>`;
+      body.appendChild(div);
+    }
+  });
+
+  container.querySelectorAll('.vendor-card[data-injected]').forEach(c => c.remove());
+  const additions = store.additions['approved-cards'] || [];
+  additions.forEach((vals, i) => {
+    const rowId = `approved-cards-add-${i}`;
+    const div = document.createElement('div');
+    div.className = 'vendor-card green';
+    div.setAttribute('data-injected', '1');
+    div.setAttribute('data-group', 'approved');
+    div.setAttribute('data-search', vals.join(' ').toLowerCase().replace(/"/g,''));
+    if (store.deletes[rowId]) { div.classList.add('row-deleted'); div.style.display = 'none'; }
+    div.innerHTML = `
+      <div class="vendor-card-header">
+        <span class="vendor-card-name">${vals[0]}</span>
+        <span class="vendor-card-price">${vals[1]}</span>
+      </div>
+      <div class="vendor-card-body">
+        <div class="lab">Lab: ${vals[2]}</div>
+        <div class="details">${vals[3]}</div>
+        <div class="use">Use: ${vals[4]}</div>
+        ${editMode ? `<div class="card-ctl no-print" style="margin-top:6px;"><button onclick="editCard('${rowId}',true)" style="font-size:10px;padding:3px 7px;margin-right:4px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;">Edit</button><button onclick="deleteCard('${rowId}')" style="font-size:10px;padding:3px 7px;background:none;color:var(--red);border:1px solid var(--red);border-radius:4px;cursor:pointer;">Del</button></div>` : ''}
+      </div>`;
+    container.appendChild(div);
+  });
+
+  let addBtn = container.querySelector('.add-card-ctl');
+  if (addBtn) addBtn.remove();
+  if (editMode) {
+    addBtn = document.createElement('div');
+    addBtn.className = 'add-card-ctl no-print';
+    addBtn.style.textAlign = 'center';
+    addBtn.style.margin = '8px 0';
+    addBtn.innerHTML = `<button onclick="addCard()" style="font-size:12px;padding:6px 14px;background:var(--green-l);color:var(--green);border:1px solid var(--green);border-radius:20px;cursor:pointer;font-weight:600;">+ Add Vendor Card</button>`;
+    container.appendChild(addBtn);
+  }
+}
+
+function editCard(rowId, isAddition) {
+  const store = getStore();
+  let currentVals;
+  if (isAddition) {
+    const i = parseInt(rowId.split('-add-')[1]);
+    currentVals = (store.additions['approved-cards'] || [])[i] || CARD_FIELDS.map(() => '');
+  } else if (store.edits[rowId]) {
+    currentVals = store.edits[rowId];
+  } else {
+    const idx = parseInt(rowId.split('-').pop());
+    const card = document.querySelectorAll('#approved-cards .vendor-card:not([data-injected])')[idx];
+    currentVals = [
+      card.querySelector('.vendor-card-name').innerHTML,
+      card.querySelector('.vendor-card-price').innerHTML,
+      card.querySelector('.lab').innerHTML.replace(/^Lab:\s*/, ''),
+      card.querySelector('.details').innerHTML,
+      card.querySelector('.use').innerHTML.replace(/^Use:\s*/, ''),
+    ];
+  }
+  openEditModal('Edit vendor card', ['Name','Price','Lab','Details','Use'], currentVals, (vals) => {
+    const store = getStore();
+    if (isAddition) {
+      const i = parseInt(rowId.split('-add-')[1]);
+      store.additions['approved-cards'][i] = vals;
+    } else {
+      store.edits[rowId] = vals;
+    }
+    setStore(store);
+    renderCards();
+    filterAll();
+  });
+}
+
+function deleteCard(rowId) {
+  if (!confirm('Remove this vendor card?')) return;
+  const store = getStore();
+  store.deletes[rowId] = true;
+  setStore(store);
+  renderCards();
+  filterAll();
+}
+
+function addCard() {
+  openEditModal('Add new vendor card', ['Name','Price','Lab','Details','Use'], CARD_FIELDS.map(() => ''), (vals) => {
+    const store = getStore();
+    if (!store.additions['approved-cards']) store.additions['approved-cards'] = [];
+    store.additions['approved-cards'].push(vals);
+    setStore(store);
+    renderCards();
+    filterAll();
+  });
+}
+
+// ── GENERIC MODAL ────────────────────────────────────────────────────────────────
+let modalSaveCallback = null;
+function openEditModal(title, labels, values, onSave) {
+  document.getElementById('edit-modal-title').textContent = title;
+  const fieldsDiv = document.getElementById('edit-modal-fields');
+  fieldsDiv.innerHTML = labels.map((label, i) => `
+    <div style="margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:3px;">${label}</div>
+      <textarea id="modal-field-${i}" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:4px;font-size:13px;min-height:36px;font-family:inherit;">${(values[i]||'').replace(/</g,'&lt;')}</textarea>
+    </div>
+  `).join('');
+  modalSaveCallback = onSave;
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+function closeEditModal() {
+  document.getElementById('edit-modal').style.display = 'none';
+  modalSaveCallback = null;
+}
+function saveEditModal() {
+  const fields = document.querySelectorAll('#edit-modal-fields textarea');
+  const vals = Array.from(fields).map(f => f.value);
+  if (modalSaveCallback) modalSaveCallback(vals);
+  closeEditModal();
+}
+
+function renderAllEditable() {
+  renderCards();
+  EDITABLE_TABLES.forEach(renderTable);
+}
 
 function setFilter(group, btn) {
   currentFilter = group;
@@ -607,19 +942,20 @@ function filterAll() {
   const q = document.getElementById('search').value.toLowerCase();
   const rows = document.querySelectorAll('tr[data-group], .vendor-card[data-group]');
   rows.forEach(el => {
+    if (el.classList.contains('add-row-ctl')) return;
+    if (el.classList.contains('row-deleted')) { el.style.display = 'none'; return; }
     const grp = el.dataset.group || '';
     const srch = (el.dataset.search || '') + el.textContent.toLowerCase();
     const groupMatch = currentFilter === 'all' || grp === currentFilter;
     const textMatch = !q || srch.includes(q);
     el.style.display = groupMatch && textMatch ? '' : 'none';
   });
-  // Show/hide section titles
   document.querySelectorAll('.section-title[data-group]').forEach(s => {
     s.style.display = currentFilter === 'all' || s.dataset.group === currentFilter ? '' : 'none';
   });
 }
 // Initialize on load
-window.addEventListener("DOMContentLoaded", filterAll);
+window.addEventListener("DOMContentLoaded", () => { renderAllEditable(); filterAll(); });
 </script>
 </body>
 </html>
