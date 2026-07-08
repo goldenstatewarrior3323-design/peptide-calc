@@ -388,17 +388,21 @@
   </div>
 
   <div class="weight-card">
-    <div class="card-title">Calorie Auto-Adjustment</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;">
-      Uses Mifflin-St Jeor (sedentary base × 1.2) minus 1,250 cal/day deficit to hit 2.5 lbs/week. Recalculates every time you log weight. Exercise calories are added on top.
-    </div>
-    <div class="nutrient-row"><span class="n-label">Goal</span><span class="n-val">−2.5 lbs/week</span></div>
-    <div class="nutrient-row"><span class="n-label">Deficit needed</span><span class="n-val">~1,250 cal/day</span></div>
+    <div class="card-title" id="cal-card-title">Calorie Auto-Adjustment</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;" id="cal-card-desc"></div>
+    <div class="nutrient-row"><span class="n-label" id="cal-goal-label">Goal</span><span class="n-val" id="cal-goal-val">—</span></div>
+    <div class="nutrient-row" id="cal-deficit-row"><span class="n-label">Deficit needed</span><span class="n-val" id="cal-deficit-val">—</span></div>
     <div class="nutrient-row"><span class="n-label">Est. TDEE (sedentary)</span><span class="n-val" id="tdee-display">—</span></div>
-    <div class="nutrient-row"><span class="n-label">Base cal target (rest day)</span><span class="n-val" id="cal-target-weight">—</span></div>
-    <div class="nutrient-row"><span class="n-label">Bike day adds</span><span class="n-val">+300 cal</span></div>
-    <div class="nutrient-row"><span class="n-label">HIIT day adds</span><span class="n-val">+500 cal</span></div>
+    <div class="nutrient-row"><span class="n-label" id="cal-base-label">Base cal target (rest day)</span><span class="n-val" id="cal-target-weight">—</span></div>
+    <div class="nutrient-row" id="cal-bike-row"><span class="n-label">Bike day adds</span><span class="n-val">+300 cal</span></div>
+    <div class="nutrient-row" id="cal-hiit-row"><span class="n-label">HIIT day adds</span><span class="n-val">+500 cal</span></div>
     <div class="nutrient-row"><span class="n-label">Exercise calories add</span><span class="n-val">+actual burned</span></div>
+  </div>
+
+  <div class="weight-card">
+    <div class="card-title" id="cal-table-title">Calorie Reference Table</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;" id="cal-table-desc"></div>
+    <div id="cal-reference-table"></div>
   </div>
 </div>
 
@@ -857,12 +861,40 @@ const getSuppLog = (key, person) => { try { return JSON.parse(localStorage.getIt
 const saveSuppLog = (obj, key, person) => localStorage.setItem('suppLog_'+(person||getCurrentPerson())+'_'+(key||todayKey()), JSON.stringify(obj));
 
 // ── CALORIE CALC ──────────────────────────────────────────────────────────────
-function calcCalTarget(weightLbs) {
-  // Mifflin-St Jeor male, 41yo, 5'8" (172.72cm), SEDENTARY base (1.2) — RICH-SPECIFIC formula, not valid for other people
-  const bmr = 10*(weightLbs*0.453592) + 6.25*172.72 - 5*41 + 5;
-  const tdee = Math.round(bmr * 1.2);
-  const base = Math.max(1200, Math.round(tdee - 1250)); // 2.5lbs/wk deficit, floor 1200
-  return { tdee, base };
+// Real per-person demographics for Mifflin-St Jeor, replacing what used to be Rich's
+// constants applied to everyone's weight — Dom's and Noah's TDEE were being computed with
+// Rich's age (41) and height (5'8") even though their own weight was correctly plugged in.
+// Claudia's age is a placeholder (marked below) — her height/sex are confirmed, her exact age is not
+// on record. Update PERSON_DEMOGRAPHICS.claudia.age once known for a precise number.
+const PERSON_DEMOGRAPHICS = {
+  rich:    { age:41, heightCm:172.72, sex:'male' },
+  claudia: { age:41, heightCm:152.4,  sex:'female', ageIsPlaceholder:true },
+  dom:     { age:19, heightCm:182.88, sex:'male' },
+  noah:    { age:15, heightCm:167.64, sex:'male' },
+};
+// Goal direction and safe rate range per person — this drives whether the Weight tab shows
+// deficit/"lbs lost" language or surplus/"muscle building" language, and what rate options
+// the static reference table offers. Noah is a surplus goal; treating him with loss-framing
+// was a real bug, not just a copy nitpick.
+const PERSON_GOALS = {
+  rich:    { direction:'loss', minRate:1.0, maxRate:2.5, defaultRate:2.5 },
+  claudia: { direction:'loss', minRate:1.0, maxRate:2.0, defaultRate:1.5 },
+  dom:     { direction:'loss', minRate:1.0, maxRate:4.0, defaultRate:2.5 }, // ceiling raised to 4.0/wk per protocol; 4.48 is his absolute safe max, not a target rate
+  noah:    { direction:'gain', minRate:null, maxRate:null, defaultRate:null }, // surplus goal, not a deficit — no "lbs/week loss" language applies
+};
+
+function calcCalTarget(weightLbs, person, rateLbsPerWeek){
+  const p = person || getCurrentPerson();
+  const demo = PERSON_DEMOGRAPHICS[p] || PERSON_DEMOGRAPHICS.rich;
+  const kg = weightLbs * 0.453592;
+  const bmr = demo.sex === 'female'
+    ? 10*kg + 6.25*demo.heightCm - 5*demo.age - 161
+    : 10*kg + 6.25*demo.heightCm - 5*demo.age + 5;
+  const tdee = Math.round(bmr * 1.2); // sedentary base, not activity-adjusted — same simplification as before, now at least applied to the right person
+  const rate = rateLbsPerWeek != null ? rateLbsPerWeek : (PERSON_GOALS[p]?.defaultRate ?? 2.5);
+  const deficitPerDay = Math.round(rate * 3500 / 7); // 3,500 cal ≈ 1lb, standard approximation
+  const base = Math.max(1200, Math.round(tdee - deficitPerDay));
+  return { tdee, base, deficitPerDay };
 }
 
 // Manual override takes priority when set. Weight-based auto-calc (Mifflin-St Jeor) currently only
@@ -876,7 +908,7 @@ function getCalBase(dayType, person){
   if(p === 'rich'){
     const weights = getWeights();
     const latest = weights.length ? weights[0].weight : getStartWeight(p);
-    const { base } = calcCalTarget(latest);
+    const { base } = calcCalTarget(latest, p);
     const dayMod = { rest:0, bike:300, hiit:500 };
     return base + (dayMod[dayType]||0);
   }
@@ -2353,25 +2385,88 @@ function logSaved(idx){
 
 // ── WEIGHT ────────────────────────────────────────────────────────────────────
 function renderWeight(){
+  const p = getCurrentPerson();
+  const goal = PERSON_GOALS[p] || PERSON_GOALS.rich;
   const weights=getWeights();
   const latest=weights.length?weights[0].weight:getStartWeight();
-  const {tdee,base}=calcCalTarget(latest);
+  const {tdee,base,deficitPerDay}=calcCalTarget(latest, p);
   const goalWeight = getGoalWeight();
-  const lost=getStartWeight()-latest;
-  const remain=latest-goalWeight;
+  const startWeight = getStartWeight();
+  const isGain = goal.direction === 'gain';
+  // For a loss goal, "lost" = start - latest (positive is progress). For a gain goal, flip it —
+  // "gained" = latest - start, since otherwise Noah's progress would show as a negative number,
+  // which is backwards for someone trying to go up.
+  const changeSoFar = isGain ? (latest-startWeight) : (startWeight-latest);
+  const remain = isGain ? (goalWeight-latest) : (latest-goalWeight);
+
   document.getElementById('current-weight-display').textContent=latest.toFixed(1);
-  document.getElementById('wstat-lost').textContent=lost.toFixed(1)+'lb';
+  document.getElementById('wstat-lost').textContent=changeSoFar.toFixed(1)+'lb';
+  document.querySelector('#wstat-lost').parentElement.querySelector('.wstat-lbl').textContent = isGain ? 'Gained' : 'Lost';
   document.getElementById('wstat-goal').textContent=goalWeight.toFixed(0);
   document.getElementById('wstat-remain').textContent=remain.toFixed(1)+'lb';
   document.getElementById('goal-weight-input').value=goalWeight;
-  document.getElementById('start-weight-input').value=getStartWeight();
+  document.getElementById('start-weight-input').value=startWeight;
   document.getElementById('tdee-display').textContent=tdee.toLocaleString()+' cal';
-  document.getElementById('cal-target-weight').textContent=base.toLocaleString()+' cal';
+
+  // Card copy — deficit language for loss goals, surplus language for Noah's muscle-building goal.
+  // This card previously said "Goal −2.5 lbs/week" / "Deficit needed" for every person, including
+  // someone deliberately trying to gain weight — real bug, not just a wording nitpick.
+  const demo = PERSON_DEMOGRAPHICS[p];
+  const ageNote = demo?.ageIsPlaceholder ? ' (age is a placeholder — update PERSON_DEMOGRAPHICS.claudia.age for a precise number)' : '';
+  if(isGain){
+    document.getElementById('cal-card-title').textContent = 'Muscle-Building Surplus';
+    document.getElementById('cal-card-desc').textContent = `Uses Mifflin-St Jeor (sedentary base × 1.2) as a reference point${ageNote}. This is a SURPLUS goal, not a deficit — the target calorie level comes from the protocol doc, not an auto-calculated deficit.`;
+    document.getElementById('cal-goal-label').textContent = 'Goal';
+    document.getElementById('cal-goal-val').textContent = 'Muscle building (surplus)';
+    document.getElementById('cal-deficit-row').style.display = 'none';
+    document.getElementById('cal-base-label').textContent = 'Protocol target (fixed)';
+    document.getElementById('cal-target-weight').textContent = (PERSON_PROFILES[p]?.calDefaults?.rest ?? base).toLocaleString()+' cal';
+    document.getElementById('cal-bike-row').style.display = 'none';
+    document.getElementById('cal-hiit-row').style.display = 'none';
+  } else {
+    document.getElementById('cal-card-title').textContent = 'Calorie Auto-Adjustment';
+    document.getElementById('cal-card-desc').textContent = `Uses Mifflin-St Jeor (sedentary base × 1.2) minus a daily deficit sized to hit ${goal.defaultRate} lbs/week${ageNote}. Recalculates every time you log weight. Exercise calories are added on top.`;
+    document.getElementById('cal-goal-label').textContent = 'Goal';
+    document.getElementById('cal-goal-val').textContent = '−'+goal.defaultRate+' lbs/week';
+    document.getElementById('cal-deficit-row').style.display = '';
+    document.getElementById('cal-deficit-val').textContent = '~'+deficitPerDay.toLocaleString()+' cal/day';
+    document.getElementById('cal-base-label').textContent = 'Base cal target (rest day)';
+    document.getElementById('cal-target-weight').textContent = base.toLocaleString()+' cal';
+    document.getElementById('cal-bike-row').style.display = '';
+    document.getElementById('cal-hiit-row').style.display = '';
+  }
+
+  // Static reference table — replaces the single auto-picked number with several options at once,
+  // so the person can see the full range instead of the app silently choosing one rate for them.
+  const tableTitle = document.getElementById('cal-table-title');
+  const tableDesc = document.getElementById('cal-table-desc');
+  const tableEl = document.getElementById('cal-reference-table');
+  if(isGain){
+    tableTitle.textContent = 'Surplus Reference Levels';
+    tableDesc.textContent = 'Reference only — actual target comes from protocol, not auto-selected here.';
+    const protocolTarget = PERSON_PROFILES[p]?.calDefaults?.rest ?? tdee+300;
+    const levels = [
+      { label:'Light surplus', cal: protocolTarget-200 },
+      { label:'Protocol target', cal: protocolTarget },
+      { label:'Aggressive surplus', cal: protocolTarget+200 },
+    ];
+    tableEl.innerHTML = levels.map(l=>`<div class="nutrient-row"><span class="n-label">${l.label}</span><span class="n-val">${l.cal.toLocaleString()} cal</span></div>`).join('');
+  } else {
+    tableTitle.textContent = 'Loss Rate Reference Table';
+    tableDesc.textContent = `Static reference at current weight (${latest.toFixed(1)}lbs) — doesn't auto-select for you. Safe range for this person: ${goal.minRate}–${goal.maxRate} lbs/week.`;
+    const rates = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0].filter(r => r <= goal.maxRate && r >= goal.minRate - 0.01);
+    tableEl.innerHTML = rates.map(r=>{
+      const { base:levelBase } = calcCalTarget(latest, p, r);
+      const isDefault = r === goal.defaultRate;
+      return `<div class="nutrient-row"><span class="n-label">${r} lbs/week${isDefault?' (current default)':''}</span><span class="n-val">${levelBase.toLocaleString()} cal</span></div>`;
+    }).join('');
+  }
+
   if(weights.length>=2){
     const diff=weights[0].weight-weights[1].weight;
     const el=document.getElementById('weight-change-display');
     el.textContent=(diff>0?'+':'')+diff.toFixed(1)+'lb';
-    el.style.color=diff<=0?'var(--green)':'var(--red)';
+    el.style.color = isGain ? (diff>=0?'var(--green)':'var(--red)') : (diff<=0?'var(--green)':'var(--red)');
   }
   const hist=document.getElementById('weight-history');
   if(!weights.length){ hist.innerHTML='<div class="empty">No entries yet — log your first weight</div>'; return; }
