@@ -1021,11 +1021,21 @@ function buildDaySnapshot(){
     t.potassium+=e.potassium_mg||0; t.cholesterol+=e.cholesterol_mg||0; t.iron+=e.iron_mg||0;
     items.push(`${m}: ${e.name} (${e.calories} cal, P${Math.round(e.protein_g||0)}g F${Math.round(e.fat_total_g||0)}g NC${Math.round(e.carbs_net_g||0)}g)`);
   }));
+  // Supplements marked taken count toward totals — same rule the visible Today page uses.
+  const suppLogForSnap = getSuppLog(key);
+  const suppItems = [];
+  getSupps().forEach(s=>{
+    if(!suppLogForSnap[s.id]) return;
+    t.cal+=s.calories||0; t.protein+=s.protein_g||0; t.fat+=s.fat_total_g||0;
+    t.carbs+=s.carbs_net_g||0; t.fiber+=s.fiber_g||0; t.sodium+=s.sodium_mg||0;
+    t.potassium+=s.potassium_mg||0; t.cholesterol+=s.cholesterol_mg||0; t.iron+=s.iron_mg||0;
+    if(s.calories) suppItems.push(`Supplement: ${s.name} (${s.calories} cal)`);
+  });
   const exerciseEntries = getExercise(key);
   const exerciseCals = exerciseEntries.reduce((s,e)=>s+(e.calories||0),0);
   const dayType = getDayType();
   const calTarget = getCalBase(dayType);
-  return { key, dayType, calTarget, exerciseCals, totals:t, targets:mt, items,
+  return { key, dayType, calTarget, exerciseCals, totals:t, targets:mt, items:items.concat(suppItems),
     exercise: exerciseEntries.map(e=>`${e.name}${e.duration?' ('+e.duration+' min)':''}: +${e.calories} cal`) };
 }
 
@@ -1157,11 +1167,18 @@ function buildWeekSnapshot(){
     const key=toDateKey(d);
     const meals=log[key]||{};
     const exercise=getExercise(key);
+    const suppLog=getSuppLog(key);
+    const supps=getSupps();
     let cal=0,protein=0,fiber=0,sodium=0,fat=0,carbs=0,iron=0;
     MEAL_TYPES.forEach(m=>(meals[m]||[]).forEach(e=>{
       cal+=e.calories||0; protein+=e.protein_g||0; fiber+=e.fiber_g||0;
       sodium+=e.sodium_mg||0; fat+=e.fat_total_g||0; carbs+=e.carbs_net_g||0; iron+=e.iron_mg||0;
     }));
+    supps.forEach(s=>{
+      if(!suppLog[s.id]) return;
+      cal+=s.calories||0; protein+=s.protein_g||0; fiber+=s.fiber_g||0;
+      sodium+=s.sodium_mg||0; fat+=s.fat_total_g||0; carbs+=s.carbs_net_g||0; iron+=s.iron_mg||0;
+    });
     const exCals=exercise.reduce((s,e)=>s+(e.calories||0),0);
     days.push({label:d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),
       cal:Math.round(cal),protein:Math.round(protein),fiber:Math.round(fiber),
@@ -1521,7 +1538,12 @@ function renderWeekRow() {
 
 function selectDay(key) {
   selectedDateKey = key;
-  renderToday();
+  const activePage = document.querySelector('.page.active');
+  if(activePage && activePage.id !== 'page-today'){
+    showPage('today'); // jump to daily view for the tapped date
+  } else {
+    renderToday();
+  }
 }
 
 // ── TODAY ─────────────────────────────────────────────────────────────────────
@@ -2990,6 +3012,15 @@ function renderWeek(){
       fat+=m.fat_total_g||0; satfat+=m.fat_saturated_g||0; sugar+=m.sugar_g||0;
       vitc+=m.vitamin_c_mg||0; calcium+=m.calcium_mg||0; iron+=m.iron_mg||0; carbs+=m.carbs_net_g||0;
     }));
+    // Supplements actually marked taken count toward the day's totals — same rule the
+    // Today page uses. Without this, the week chart under-counts vs. what Today shows.
+    supps.forEach(s=>{
+      if(!suppLog[s.id]) return;
+      cal+=s.calories||0; protein+=s.protein_g||0; fiber+=s.fiber_g||0;
+      sodium+=s.sodium_mg||0; potassium+=s.potassium_mg||0; cholesterol+=s.cholesterol_mg||0;
+      fat+=s.fat_total_g||0; satfat+=s.fat_saturated_g||0; sugar+=s.sugar_g||0;
+      vitc+=s.vitamin_c_mg||0; calcium+=s.calcium_mg||0; iron+=s.iron_mg||0; carbs+=s.carbs_net_g||0;
+    });
     exCals=exercise.reduce((s,e)=>s+(e.calories||0),0);
     const suppTaken=supps.filter(s=>suppLog[s.id]).length;
     days.push({key,label:d.toLocaleDateString('en-US',{weekday:'short'}).slice(0,2),
