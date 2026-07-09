@@ -487,6 +487,10 @@
           <input class="field" type="number" step="0.1" id="pl-purity" placeholder="e.g. 98.7" inputmode="decimal" />
         </div>
       </div>
+      <div class="input-group" style="border-top:1px dashed var(--border2);padding-top:12px;">
+        <div class="input-label">Notes <span>— side effects, efficacy, anything worth tracking</span></div>
+        <textarea class="field" id="pl-notes" placeholder="e.g. mild nausea ~2hrs post-pin, resolved by evening. Appetite suppression strong through day 3." style="min-height:60px;resize:vertical;"></textarea>
+      </div>
       <button class="btn-primary" onclick="savePinLogEntry()">Log Pin</button>
     </div>
 
@@ -1051,11 +1055,12 @@
     const vendor = document.getElementById('pl-vendor').value;
     const fill = document.getElementById('pl-fill').value;
     const purity = document.getElementById('pl-purity').value;
+    const notes = document.getElementById('pl-notes').value.trim();
 
     if (!date || !dose) { alert('Date and dose are required.'); return; }
 
     const log = getPinLog();
-    log.unshift({ id: Date.now(), person, peptide, date, time, dose, vendor, fill, purity });
+    log.unshift({ id: Date.now(), person, peptide, date, time, dose, vendor, fill, purity, notes });
     savePinLog(log);
 
     // Reset form but keep person/peptide selected for fast repeat entry
@@ -1064,6 +1069,7 @@
     document.getElementById('pl-vendor').value = '';
     document.getElementById('pl-fill').value = '';
     document.getElementById('pl-purity').value = '';
+    document.getElementById('pl-notes').value = '';
     renderPinLog();
   }
 
@@ -1071,6 +1077,27 @@
     const log = getPinLog().filter(e => e.id !== id);
     savePinLog(log);
     renderPinLog();
+  }
+
+  let expandedPinNotesIds = new Set(); // tracks which history rows have their notes editor open
+
+  function togglePinNotesEditor(id){
+    if(expandedPinNotesIds.has(id)) expandedPinNotesIds.delete(id);
+    else expandedPinNotesIds.add(id);
+    renderPinLog();
+  }
+
+  function savePinLogNotes(id){
+    const textarea = document.getElementById('pl-notes-edit-'+id);
+    if(!textarea) return;
+    const log = getPinLog();
+    const entry = log.find(e => e.id === id);
+    if(!entry) return;
+    entry.notes = textarea.value.trim();
+    savePinLog(log);
+    expandedPinNotesIds.delete(id);
+    renderPinLog();
+    showToastGeneric('Notes saved');
   }
 
   function renderPinLog() {
@@ -1083,12 +1110,25 @@
       if (e.fill) coaBits.push(`Fill: ${e.fill}mg`);
       if (e.purity) coaBits.push(`Purity: ${e.purity}%`);
       const coaLine = coaBits.length ? `<div class="pinlog-row-sub" style="color:#f59e0b;">${coaBits.join(' · ')}</div>` : '';
+      const isEditing = expandedPinNotesIds.has(e.id);
+      const notesDisplay = e.notes
+        ? `<div class="pinlog-row-sub" style="color:var(--text);font-style:italic;margin-top:4px;cursor:pointer;" onclick="togglePinNotesEditor(${e.id})">📝 ${e.notes}</div>`
+        : `<div class="pinlog-row-sub" style="cursor:pointer;text-decoration:underline;" onclick="togglePinNotesEditor(${e.id})">+ Add notes (side effects, efficacy)</div>`;
+      const notesEditor = isEditing ? `
+        <div style="margin-top:6px;">
+          <textarea class="field" id="pl-notes-edit-${e.id}" style="min-height:50px;resize:vertical;font-size:13px;" placeholder="Side effects, efficacy, anything worth tracking">${e.notes||''}</textarea>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button style="flex:1;padding:6px;font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:8px;cursor:pointer;" onclick="togglePinNotesEditor(${e.id})">Cancel</button>
+            <button class="btn-primary" style="flex:1;padding:6px;font-size:12px;" onclick="savePinLogNotes(${e.id})">Save Notes</button>
+          </div>
+        </div>` : '';
       return `
       <div class="pinlog-row">
-        <div>
+        <div style="flex:1;">
           <div class="pinlog-row-main">${e.person} · ${e.peptide} · ${e.dose}${unit(e.peptide)}</div>
           <div class="pinlog-row-sub">${e.date}${e.time?' at '+e.time:''}${e.vendor?' · '+e.vendor:''}</div>
           ${coaLine}
+          ${isEditing ? notesEditor : notesDisplay}
         </div>
         <button class="pinlog-del" onclick="deletePinLogEntry(${e.id})">✕</button>
       </div>`;
