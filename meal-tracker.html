@@ -1818,6 +1818,7 @@ function toggleSupp(id, key) {
   if(log[id]) delete log[id]; else log[id] = Date.now();
   saveSuppLog(log, dateKey);
   renderSupplements(dateKey);
+  renderToday(); // supplements can carry calories/macros — totals must reflect the toggle immediately
 }
 
 function showSuppModal() {
