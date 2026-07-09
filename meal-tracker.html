@@ -2784,6 +2784,11 @@ function openFoodEditModal(type, a, b){
   } else if(type === 'supplement'){
     record = getSupps()[a];
     foodEditContext = { type:'supplement', idx:a };
+  } else if(type === 'meatref'){
+    const ref = getMeatRefs().find(r=>r.id===a);
+    if(!ref) return;
+    record = { name: ref.label, ...(ref.data||{}) };
+    foodEditContext = { type:'meatref', id:a };
   } else {
     record = getSaved()[a];
     foodEditContext = { type:'saved', idx:a };
@@ -2821,6 +2826,18 @@ function saveFoodEdit(){
     saveSupps(supps);
     renderSuppModalChecklist();
     renderToday();
+  } else if(foodEditContext.type === 'meatref'){
+    const refs = getMeatRefs();
+    const ref = refs.find(r=>r.id===foodEditContext.id);
+    if(!ref) return;
+    const { name, ...nutrientUpdates } = updates;
+    ref.label = name;
+    ref.data = { ...(ref.data||{}), ...nutrientUpdates };
+    ref.verified = true; // a manual correction counts as confirmed
+    ref.fdcDescription = 'Manually corrected';
+    ref.note = null;
+    saveMeatRefs(refs);
+    renderMeatRefs();
   } else {
     const saved = getSaved();
     const idx = foodEditContext.idx;
@@ -3104,7 +3121,13 @@ function renderMeatRefs(){
   const refs = getMeatRefs();
   const el = document.getElementById('meat-ref-list');
   if(!el) return;
-  el.innerHTML = refs.map(r => `
+  // Pin verified entries to the top so they're always easy to find; keep each
+  // group's original relative order otherwise (stable sort).
+  const sorted = refs.map((r,i)=>({r,i})).sort((a,b)=>{
+    const va = a.r.verified?0:1, vb = b.r.verified?0:1;
+    return va-vb || a.i-b.i;
+  }).map(x=>x.r);
+  el.innerHTML = sorted.map(r => `
     <div class="meal-card">
       <div class="meal-card-header">
         <div style="flex:1;">
@@ -3115,6 +3138,7 @@ function renderMeatRefs(){
             : `<div class="meal-card-cals" style="color:var(--muted);">${r.note ? r.note : 'Not yet verified'}</div>`}
         </div>
         <div style="display:flex;align-items:center;gap:4px;">
+          <button onclick="openFoodEditModal('meatref','${r.id}')" style="background:none;border:none;color:var(--green);font-size:14px;cursor:pointer;padding:6px;" title="Edit stats directly">✏️</button>
           <button onclick="editMeatRefQuery('${r.id}')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:6px;" title="Edit search term">🔎</button>
           <button onclick="deleteMeatRef('${r.id}')" style="background:none;border:none;color:#d1d5db;font-size:15px;cursor:pointer;padding:6px;" title="Delete">✕</button>
           ${r.verified
