@@ -2705,19 +2705,23 @@ function scaleFromBase(base, servings){
 
 const OZ_PER_GRAM = 1/28.3495;
 
-// Pulls a per-1-serving gram weight out of a food name like "Tri Tip Steak, Cooked (100g)"
-// or "Whey Extreme Chocolate (1 scoop, ~30.4g)". Returns null if no weight is present —
-// not every logged item is weight-based (e.g. "1 tbsp" alone), so the oz field just hides then.
-function parseGramsPerServing(name){
-  const m = name.match(/[~≈]?\s*(\d+(?:\.\d+)?)\s*g\)?\s*$/i);
-  return m ? parseFloat(m[1]) : null;
+// Pulls a per-1-serving gram weight for the oz converter. Checks the food name first
+// (e.g. "Tri Tip Steak, Cooked (100g)"), then falls back to the AI-generated notes field,
+// since AI-estimated entries often state their gram-equivalent there instead
+// (e.g. "Assumed a conservative 100g post-cook serving..." or "6oz = 170g, matched against...").
+// Returns null if neither source has a parseable weight.
+function parseGramsPerServing(name, notes){
+  const nameMatch = (name||'').match(/[~≈]?\s*(\d+(?:\.\d+)?)\s*g\)?\s*$/i);
+  if(nameMatch) return parseFloat(nameMatch[1]);
+  const notesMatch = (notes||'').match(/(\d+(?:\.\d+)?)\s*g\b/i);
+  return notesMatch ? parseFloat(notesMatch[1]) : null;
 }
 
-function openServingsModal(name, currentServings, onConfirm){
+function openServingsModal(name, currentServings, onConfirm, notes){
   document.getElementById('servings-modal-input').value = currentServings;
   document.getElementById('servings-modal-name').textContent = name;
 
-  const gramsPerServing = parseGramsPerServing(name);
+  const gramsPerServing = parseGramsPerServing(name, notes);
   const ozRow = document.getElementById('servings-modal-oz-row');
   const ozInput = document.getElementById('servings-modal-oz-input');
   const servingsInput = document.getElementById('servings-modal-input');
@@ -2844,7 +2848,7 @@ function editDiaryEntryServings(mealType, idx){
     saveLog(log);
     renderToday();
     showToast('Updated to ×'+newServings);
-  });
+  }, base.notes);
 }
 
 function saveMeal(){
@@ -2930,7 +2934,7 @@ function logSaved(idx){
     const dayLabel = key === todayKey() ? '' : ' ('+new Date(key+'T00:00:00').toLocaleDateString('en-US',{weekday:'long'})+')';
     showToast(rescaled.name+' added to '+dest+dayLabel);
     showPage('today');
-  });
+  }, meal.notes);
 }
 
 // ── WEIGHT ────────────────────────────────────────────────────────────────────
