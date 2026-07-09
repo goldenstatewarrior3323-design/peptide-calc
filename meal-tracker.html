@@ -847,7 +847,13 @@ let zxingControls = null;
 let zxingTimeoutHint = null;
 
 // ── STORAGE ───────────────────────────────────────────────────────────────────
-const todayKey = () => new Date().toISOString().slice(0,10);
+// Local-date formatter — NEVER use toISOString().slice(0,10) for date keys, it converts
+// to UTC first and silently rolls the date forward for anyone west of UTC in the evening.
+function toDateKey(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+const todayKey = () => toDateKey(new Date());
 const getLog = () => { try { return JSON.parse(localStorage.getItem('mealLog3')||'{}'); } catch { return {}; } };
 const saveLog = l => localStorage.setItem('mealLog3', JSON.stringify(l));
 const getSaved = () => { try { return JSON.parse(localStorage.getItem('savedMeals3')||'[]'); } catch { return []; } };
@@ -1146,7 +1152,7 @@ function buildWeekSnapshot(){
   const days=[];
   for(let i=6;i>=0;i--){
     const d=new Date(today); d.setDate(today.getDate()-i);
-    const key=d.toISOString().slice(0,10);
+    const key=toDateKey(d);
     const meals=log[key]||{};
     const exercise=getExercise(key);
     let cal=0,protein=0,fiber=0,sodium=0,fat=0,carbs=0,iron=0;
@@ -1482,7 +1488,7 @@ function renderWeekRow() {
   let html='';
   for(let i=0;i<=6;i++){
     const d=new Date(sunday); d.setDate(sunday.getDate()+i);
-    const key=d.toISOString().slice(0,10);
+    const key=toDateKey(d);
     const isToday=key===todayKey();
     const isFuture=key>todayKey();
     const isSelected=key===selectedDateKey;
@@ -1492,7 +1498,7 @@ function renderWeekRow() {
     let circleStyle='';
     if(isSelected&&!isToday) circleStyle='border-color:#f59e0b;color:#d97706;outline:2px solid #f59e0b;';
     if(isFuture&&!isSelected) circleStyle='border-style:dashed;';
-    const isTomorrow = key === new Date(Date.now()+86400000).toISOString().slice(0,10);
+    const isTomorrow = key === toDateKey(new Date(Date.now()+86400000));
     html+=`<div class="week-day" onclick="selectDay('${key}')" style="cursor:pointer;">
       <div class="week-day-name" style="${isFuture?'color:#10b981;':''}">${isToday?'Today':isTomorrow?'Tmrw':names[d.getDay()]}</div>
       <div class="week-day-circle ${isToday?'today':''} ${logged?'logged':''}" style="${circleStyle}">${d.getDate()}${hasPrelog?'*':''}</div>
@@ -1681,7 +1687,7 @@ function renderToday() {
   const today2=new Date();
   for(let i=0;i<30;i++){
     const d=new Date(today2); d.setDate(today2.getDate()-i);
-    const k=d.toISOString().slice(0,10);
+    const k=toDateKey(d);
     if(log[k]&&MEAL_TYPES.some(mt=>(log[k][mt]||[]).length>0)) streak++;
     else if(i>0) break;
   }
@@ -2904,7 +2910,7 @@ function renderWeek(){
   const days=[];
   for(let i=0;i<=6;i++){
     const d=new Date(sunday); d.setDate(sunday.getDate()+i);
-    const key=d.toISOString().slice(0,10);
+    const key=toDateKey(d);
     const meals=log[key]||{};
     const exercise=getExercise(key);
     const suppLog=getSuppLog(key);
