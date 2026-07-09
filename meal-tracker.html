@@ -366,6 +366,14 @@
     <option value="Dinner">🌙 Dinner</option>
     <option value="Snacks">🍎 Snacks</option>
   </select>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 6px;">
+    <div style="font-size:15px;font-weight:800;">🥩 Meat Reference</div>
+    <button onclick="addNewMeatRef()" style="font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-light);border:none;border-radius:14px;padding:5px 12px;cursor:pointer;">+ Add Meat</button>
+  </div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Standardized to USDA 100g cooked-weight servings — same verified-anchor approach as your existing tracked foods. Tap "Verify" once per item to pull the real USDA match; after that, quick-add scales it in oz or servings.</div>
+  <div id="meat-ref-list"></div>
+
   <div id="saved-list"></div>
 </div>
 
@@ -992,7 +1000,7 @@ function showPage(id) {
   const navEl = document.getElementById('nav-'+id);
   if(navEl) navEl.classList.add('active');
   if(id==='today') renderToday();
-  if(id==='saved') renderSaved();
+  if(id==='saved'){ renderSaved(); renderMeatRefs(); }
   if(id==='weight') renderWeight();
   if(id==='week') renderWeek();
   if(id==='settings') renderSettings();
@@ -2896,6 +2904,151 @@ function saveMeal(){
 }
 
 // ── SAVED MEALS ───────────────────────────────────────────────────────────────
+// ── MEAT REFERENCE ───────────────────────────────────────────────────────────
+// Standardized 100g-cooked-weight quick-add entries for staple proteins, sourced from
+// live USDA FDC lookups (same api used for AI-meal cross-checking) rather than hardcoded
+// values — each entry is verified once, then reused like your other locked FDC anchors.
+const getMeatRefs = () => { try { return JSON.parse(localStorage.getItem('meatRefs_v1')||'null') || seedMeatRefs(); } catch { return seedMeatRefs(); } };
+const saveMeatRefs = (arr) => localStorage.setItem('meatRefs_v1', JSON.stringify(arr));
+
+function seedMeatRefs(){
+  const seed = [
+    { id:'tritip_roasted', label:'Tri Tip — Roasted', query:'beef bottom sirloin tri-tip roast roasted trimmed to 0 inch fat' },
+    { id:'tritip_grilled', label:'Tri Tip — Grilled', query:'beef bottom sirloin tri-tip roast broiled trimmed to 0 inch fat' },
+    { id:'tritip_smoked', label:'Tri Tip — Smoked', query:'beef bottom sirloin tri-tip roast roasted trimmed to 0 inch fat', note:'USDA has no distinct "smoked" entry — verify pulls the roasted match as the closest proxy. Flag this one for a manual sanity check.' },
+    { id:'eyeofround_roasted', label:'Eye of Round — Roasted', fdcId:23398, query:'beef round eye of round roast roasted select lean only trimmed to 0 inch fat' },
+    { id:'roundsteak_braised', label:'Round Steak — Braised', query:'beef round bottom round steak braised trimmed to 0 inch fat' },
+    { id:'chickenbreast', label:'Chicken Breast — Skinless, Grilled/Roasted', query:'chicken breast meat only cooked roasted' },
+    { id:'chickenthigh', label:'Chicken Thigh — Skinless, Roasted', query:'chicken thigh meat only cooked roasted' },
+    { id:'porkshoulder', label:'Pork Shoulder — Roasted', query:'pork fresh shoulder roasted' },
+  ].map(m => ({ ...m, verified:false, data:null, fdcDescription:null }));
+  saveMeatRefs(seed);
+  return seed;
+}
+
+async function lookupUSDAById(fdcId){
+  try {
+    const url = `https://api.nal.usda.gov/fdc/v1/food/${fdcId}?api_key=${USDA_FDC_KEY}`;
+    const res = await fetch(url);
+    const food = await res.json();
+    if(!food || !food.foodNutrients) return null;
+    const get = id => { const n = food.foodNutrients.find(x=>x.nutrient && x.nutrient.id===id); return n ? n.amount : 0; };
+    return {
+      description: food.description,
+      per100g: {
+        calories: get(USDA_NUTRIENT_IDS.calories), protein_g: get(USDA_NUTRIENT_IDS.protein),
+        fat_total_g: get(USDA_NUTRIENT_IDS.fat), carbs_total_g: get(USDA_NUTRIENT_IDS.carbs),
+        fiber_g: get(USDA_NUTRIENT_IDS.fiber), sugar_g: get(USDA_NUTRIENT_IDS.sugar),
+        calcium_mg: get(USDA_NUTRIENT_IDS.calcium), iron_mg: get(USDA_NUTRIENT_IDS.iron),
+        sodium_mg: get(USDA_NUTRIENT_IDS.sodium), potassium_mg: get(USDA_NUTRIENT_IDS.potassium),
+        cholesterol_mg: get(USDA_NUTRIENT_IDS.cholesterol), fat_saturated_g: get(USDA_NUTRIENT_IDS.satfat),
+        magnesium_mg: get(USDA_NUTRIENT_IDS.magnesium), vitamin_c_mg: get(USDA_NUTRIENT_IDS.vitaminc),
+      }
+    };
+  } catch(e){ console.error('USDA ID lookup failed:', e); return null; }
+}
+
+async function verifyMeatRef(id){
+  const refs = getMeatRefs();
+  const ref = refs.find(r=>r.id===id);
+  if(!ref) return;
+  showToast('Checking USDA FDC...');
+  const result = ref.fdcId ? await lookupUSDAById(ref.fdcId) : await lookupUSDA(ref.query);
+  if(!result){ showToast('USDA lookup failed — check connection and try again'); return; }
+  const confirmMsg = `USDA match for "${ref.label}":\n\n"${result.description}"\n\n${Math.round(result.per100g.calories)} cal · P${Math.round(result.per100g.protein_g)}g · F${Math.round(result.per100g.fat_total_g)}g per 100g\n\nUse this match?`;
+  if(!confirm(confirmMsg)){ showToast('Not saved — edit the search term and try again if needed'); return; }
+  ref.verified = true;
+  ref.data = result.per100g;
+  ref.fdcDescription = result.description;
+  saveMeatRefs(refs);
+  renderMeatRefs();
+  showToast(ref.label+' verified and locked');
+}
+
+function editMeatRefQuery(id){
+  const refs = getMeatRefs();
+  const ref = refs.find(r=>r.id===id);
+  if(!ref) return;
+  const newQuery = prompt('USDA search term for "'+ref.label+'":', ref.query);
+  if(newQuery === null || !newQuery.trim()) return;
+  ref.query = newQuery.trim();
+  ref.verified = false; ref.data = null; ref.fdcDescription = null;
+  saveMeatRefs(refs);
+  renderMeatRefs();
+  verifyMeatRef(id);
+}
+
+function addNewMeatRef(){
+  const label = prompt('Meat name (e.g. "Pork Chop — Grilled"):');
+  if(!label || !label.trim()) return;
+  const query = prompt('USDA search term to match against (e.g. "pork chop loin grilled trimmed to 0 inch fat"):', label);
+  if(query === null || !query.trim()) return;
+  const refs = getMeatRefs();
+  const id = 'custom_'+Date.now();
+  refs.push({ id, label:label.trim(), query:query.trim(), verified:false, data:null, fdcDescription:null });
+  saveMeatRefs(refs);
+  renderMeatRefs();
+  verifyMeatRef(id);
+}
+
+function deleteMeatRef(id){
+  if(!confirm('Remove this meat from the reference list?')) return;
+  saveMeatRefs(getMeatRefs().filter(r=>r.id!==id));
+  renderMeatRefs();
+}
+
+function quickAddMeat(id){
+  const ref = getMeatRefs().find(r=>r.id===id);
+  if(!ref || !ref.verified) return;
+  const base = {
+    name: ref.label+' (100g)',
+    calories: Math.round(ref.data.calories), protein_g: ref.data.protein_g, fat_total_g: ref.data.fat_total_g,
+    fat_saturated_g: ref.data.fat_saturated_g, fat_trans_g: 0, omega3_mg: 0,
+    carbs_total_g: ref.data.carbs_total_g, carbs_net_g: Math.max(0,(ref.data.carbs_total_g||0)-(ref.data.fiber_g||0)),
+    fiber_g: ref.data.fiber_g, sugar_g: ref.data.sugar_g, cholesterol_mg: ref.data.cholesterol_mg,
+    sodium_mg: ref.data.sodium_mg, potassium_mg: ref.data.potassium_mg, magnesium_mg: ref.data.magnesium_mg,
+    calcium_mg: ref.data.calcium_mg, iron_mg: ref.data.iron_mg, vitamin_c_mg: ref.data.vitamin_c_mg,
+    notes: 'USDA FDC verified: '+ref.fdcDescription,
+  };
+  const dest = document.getElementById('saved-meal-dest').value;
+  openServingsModal(base.name, 1, (servings) => {
+    const rescaled = scaleFromBase(base, servings);
+    const log=getLog(); const key=selectedDateKey;
+    if(!log[key]) log[key]={};
+    if(!log[key][dest]) log[key][dest]=[];
+    log[key][dest].push({...rescaled,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),id:Date.now()});
+    saveLog(log);
+    const dayLabel = key === todayKey() ? '' : ' ('+new Date(key+'T00:00:00').toLocaleDateString('en-US',{weekday:'long'})+')';
+    showToast(rescaled.name+' added to '+dest+dayLabel);
+    showPage('today');
+  }, base.notes);
+}
+
+function renderMeatRefs(){
+  const refs = getMeatRefs();
+  const el = document.getElementById('meat-ref-list');
+  if(!el) return;
+  el.innerHTML = refs.map(r => `
+    <div class="meal-card">
+      <div class="meal-card-header">
+        <div style="flex:1;">
+          <div class="meal-card-name">${r.label}</div>
+          ${r.verified
+            ? `<div class="meal-card-cals">${Math.round(r.data.calories)} cal · P:${Math.round(r.data.protein_g)}g · F:${Math.round(r.data.fat_total_g)}g /100g</div>
+               <div style="font-size:10px;color:var(--muted);font-style:italic;margin-top:2px;">${r.fdcDescription}</div>`
+            : `<div class="meal-card-cals" style="color:var(--muted);">${r.note ? r.note : 'Not yet verified'}</div>`}
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <button onclick="editMeatRefQuery('${r.id}')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:6px;" title="Edit search term">🔎</button>
+          <button onclick="deleteMeatRef('${r.id}')" style="background:none;border:none;color:#d1d5db;font-size:15px;cursor:pointer;padding:6px;" title="Delete">✕</button>
+          ${r.verified
+            ? `<button class="log-btn" onclick="quickAddMeat('${r.id}')">Quick Add</button>`
+            : `<button class="log-btn" style="background:var(--green-light);color:var(--green);" onclick="verifyMeatRef('${r.id}')">Verify</button>`}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
 function renderSaved(){
   const saved=getSaved();
   const el=document.getElementById('saved-list');
