@@ -670,9 +670,11 @@
 <!-- EXERCISE MODAL -->
 <div id="exercise-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:997;align-items:flex-end;justify-content:center;">
   <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;padding-bottom:40px;">
-    <div style="font-size:17px;font-weight:800;margin-bottom:14px;">Log Exercise</div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:14px;" id="exercise-modal-title">Log Exercise</div>
     <div class="input-label">Exercise Name</div>
-    <input class="field" type="text" id="ex-name" placeholder="e.g. Recumbent Bike, HIIT Weights" style="margin-bottom:10px;"/>
+    <select class="field" id="ex-name-select" onchange="handleExerciseSelectChange()" style="margin-bottom:10px;"></select>
+    <input class="field" type="text" id="ex-name-custom" placeholder="Enter exercise name" style="margin-bottom:10px;display:none;"/>
+    <input type="hidden" id="ex-name"/>
     <div class="input-label">Duration (minutes)</div>
     <input class="field" type="number" id="ex-duration" placeholder="e.g. 30" inputmode="numeric" style="margin-bottom:10px;"/>
     <div class="input-label">Calories Burned</div>
@@ -1665,7 +1667,7 @@ function renderToday() {
   if(exerciseEntries.length){
     exLabel.textContent = exerciseCals.toLocaleString()+' cal burned';
     exLabel.style.color = 'var(--green)';
-    exEntries.innerHTML = exerciseEntries.map((e,i)=>`<div class="exercise-entry"><div class="exercise-name">${e.name}${e.duration?' · '+e.duration+' min':''}</div><div class="exercise-cals">+${e.calories} cal</div><button class="exercise-del" onclick="deleteExercise(${i})">✕</button></div>`).join('');
+    exEntries.innerHTML = exerciseEntries.map((e,i)=>`<div class="exercise-entry"><div class="exercise-name">${e.name}${e.duration?' · '+e.duration+' min':''}</div><div class="exercise-cals">+${e.calories} cal</div><button class="exercise-del" onclick="editExercise(${i})" style="color:var(--blue);" title="Edit">✏️</button><button class="exercise-del" onclick="deleteExercise(${i})">✕</button></div>`).join('');
   } else {
     exLabel.textContent = 'Nothing logged';
     exLabel.style.color = '';
@@ -1834,16 +1836,60 @@ function resetSuppsToPreset() {
 }
 
 // ── EXERCISE ──────────────────────────────────────────────────────────────────
+let editingExerciseIndex = null; // null = logging new; number = editing that index in the day's array
+
+function populateExerciseDropdown(selectedName){
+  const sel = document.getElementById('ex-name-select');
+  const isCustom = selectedName && !EXERCISE_NAME_OPTIONS.includes(selectedName);
+  sel.innerHTML = EXERCISE_NAME_OPTIONS.map(n=>`<option value="${n}">${n}</option>`).join('')
+    + `<option value="__add_new__">➕ Add New Exercise…</option>`;
+  sel.value = isCustom ? '__add_new__' : (selectedName || EXERCISE_NAME_OPTIONS[0]);
+  handleExerciseSelectChange(isCustom ? selectedName : '');
+}
+
+function handleExerciseSelectChange(prefillCustom){
+  const sel = document.getElementById('ex-name-select');
+  const customInput = document.getElementById('ex-name-custom');
+  const hidden = document.getElementById('ex-name');
+  if(sel.value === '__add_new__'){
+    customInput.style.display = '';
+    if(prefillCustom) customInput.value = prefillCustom;
+    hidden.value = customInput.value;
+    customInput.oninput = () => { hidden.value = customInput.value; };
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    hidden.value = sel.value;
+  }
+}
+
 function showExerciseModal(){
   const m=document.getElementById('exercise-modal');
   m.style.display='flex';
-  document.getElementById('ex-name').value='';
+  document.getElementById('exercise-modal-title').textContent = 'Log Exercise';
+  editingExerciseIndex = null;
+  document.getElementById('ex-name-custom').value='';
   document.getElementById('ex-duration').value='';
   document.getElementById('ex-calories').value='';
+  populateExerciseDropdown();
+}
+
+function editExercise(idx){
+  const arr = getExercise(selectedDateKey);
+  const entry = arr[idx];
+  if(!entry) return;
+  editingExerciseIndex = idx;
+  const m=document.getElementById('exercise-modal');
+  m.style.display='flex';
+  document.getElementById('exercise-modal-title').textContent = 'Edit Exercise';
+  document.getElementById('ex-duration').value = entry.duration || '';
+  document.getElementById('ex-calories').value = entry.calories || '';
+  populateExerciseDropdown(entry.name);
 }
 
 function hideExerciseModal(){
   document.getElementById('exercise-modal').style.display='none';
+  editingExerciseIndex = null;
 }
 
 function saveExercise(){
@@ -1852,11 +1898,20 @@ function saveExercise(){
   const calories=parseInt(document.getElementById('ex-calories').value)||0;
   if(!name||!calories){ showToast('Enter name and calories burned'); return; }
   const arr=getExercise(selectedDateKey);
-  arr.push({name,duration,calories,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});
-  saveExercise2(arr, selectedDateKey);
-  hideExerciseModal();
-  renderToday();
-  showToast('Exercise logged — calories added to budget');
+  if(editingExerciseIndex !== null && arr[editingExerciseIndex]){
+    const prevTime = arr[editingExerciseIndex].time;
+    arr[editingExerciseIndex] = {name,duration,calories,time:prevTime};
+    saveExercise2(arr, selectedDateKey);
+    hideExerciseModal();
+    renderToday();
+    showToast('Exercise updated');
+  } else {
+    arr.push({name,duration,calories,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});
+    saveExercise2(arr, selectedDateKey);
+    hideExerciseModal();
+    renderToday();
+    showToast('Exercise logged — calories added to budget');
+  }
 }
 
 function deleteExercise(idx){
@@ -1941,6 +1996,16 @@ const ROUTINES = {
   }
 };
 
+// Unique exercise names pulled from all PPL routine days (both tracks), for the Log Exercise
+// dropdown — plus Treadmill Walking as the standard cardio option.
+const EXERCISE_NAME_OPTIONS = (() => {
+  const names = new Set(['Treadmill Walking']);
+  Object.values(ROUTINES).forEach(track => {
+    Object.values(track.days).forEach(list => list.forEach(ex => names.add(ex.name)));
+  });
+  return Array.from(names).sort();
+})();
+
 let currentRoutineTrack = 'machine';
 let currentRoutineDay = 'Push';
 
@@ -1992,10 +2057,13 @@ function renderRoutineExercises(){
 function logRoutineSession(){
   hideRoutineModal();
   const trackLabel = ROUTINES[currentRoutineTrack].label;
-  document.getElementById('ex-name').value = `${currentRoutineDay} Day (${trackLabel})`;
+  const routineName = `${currentRoutineDay} Day (${trackLabel})`;
+  editingExerciseIndex = null;
+  document.getElementById('exercise-modal-title').textContent = 'Log Exercise';
   document.getElementById('ex-duration').value = '';
   document.getElementById('ex-calories').value = '';
   document.getElementById('exercise-modal').style.display='flex';
+  populateExerciseDropdown(routineName);
 }
 
 // ── BARCODE SCANNER ───────────────────────────────────────────────────────────
