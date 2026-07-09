@@ -2957,6 +2957,7 @@ async function lookupUSDAById(fdcId){
   try {
     const url = `https://api.nal.usda.gov/fdc/v1/food/${fdcId}?api_key=${USDA_FDC_KEY}`;
     const res = await fetch(url);
+    if(!res.ok){ console.error('USDA ID lookup HTTP error:', res.status, fdcId); return null; }
     const food = await res.json();
     if(!food || !food.foodNutrients) return null;
     const get = id => { const n = food.foodNutrients.find(x=>x.nutrient && x.nutrient.id===id); return n ? n.amount : 0; };
@@ -2980,9 +2981,18 @@ async function verifyMeatRef(id){
   const ref = refs.find(r=>r.id===id);
   if(!ref) return;
   showToast('Checking USDA FDC...');
-  const result = ref.fdcId ? await lookupUSDAById(ref.fdcId) : await lookupUSDA(ref.query);
+  let result = ref.fdcId ? await lookupUSDAById(ref.fdcId) : await lookupUSDA(ref.query);
+  let usedFallback = false;
+  if(!result && ref.fdcId && ref.query){
+    // Direct FDC-ID lookup failed (stale ID, or a transient API issue) — fall back
+    // to the same text-search method every other entry already uses successfully.
+    showToast('Direct ID lookup failed — trying search instead...');
+    result = await lookupUSDA(ref.query);
+    usedFallback = true;
+  }
   if(!result){ showToast('USDA lookup failed — check connection and try again'); return; }
-  const confirmMsg = `USDA match for "${ref.label}":\n\n"${result.description}"\n\n${Math.round(result.per100g.calories)} cal · P${Math.round(result.per100g.protein_g)}g · F${Math.round(result.per100g.fat_total_g)}g per 100g\n\nUse this match?`;
+  const idNote = usedFallback ? '\n\n(Note: your pinned FDC ID didn\'t resolve — this came from a text search instead. Worth a manual check.)' : '';
+  const confirmMsg = `USDA match for "${ref.label}":\n\n"${result.description}"\n\n${Math.round(result.per100g.calories)} cal · P${Math.round(result.per100g.protein_g)}g · F${Math.round(result.per100g.fat_total_g)}g per 100g${idNote}\n\nUse this match?`;
   if(!confirm(confirmMsg)){ showToast('Not saved — edit the search term and try again if needed'); return; }
   ref.verified = true;
   ref.data = result.per100g;
