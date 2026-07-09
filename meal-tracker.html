@@ -368,7 +368,7 @@
   </select>
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 6px;">
-    <div style="font-size:15px;font-weight:800;">🥩 Meat Reference</div>
+    <div style="font-size:15px;font-weight:800;">🍽️ Food Reference</div>
     <button onclick="addNewMeatRef()" style="font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-light);border:none;border-radius:14px;padding:5px 12px;cursor:pointer;">+ Add Meat</button>
   </div>
   <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Standardized to USDA 100g cooked-weight servings — same verified-anchor approach as your existing tracked foods. Tap "Verify" once per item to pull the real USDA match; after that, quick-add scales it in oz or servings.</div>
@@ -2947,6 +2947,7 @@ function forceResetKnownBadMatches(refs){
 
 function migrateMeatRefQueries(refs){
   let changed = forceResetKnownBadMatches(refs);
+  if(ensureDefaultEntries(refs)) changed = true;
   refs.forEach(r => {
     if(!r.verified && CORRECTED_QUERIES[r.id] && r.query !== CORRECTED_QUERIES[r.id]){
       r.query = CORRECTED_QUERIES[r.id];
@@ -2957,19 +2958,37 @@ function migrateMeatRefQueries(refs){
   return refs;
 }
 
+const DEFAULT_FOOD_REFS = [
+  { id:'tritip_roasted', label:'Tri Tip — Roasted', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat' },
+  { id:'tritip_grilled', label:'Tri Tip — Grilled', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat', note:'USDA has no distinct grilled/broiled tri-tip entry — verify pulls the roasted match as the closest proxy.' },
+  { id:'tritip_smoked', label:'Tri Tip — Smoked', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat', note:'USDA has no distinct "smoked" entry — verify pulls the roasted match as the closest proxy. Flag this one for a manual sanity check.' },
+  { id:'eyeofround_roasted', label:'Eye of Round — Roasted', fdcId:23398, query:'beef round eye of round roast roasted select lean only trimmed to 0 inch fat' },
+  { id:'roundsteak_braised', label:'Round Steak — Braised', query:'beef round bottom round steak separable lean only braised trimmed to 0 inch fat' },
+  { id:'chickenbreast', label:'Chicken Breast — Skinless, Grilled/Roasted', query:'chicken breast meat only cooked roasted' },
+  { id:'chickenthigh', label:'Chicken Thigh — Skinless, Roasted', query:'chicken thigh meat only cooked roasted' },
+  { id:'porkshoulder', label:'Pork Shoulder — Roasted', query:'pork fresh shoulder roasted' },
+  { id:'russet_potato_baked', label:'Russet Potato — Baked (post-cook weight)', fdcId:11674, query:'potato baked flesh and skin', note:'Post-cook (baked) weight, not raw/pre-cook — matches your existing verified anchor.' },
+  { id:'basmati_rice_cooked', label:'Basmati Rice — Cooked (post-cook weight)', query:'rice white basmati cooked', note:'Post-cook weight. USDA may not carry a basmati-specific entry — check the matched description before confirming; a generic long-grain white rice match is close but not identical.' },
+];
+
 function seedMeatRefs(){
-  const seed = [
-    { id:'tritip_roasted', label:'Tri Tip — Roasted', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat' },
-    { id:'tritip_grilled', label:'Tri Tip — Grilled', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat', note:'USDA has no distinct grilled/broiled tri-tip entry — verify pulls the roasted match as the closest proxy.' },
-    { id:'tritip_smoked', label:'Tri Tip — Smoked', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat', note:'USDA has no distinct "smoked" entry — verify pulls the roasted match as the closest proxy. Flag this one for a manual sanity check.' },
-    { id:'eyeofround_roasted', label:'Eye of Round — Roasted', fdcId:23398, query:'beef round eye of round roast roasted select lean only trimmed to 0 inch fat' },
-    { id:'roundsteak_braised', label:'Round Steak — Braised', query:'beef round bottom round steak separable lean only braised trimmed to 0 inch fat' },
-    { id:'chickenbreast', label:'Chicken Breast — Skinless, Grilled/Roasted', query:'chicken breast meat only cooked roasted' },
-    { id:'chickenthigh', label:'Chicken Thigh — Skinless, Roasted', query:'chicken thigh meat only cooked roasted' },
-    { id:'porkshoulder', label:'Pork Shoulder — Roasted', query:'pork fresh shoulder roasted' },
-  ].map(m => ({ ...m, verified:false, data:null, fdcDescription:null }));
+  const seed = DEFAULT_FOOD_REFS.map(m => ({ ...m, verified:false, data:null, fdcDescription:null }));
   saveMeatRefs(seed);
   return seed;
+}
+
+// Appends any default entries missing from an existing (already-in-progress) list —
+// e.g. adding potato/rice after you've already verified several meats — without
+// touching anything you've already confirmed or added yourself.
+function ensureDefaultEntries(refs){
+  let changed = false;
+  DEFAULT_FOOD_REFS.forEach(def => {
+    if(!refs.some(r => r.id === def.id)){
+      refs.push({ ...def, verified:false, data:null, fdcDescription:null });
+      changed = true;
+    }
+  });
+  return changed;
 }
 
 async function lookupUSDAById(fdcId){
