@@ -2922,12 +2922,31 @@ const saveMeatRefs = (arr) => localStorage.setItem('meatRefs_v1', JSON.stringify
 // you've already confirmed, or added yourself, is left alone.
 const CORRECTED_QUERIES = {
   tritip_roasted: 'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat',
-  tritip_grilled: 'beef bottom sirloin tri-tip roast separable lean only broiled trimmed to 0 inch fat',
+  tritip_grilled: 'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat',
   tritip_smoked: 'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat',
   roundsteak_braised: 'beef round bottom round steak separable lean only braised trimmed to 0 inch fat',
 };
-function migrateMeatRefQueries(refs){
+
+// Targeted, one-time force-reset: tritip_grilled was confirmed against a RAW USDA entry
+// (154 cal/100g) instead of cooked (~193 cal/100g) — USDA has no grilled/broiled tri-tip
+// data, and the old "broiled" query matched a raw entry by keyword overlap instead of
+// failing cleanly. This is the one case where a *verified* entry needs correcting, because
+// the verification itself was against wrong data. Runs once; harmless to leave in afterward
+// since it no-ops once the description no longer says "raw".
+function forceResetKnownBadMatches(refs){
   let changed = false;
+  const bad = refs.find(r => r.id === 'tritip_grilled' && r.verified && r.fdcDescription && /\braw\b/i.test(r.fdcDescription));
+  if(bad){
+    bad.verified = false; bad.data = null; bad.fdcDescription = null;
+    bad.query = CORRECTED_QUERIES.tritip_grilled;
+    bad.note = 'Previous match was accidentally raw-meat data, not cooked — re-verify to fix.';
+    changed = true;
+  }
+  return changed;
+}
+
+function migrateMeatRefQueries(refs){
+  let changed = forceResetKnownBadMatches(refs);
   refs.forEach(r => {
     if(!r.verified && CORRECTED_QUERIES[r.id] && r.query !== CORRECTED_QUERIES[r.id]){
       r.query = CORRECTED_QUERIES[r.id];
@@ -2941,7 +2960,7 @@ function migrateMeatRefQueries(refs){
 function seedMeatRefs(){
   const seed = [
     { id:'tritip_roasted', label:'Tri Tip — Roasted', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat' },
-    { id:'tritip_grilled', label:'Tri Tip — Grilled', query:'beef bottom sirloin tri-tip roast separable lean only broiled trimmed to 0 inch fat' },
+    { id:'tritip_grilled', label:'Tri Tip — Grilled', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat', note:'USDA has no distinct grilled/broiled tri-tip entry — verify pulls the roasted match as the closest proxy.' },
     { id:'tritip_smoked', label:'Tri Tip — Smoked', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat', note:'USDA has no distinct "smoked" entry — verify pulls the roasted match as the closest proxy. Flag this one for a manual sanity check.' },
     { id:'eyeofround_roasted', label:'Eye of Round — Roasted', fdcId:23398, query:'beef round eye of round roast roasted select lean only trimmed to 0 inch fat' },
     { id:'roundsteak_braised', label:'Round Steak — Braised', query:'beef round bottom round steak separable lean only braised trimmed to 0 inch fat' },
