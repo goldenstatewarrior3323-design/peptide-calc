@@ -585,6 +585,10 @@
       <input type="number" id="servings-modal-input" min="0.25" step="0.25" style="font-size:28px;font-weight:800;width:70px;border:none;border-bottom:2px solid var(--blue);outline:none;color:var(--text);background:transparent;"/>
       <span style="font-size:16px;color:var(--text);">Serving(s) of</span>
     </div>
+    <div id="servings-modal-oz-row" style="display:none;align-items:baseline;gap:8px;margin-bottom:6px;">
+      <input type="number" id="servings-modal-oz-input" min="0.1" step="0.1" style="font-size:20px;font-weight:700;width:60px;border:none;border-bottom:2px solid var(--border);outline:none;color:var(--muted);background:transparent;"/>
+      <span style="font-size:14px;color:var(--muted);">oz</span>
+    </div>
     <div id="servings-modal-name" style="font-size:14px;color:var(--muted);margin-bottom:18px;"></div>
     <div style="display:flex;justify-content:flex-end;gap:20px;">
       <button onclick="closeServingsModal()" style="background:none;border:none;color:var(--blue);font-size:15px;font-weight:700;cursor:pointer;padding:8px;">Cancel</button>
@@ -1061,7 +1065,8 @@ ${snap.exercise.length ? snap.exercise.join('\n') : '(none logged)'}`;
 function openCoach(){
   const modal=document.getElementById('coach-modal');
   modal.style.display='flex';
-  document.getElementById('coach-body').innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--muted);"><div class="spinner"></div>Analyzing today against protocol...</div>`;
+  const view = getActiveViewLabel();
+  document.getElementById('coach-body').innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--muted);"><div class="spinner"></div>Analyzing ${view==='week'?'this week':'today'} against protocol...</div>`;
   runCoachAnalysis();
 }
 function closeCoach(){ document.getElementById('coach-modal').style.display='none'; }
@@ -1131,9 +1136,22 @@ Task:
 }
 
 async function runCoachAnalysis(){
-  const snap = buildDaySnapshot();
-  const dayText = snapshotToText(snap);
-  const prompt = `${getFullProtocolContext()}
+  const view = getActiveViewLabel();
+  let prompt;
+  if(view === 'week'){
+    const weekText = weekSnapshotToText(buildWeekSnapshot());
+    prompt = `${getFullProtocolContext()}
+
+(Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE} — flag if this seems stale.)
+
+This week's actual data:
+${weekText}
+
+Give Rich a short (4-6 sentence) direct coaching read on this week — call out real trends against his protocol (especially the protein floor and calorie floor as a floor not a ceiling), acknowledge what's on track, and give ONE concrete, specific action to carry into next week. No cheerleading. No restating numbers he can already see on screen — interpret them.`;
+  } else {
+    const snap = buildDaySnapshot();
+    const dayText = snapshotToText(snap);
+    prompt = `${getFullProtocolContext()}
 
 (Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE} — flag if this seems stale.)
 
@@ -1141,6 +1159,7 @@ Today's actual data:
 ${dayText}
 
 Give Rich a short (4-6 sentence) direct coaching read on today so far — call out real misses against his protocol (especially protein floor), acknowledge what's on track, and give ONE concrete, specific action for the rest of the day. No cheerleading. No restating numbers he can already see on screen — interpret them.`;
+  }
   try {
     const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
     const res = await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},
@@ -2684,9 +2703,48 @@ function scaleFromBase(base, servings){
   };
 }
 
+const OZ_PER_GRAM = 1/28.3495;
+
+// Pulls a per-1-serving gram weight out of a food name like "Tri Tip Steak, Cooked (100g)"
+// or "Whey Extreme Chocolate (1 scoop, ~30.4g)". Returns null if no weight is present —
+// not every logged item is weight-based (e.g. "1 tbsp" alone), so the oz field just hides then.
+function parseGramsPerServing(name){
+  const m = name.match(/[~≈]?\s*(\d+(?:\.\d+)?)\s*g\)?\s*$/i);
+  return m ? parseFloat(m[1]) : null;
+}
+
 function openServingsModal(name, currentServings, onConfirm){
   document.getElementById('servings-modal-input').value = currentServings;
   document.getElementById('servings-modal-name').textContent = name;
+
+  const gramsPerServing = parseGramsPerServing(name);
+  const ozRow = document.getElementById('servings-modal-oz-row');
+  const ozInput = document.getElementById('servings-modal-oz-input');
+  const servingsInput = document.getElementById('servings-modal-input');
+
+  // clear any previously-attached listeners by cloning (cheap way to avoid stacking handlers
+  // across repeated opens of this shared modal)
+  const freshServingsInput = servingsInput.cloneNode(true);
+  servingsInput.parentNode.replaceChild(freshServingsInput, servingsInput);
+  const freshOzInput = ozInput.cloneNode(true);
+  ozInput.parentNode.replaceChild(freshOzInput, ozInput);
+  freshServingsInput.value = currentServings;
+
+  if(gramsPerServing){
+    ozRow.style.display = 'flex';
+    freshOzInput.value = Math.round(currentServings * gramsPerServing * OZ_PER_GRAM * 10) / 10;
+    freshServingsInput.oninput = () => {
+      const s = parseFloat(freshServingsInput.value);
+      if(!isNaN(s)) freshOzInput.value = Math.round(s * gramsPerServing * OZ_PER_GRAM * 10) / 10;
+    };
+    freshOzInput.oninput = () => {
+      const oz = parseFloat(freshOzInput.value);
+      if(!isNaN(oz) && gramsPerServing>0) freshServingsInput.value = Math.round((oz/OZ_PER_GRAM/gramsPerServing) * 100) / 100;
+    };
+  } else {
+    ozRow.style.display = 'none';
+  }
+
   const confirmBtn = document.getElementById('servings-modal-confirm');
   confirmBtn.onclick = () => {
     const v = parseFloat(document.getElementById('servings-modal-input').value);
