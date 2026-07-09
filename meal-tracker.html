@@ -196,6 +196,14 @@
     </select>
   </div>
 </div>
+<div class="week-row-nav no-print" style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px 0;background:var(--white);">
+  <button onclick="dayStripPrev()" style="background:none;border:none;font-size:18px;color:var(--blue);cursor:pointer;padding:2px 8px;">‹</button>
+  <div style="text-align:center;">
+    <div id="day-strip-label" style="font-size:11px;font-weight:700;color:var(--muted);"></div>
+    <div id="day-strip-today-link" onclick="dayStripToday()" style="font-size:10px;color:var(--blue);cursor:pointer;display:none;">Jump to this week</div>
+  </div>
+  <button id="day-strip-next-btn" onclick="dayStripNext()" style="background:none;border:none;font-size:18px;color:var(--blue);cursor:pointer;padding:2px 8px;">›</button>
+</div>
 <div class="week-row" id="week-row"></div>
 
 <!-- TODAY -->
@@ -414,12 +422,21 @@
 
 <!-- WEEK -->
 <div class="page" id="page-week">
-  <div style="font-size:20px;font-weight:800;margin-bottom:12px;">This Week</div>
+  <div style="font-size:20px;font-weight:800;margin-bottom:12px;">Weekly Stats</div>
+  <div class="weight-card" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;">
+    <button onclick="weekPrev()" style="background:none;border:none;font-size:20px;color:var(--blue);cursor:pointer;padding:4px 10px;">‹</button>
+    <div style="text-align:center;">
+      <div id="week-range-label" style="font-weight:700;font-size:14px;"></div>
+      <div id="week-today-link" onclick="weekToday()" style="font-size:11px;color:var(--blue);cursor:pointer;display:none;margin-top:2px;">Jump to this week</div>
+    </div>
+    <button id="week-next-btn" onclick="weekNext()" style="background:none;border:none;font-size:20px;color:var(--blue);cursor:pointer;padding:4px 10px;">›</button>
+  </div>
   <div class="weight-card">
     <div class="card-title">Daily Calories vs Target</div>
     <div id="week-cal-chart"></div>
   </div>
   <div class="weight-card" id="week-averages"></div>
+  <div class="weight-card" id="week-loss-estimate"></div>
   <!-- MFP-style nutrient table -->
   <div class="weight-card" id="week-nutrients">
     <div class="card-title" style="margin-bottom:0;">Nutrients</div>
@@ -946,9 +963,9 @@ function getCalBase(dayType, person){
   return profile.calDefaults[dayType] ?? profile.calDefaults.rest;
 }
 
-function getCalTarget(dayTypeOverride) {
+function getCalTarget(dayTypeOverride, dayKey) {
   const dt = dayTypeOverride || getDayType();
-  const exerciseCals = getExercise().reduce((s,e)=>s+(e.calories||0),0);
+  const exerciseCals = getExercise(dayKey).reduce((s,e)=>s+(e.calories||0),0);
   return getCalBase(dt) + exerciseCals;
 }
 
@@ -1125,7 +1142,7 @@ function buildWeekSnapshot(){
   const log=getLog();
   const today=new Date();
   const mt=getMacroT();
-  const calTarget=getCalTarget();
+  const calTarget=getCalBase(getDayType());
   const days=[];
   for(let i=6;i>=0;i--){
     const d=new Date(today); d.setDate(today.getDate()-i);
@@ -1439,20 +1456,35 @@ function renderUsageMeter(){
   }
 }
 
+// ── CALENDAR WEEK HELPER (Sunday–Saturday, shared by day-strip and Week tab) ──
+function getWeekBounds(offsetWeeks){
+  const t = new Date();
+  const day = t.getDay(); // 0=Sun..6=Sat
+  const sunday = new Date(t); sunday.setDate(t.getDate() - day + offsetWeeks*7);
+  sunday.setHours(0,0,0,0);
+  const saturday = new Date(sunday); saturday.setDate(sunday.getDate()+6);
+  return { sunday, saturday };
+}
+
 let selectedDateKey = todayKey();
+
+let dayStripOffset = 0; // 0 = calendar week (Sun-Sat) containing today
+
+function dayStripPrev(){ dayStripOffset -= 1; renderWeekRow(); }
+function dayStripNext(){ if(dayStripOffset < 0) dayStripOffset += 1; renderWeekRow(); }
+function dayStripToday(){ dayStripOffset = 0; renderWeekRow(); }
 
 // ── WEEK CIRCLES ─────────────────────────────────────────────────────────────
 function renderWeekRow() {
   const log = getLog();
-  const today = new Date();
+  const { sunday } = getWeekBounds(dayStripOffset);
   const row = document.getElementById('week-row');
   let html='';
-  // Show 5 past days + today + tomorrow = 7 slots
-  for(let i=5;i>=-1;i--){
-    const d=new Date(today); d.setDate(today.getDate()-i);
+  for(let i=0;i<=6;i++){
+    const d=new Date(sunday); d.setDate(sunday.getDate()+i);
     const key=d.toISOString().slice(0,10);
-    const isToday=i===0;
-    const isFuture=i<0;
+    const isToday=key===todayKey();
+    const isFuture=key>todayKey();
     const isSelected=key===selectedDateKey;
     const logged=log[key]&&MEAL_TYPES.some(mt=>(log[key][mt]||[]).length>0);
     const hasPrelog=isFuture&&logged;
@@ -1460,12 +1492,23 @@ function renderWeekRow() {
     let circleStyle='';
     if(isSelected&&!isToday) circleStyle='border-color:#f59e0b;color:#d97706;outline:2px solid #f59e0b;';
     if(isFuture&&!isSelected) circleStyle='border-style:dashed;';
+    const isTomorrow = key === new Date(Date.now()+86400000).toISOString().slice(0,10);
     html+=`<div class="week-day" onclick="selectDay('${key}')" style="cursor:pointer;">
-      <div class="week-day-name" style="${isFuture?'color:#10b981;':''}">${isToday?'Today':isFuture?'Tmrw':names[d.getDay()]}</div>
+      <div class="week-day-name" style="${isFuture?'color:#10b981;':''}">${isToday?'Today':isTomorrow?'Tmrw':names[d.getDay()]}</div>
       <div class="week-day-circle ${isToday?'today':''} ${logged?'logged':''}" style="${circleStyle}">${d.getDate()}${hasPrelog?'*':''}</div>
     </div>`;
   }
   row.innerHTML=html;
+
+  const saturday = new Date(sunday); saturday.setDate(sunday.getDate()+6);
+  const fmt=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  document.getElementById('day-strip-label').textContent = dayStripOffset===0
+    ? 'This Week'
+    : `${fmt(sunday)} – ${fmt(saturday)}`;
+  document.getElementById('day-strip-today-link').style.display = dayStripOffset===0 ? 'none' : '';
+  const nextBtn = document.getElementById('day-strip-next-btn');
+  nextBtn.style.opacity = dayStripOffset===0 ? '0.35' : '1';
+  nextBtn.disabled = dayStripOffset===0;
 }
 
 function selectDay(key) {
@@ -1480,7 +1523,7 @@ function renderToday() {
   const key = selectedDateKey;
   const isToday = key === todayKey();
   const dayLog = log[key]||{};
-  const calTarget = getCalTarget();
+  const calTarget = getCalTarget(null, selectedDateKey);
   const exerciseEntries = getExercise(key);
   const exerciseCals = exerciseEntries.reduce((s,e)=>s+(e.calories||0),0);
 
@@ -1489,7 +1532,7 @@ function renderToday() {
   document.getElementById('day-type-sel').style.display = isToday ? '' : 'none';
 
   const isFuture = selectedDateKey > todayKey();
-  const canLog = isToday || isFuture;
+  const canLog = true; // past days editable now — fixes mislogged historical entries
   // Header
   const displayDate = isToday
     ? new Date().toLocaleDateString('en-US',{weekday:'long'})
@@ -1802,16 +1845,16 @@ function saveExercise(){
   const duration=parseInt(document.getElementById('ex-duration').value)||0;
   const calories=parseInt(document.getElementById('ex-calories').value)||0;
   if(!name||!calories){ showToast('Enter name and calories burned'); return; }
-  const arr=getExercise();
+  const arr=getExercise(selectedDateKey);
   arr.push({name,duration,calories,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});
-  saveExercise2(arr);
+  saveExercise2(arr, selectedDateKey);
   hideExerciseModal();
   renderToday();
   showToast('Exercise logged — calories added to budget');
 }
 
 function deleteExercise(idx){
-  const arr=getExercise(); arr.splice(idx,1); saveExercise2(arr);
+  const arr=getExercise(selectedDateKey); arr.splice(idx,1); saveExercise2(arr, selectedDateKey);
   renderToday();
 }
 
@@ -2847,13 +2890,20 @@ function logWeight(){
 }
 
 // ── WEEK ──────────────────────────────────────────────────────────────────────
+let weekOffset = 0; // 0 = calendar week (Sun-Sat) containing today; -1 = previous calendar week; etc.
+
+function weekPrev(){ weekOffset -= 1; renderWeek(); }
+function weekNext(){ if(weekOffset < 0) weekOffset += 1; renderWeek(); }
+function weekToday(){ weekOffset = 0; renderWeek(); }
+
 function renderWeek(){
   const log=getLog();
-  const today=new Date();
-  const calTarget=getCalTarget();
+  const { sunday, saturday } = getWeekBounds(weekOffset);
+  const dt=getDayType();
+  const calBase=getCalBase(dt);
   const days=[];
-  for(let i=6;i>=0;i--){
-    const d=new Date(today); d.setDate(today.getDate()-i);
+  for(let i=0;i<=6;i++){
+    const d=new Date(sunday); d.setDate(sunday.getDate()+i);
     const key=d.toISOString().slice(0,10);
     const meals=log[key]||{};
     const exercise=getExercise(key);
@@ -2868,19 +2918,29 @@ function renderWeek(){
     }));
     exCals=exercise.reduce((s,e)=>s+(e.calories||0),0);
     const suppTaken=supps.filter(s=>suppLog[s.id]).length;
-    days.push({label:d.toLocaleDateString('en-US',{weekday:'short'}).slice(0,2),
+    days.push({key,label:d.toLocaleDateString('en-US',{weekday:'short'}).slice(0,2),
       cal:Math.round(cal),protein:Math.round(protein),fiber:Math.round(fiber),
       sodium:Math.round(sodium),potassium:Math.round(potassium),cholesterol:Math.round(cholesterol),
       fat:Math.round(fat),satfat:Math.round(satfat),sugar:Math.round(sugar),
       vitc:Math.round(vitc),calcium:Math.round(calcium),iron:Math.round(iron),carbs:Math.round(carbs),
-      exCals,suppTaken,suppTotal:supps.length,hasData:cal>0});
+      exCals,calTarget:calBase+exCals,suppTaken,suppTotal:supps.length,hasData:cal>0});
   }
 
-  const maxCal=Math.max(...days.map(d=>d.cal),calTarget,100);
+  // nav label + controls
+  const fmt=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  document.getElementById('week-range-label').textContent = weekOffset===0
+    ? `This Week (${fmt(sunday)} – ${fmt(saturday)})`
+    : `${fmt(sunday)} – ${fmt(saturday)}`;
+  document.getElementById('week-today-link').style.display = weekOffset===0 ? 'none' : '';
+  document.getElementById('week-next-btn').style.opacity = weekOffset===0 ? '0.35' : '1';
+  document.getElementById('week-next-btn').style.cursor = weekOffset===0 ? 'default' : 'pointer';
+  document.getElementById('week-next-btn').disabled = weekOffset===0;
+
+  const maxCal=Math.max(...days.map(d=>Math.max(d.cal,d.calTarget)),100);
   document.getElementById('week-cal-chart').innerHTML=days.map(d=>`
     <div class="week-cal-row">
       <div class="wdr-day">${d.label}</div>
-      <div class="wdr-bar-wrap"><div class="wdr-bar-fill" style="width:${d.hasData?(d.cal/maxCal*100).toFixed(0):0}%;background:${d.cal>calTarget?'var(--red)':d.hasData?'var(--blue)':'var(--border)'}"></div></div>
+      <div class="wdr-bar-wrap"><div class="wdr-bar-fill" style="width:${d.hasData?(d.cal/maxCal*100).toFixed(0):0}%;background:${d.cal>d.calTarget?'var(--red)':d.hasData?'var(--blue)':'var(--border)'}"></div></div>
       <div class="wdr-cals">${d.hasData?d.cal.toLocaleString():'-'}</div>
     </div>`).join('');
 
@@ -2890,6 +2950,7 @@ function renderWeek(){
     document.getElementById('week-nutrient-rows').innerHTML='<div class="empty" style="padding:16px 0;">No data yet</div>';
     document.getElementById('week-exercise-summary').innerHTML='';
     document.getElementById('week-flags').innerHTML='';
+    document.getElementById('week-loss-estimate').innerHTML='';
     return;
   }
 
@@ -2898,6 +2959,7 @@ function renderWeek(){
   const avgCal=avg(logged.map(d=>d.cal));
   const avgProt=avg(logged.map(d=>d.protein));
   const avgFiber=avg(logged.map(d=>d.fiber));
+  const calTarget=calBase;
   const avgSodium=avg(logged.map(d=>d.sodium));
   const avgPotassium=avg(logged.map(d=>d.potassium));
   const avgCholesterol=avg(logged.map(d=>d.cholesterol));
@@ -2974,6 +3036,37 @@ function renderWeek(){
       ${avgCal<=calTarget?'<div class="flag flag-green">✅ Calories in range</div>':'<div class="flag flag-red">⚠️ Calories over target</div>'}
       ${totalExCals>0?`<div class="flag flag-green">🏋️ ${totalExCals} cal burned</div>`:''}
       ${suppDays>=5?`<div class="flag flag-green">💊 Supplements ${suppDays}/7 days</div>`:suppDays>0?`<div class="flag flag-yellow">💊 Supplements ${suppDays}/7 days</div>`:''}
+    </div>`;
+
+  // ── ESTIMATED WEEKLY CHANGE ──────────────────────────────────────────────
+  // Rough estimate only — the scale is ground truth, this is a leading indicator.
+  // TDEE via Mifflin-St Jeor (sedentary ×1.2), same formula the app uses for calorie targets.
+  const person = getCurrentPerson();
+  const goal = PERSON_GOALS[person] || PERSON_GOALS.rich;
+  const weights = getWeights();
+  const currentWeight = weights.length ? weights[0].weight : getStartWeight(person);
+  const { tdee } = calcCalTarget(currentWeight, person);
+  const avgExCalsPerDay = Math.round(totalExCals / 7);
+  const netAvgCal = avgCal - avgExCalsPerDay; // food eaten minus exercise burned
+  const dailyDeficit = tdee - netAvgCal; // positive = deficit (loss), negative = surplus (gain)
+  const weeklyLbChange = dailyDeficit * 7 / 3500;
+  const isLossGoal = goal.direction === 'loss';
+  const changeIsExpectedDirection = isLossGoal ? weeklyLbChange > 0 : weeklyLbChange < 0;
+  const absLb = Math.abs(weeklyLbChange).toFixed(1);
+  const directionLabel = weeklyLbChange > 0 ? 'loss' : weeklyLbChange < 0 ? 'gain' : 'no change';
+
+  document.getElementById('week-loss-estimate').innerHTML = `
+    <div class="card-title">📉 Estimated Weekly Change</div>
+    <div style="font-size:28px;font-weight:800;color:${changeIsExpectedDirection?'var(--green)':'var(--red)'};margin:6px 0 2px;">
+      ${weeklyLbChange===0?'—':(weeklyLbChange>0?'-':'+')+absLb+' lb'}
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">estimated ${directionLabel} this week, based on logged intake vs estimated maintenance</div>
+    ${nr('Estimated maintenance (TDEE)',tdee.toLocaleString()+' cal/day')}
+    ${nr('Avg food eaten',avgCal.toLocaleString()+' cal/day')}
+    ${nr('Avg exercise burned',avgExCalsPerDay.toLocaleString()+' cal/day')}
+    ${nr('Net daily deficit',(dailyDeficit>0?'-':'+')+Math.abs(dailyDeficit).toLocaleString()+' cal')}
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;">
+      Rough estimate — TDEE uses a sedentary-baseline formula (Mifflin-St Jeor ×1.2) off your most recent logged weight (${currentWeight.toLocaleString()} lb), not a metabolic test. Actual results vary with water weight, adherence gaps, and metabolic adaptation. Your scale trend is the real number — use this as a leading indicator, not a promise.
     </div>`;
 }
 
