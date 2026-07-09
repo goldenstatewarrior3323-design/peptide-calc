@@ -2908,16 +2908,43 @@ function saveMeal(){
 // Standardized 100g-cooked-weight quick-add entries for staple proteins, sourced from
 // live USDA FDC lookups (same api used for AI-meal cross-checking) rather than hardcoded
 // values — each entry is verified once, then reused like your other locked FDC anchors.
-const getMeatRefs = () => { try { return JSON.parse(localStorage.getItem('meatRefs_v1')||'null') || seedMeatRefs(); } catch { return seedMeatRefs(); } };
+const getMeatRefs = () => {
+  let refs;
+  try { refs = JSON.parse(localStorage.getItem('meatRefs_v1')||'null') || seedMeatRefs(); }
+  catch { refs = seedMeatRefs(); }
+  return migrateMeatRefQueries(refs);
+};
 const saveMeatRefs = (arr) => localStorage.setItem('meatRefs_v1', JSON.stringify(arr));
+
+// One-time correction: the original tri-tip/round-steak seed queries matched USDA's
+// "separable lean AND fat" entries instead of "lean only" — inconsistent with the
+// Eye of Round anchor's standard. Only touches entries still unverified; anything
+// you've already confirmed, or added yourself, is left alone.
+const CORRECTED_QUERIES = {
+  tritip_roasted: 'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat',
+  tritip_grilled: 'beef bottom sirloin tri-tip roast separable lean only broiled trimmed to 0 inch fat',
+  tritip_smoked: 'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat',
+  roundsteak_braised: 'beef round bottom round steak separable lean only braised trimmed to 0 inch fat',
+};
+function migrateMeatRefQueries(refs){
+  let changed = false;
+  refs.forEach(r => {
+    if(!r.verified && CORRECTED_QUERIES[r.id] && r.query !== CORRECTED_QUERIES[r.id]){
+      r.query = CORRECTED_QUERIES[r.id];
+      changed = true;
+    }
+  });
+  if(changed) saveMeatRefs(refs);
+  return refs;
+}
 
 function seedMeatRefs(){
   const seed = [
-    { id:'tritip_roasted', label:'Tri Tip — Roasted', query:'beef bottom sirloin tri-tip roast roasted trimmed to 0 inch fat' },
-    { id:'tritip_grilled', label:'Tri Tip — Grilled', query:'beef bottom sirloin tri-tip roast broiled trimmed to 0 inch fat' },
-    { id:'tritip_smoked', label:'Tri Tip — Smoked', query:'beef bottom sirloin tri-tip roast roasted trimmed to 0 inch fat', note:'USDA has no distinct "smoked" entry — verify pulls the roasted match as the closest proxy. Flag this one for a manual sanity check.' },
+    { id:'tritip_roasted', label:'Tri Tip — Roasted', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat' },
+    { id:'tritip_grilled', label:'Tri Tip — Grilled', query:'beef bottom sirloin tri-tip roast separable lean only broiled trimmed to 0 inch fat' },
+    { id:'tritip_smoked', label:'Tri Tip — Smoked', query:'beef bottom sirloin tri-tip roast separable lean only roasted trimmed to 0 inch fat', note:'USDA has no distinct "smoked" entry — verify pulls the roasted match as the closest proxy. Flag this one for a manual sanity check.' },
     { id:'eyeofround_roasted', label:'Eye of Round — Roasted', fdcId:23398, query:'beef round eye of round roast roasted select lean only trimmed to 0 inch fat' },
-    { id:'roundsteak_braised', label:'Round Steak — Braised', query:'beef round bottom round steak braised trimmed to 0 inch fat' },
+    { id:'roundsteak_braised', label:'Round Steak — Braised', query:'beef round bottom round steak separable lean only braised trimmed to 0 inch fat' },
     { id:'chickenbreast', label:'Chicken Breast — Skinless, Grilled/Roasted', query:'chicken breast meat only cooked roasted' },
     { id:'chickenthigh', label:'Chicken Thigh — Skinless, Roasted', query:'chicken thigh meat only cooked roasted' },
     { id:'porkshoulder', label:'Pork Shoulder — Roasted', query:'pork fresh shoulder roasted' },
