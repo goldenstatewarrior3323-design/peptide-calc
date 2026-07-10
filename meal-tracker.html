@@ -1740,7 +1740,10 @@ function renderToday() {
             ${entries.length?`<div class="meal-card-cals">${Math.round(mC)} cal · NC ${Math.round(mNC)}g F ${Math.round(mF)}g P ${Math.round(mP)}g</div>`:'<div class="meal-card-cals">Nothing logged</div>'}
           </div>
         </div>
-        ${canLog?`<button class="log-btn" onclick="quickLog('${mt}')">Log</button>`:''}
+        <div style="display:flex;gap:6px;">
+          ${canLog?`<button class="log-btn" style="background:var(--bg);color:var(--muted);" onclick="copyMealFromPreviousDay('${mt}')" title="Copy previous day's ${mt}">📋</button>`:''}
+          ${canLog?`<button class="log-btn" onclick="quickLog('${mt}')">Log</button>`:''}
+        </div>
       </div>
       ${entries.length?`<div class="meal-entries">${entries.map((m,i)=>`
         <div class="meal-entry" onclick="toggleEntryDetail('${mt}',${i})" style="cursor:pointer;flex-direction:column;align-items:stretch;">
@@ -1844,6 +1847,29 @@ function goToToday(){
 function quickLog(mt){
   setMealType(mt, null);
   showPage('add');
+}
+
+function copyMealFromPreviousDay(mealType){
+  const prevDate = new Date(selectedDateKey+'T12:00:00'); // noon avoids any DST edge-case rolling the date
+  prevDate.setDate(prevDate.getDate()-1);
+  const prevKey = toDateKey(prevDate);
+  const log = getLog();
+  const prevItems = (log[prevKey] && log[prevKey][mealType]) || [];
+  if(!prevItems.length){
+    showToast('Nothing logged for '+mealType+' on '+prevDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+    return;
+  }
+  if(!log[selectedDateKey]) log[selectedDateKey] = {};
+  if(!log[selectedDateKey][mealType]) log[selectedDateKey][mealType] = [];
+  const copies = prevItems.map((item,i) => ({
+    ...item,
+    id: Date.now()+i,
+    time: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),
+  }));
+  log[selectedDateKey][mealType].push(...copies);
+  saveLog(log);
+  renderToday();
+  showToast(prevItems.length+' item'+(prevItems.length>1?'s':'')+' copied from yesterday\'s '+mealType);
 }
 
 function deleteEntry(mt, idx){
