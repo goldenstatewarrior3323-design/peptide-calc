@@ -455,6 +455,7 @@
   </div>
   <div class="weight-card" id="week-exercise-summary"></div>
   <div class="weight-card" id="week-flags"></div>
+  <div class="weight-card" id="week-pin-history"></div>
 </div>
 
 <div class="page" id="page-settings">
@@ -944,6 +945,36 @@ const PERSON_DEMOGRAPHICS = {
 // deficit/"lbs lost" language or surplus/"muscle building" language, and what rate options
 // the static reference table offers. Noah is a surplus goal; treating him with loss-framing
 // was a real bug, not just a copy nitpick.
+// ── PIN LOG CROSS-CONTEXT (shared localStorage with the Peptide Calculator app) ──
+// Same GitHub Pages origin, so no sync mechanism needed — this reads the same 'pinLog'
+// key the Peptide Calculator writes to. Used only to give Coach richer context (dose
+// timing + side-effect/efficacy notes alongside nutrition); Coach must never use this
+// to suggest a dose change — titration stays a clinical decision between Rich and
+// Claudia, per protocol. This function only surfaces what's already logged for
+// pattern-awareness, nothing more.
+const getPinLog = () => { try { return JSON.parse(localStorage.getItem('pinLog')||'[]'); } catch { return []; } };
+
+const PERSON_DISPLAY_NAME = { rich:'Rich', claudia:'Claudia', dom:'Dom', noah:'Noah' };
+
+function getRecentPinLogForCoach(days){
+  const person = getCurrentPerson();
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - (days || 14));
+  const cutoffKey = toDateKey(cutoff);
+  return getPinLog()
+    .filter(e => e.person && e.person.toLowerCase() === person.toLowerCase() && e.date >= cutoffKey)
+    .sort((a,b) => (a.date+((a.time)||'')) < (b.date+((b.time)||'')) ? 1 : -1);
+}
+
+function pinLogToText(entries){
+  if(!entries.length) return '(no pin log entries in this window)';
+  const unit = p => p === 'KPV' ? 'mcg' : 'mg';
+  return entries.map(e => {
+    const bits = [`${e.date}${e.time?' '+e.time:''}`, `${e.peptide} ${e.dose}${unit(e.peptide)}`];
+    if(e.notes) bits.push(`notes: "${e.notes}"`);
+    return '- ' + bits.join(' — ');
+  }).join('\n');
+}
+
 const PERSON_GOALS = {
   rich:    { direction:'loss', minRate:1.0, maxRate:2.5, defaultRate:2.5 },
   claudia: { direction:'loss', minRate:1.0, maxRate:2.0, defaultRate:1.5 },
@@ -1145,6 +1176,14 @@ Task:
 
 async function runCoachAnalysis(){
   const view = getActiveViewLabel();
+  const personName = PERSON_DISPLAY_NAME[getCurrentPerson()] || 'the person';
+  const pinText = pinLogToText(getRecentPinLogForCoach(14));
+  const pinGuardrail = `
+
+Recent pin log (last 14 days, dose + any side-effect/efficacy notes logged):
+${pinText}
+
+This pin data is for pattern-awareness only — e.g. noting if symptoms or adherence dips cluster around dose days. Never suggest starting, holding, or changing a dose; titration is a clinical decision between Rich and Claudia (RN), not something to recommend here.`;
   let prompt;
   if(view === 'week'){
     const weekText = weekSnapshotToText(buildWeekSnapshot());
@@ -1154,8 +1193,9 @@ async function runCoachAnalysis(){
 
 This week's actual data:
 ${weekText}
+${pinGuardrail}
 
-Give Rich a short (4-6 sentence) direct coaching read on this week — call out real trends against his protocol (especially the protein floor and calorie floor as a floor not a ceiling), acknowledge what's on track, and give ONE concrete, specific action to carry into next week. No cheerleading. No restating numbers he can already see on screen — interpret them.`;
+Give ${personName} a short (4-6 sentence) direct coaching read on this week — call out real trends against protocol (especially the protein floor and calorie floor as a floor not a ceiling), acknowledge what's on track, note any pattern worth flagging between pin days and nutrition/symptoms if one is visible, and give ONE concrete, specific action to carry into next week. No cheerleading. No restating numbers already visible on screen — interpret them.`;
   } else {
     const snap = buildDaySnapshot();
     const dayText = snapshotToText(snap);
@@ -1165,8 +1205,9 @@ Give Rich a short (4-6 sentence) direct coaching read on this week — call out 
 
 Today's actual data:
 ${dayText}
+${pinGuardrail}
 
-Give Rich a short (4-6 sentence) direct coaching read on today so far — call out real misses against his protocol (especially protein floor), acknowledge what's on track, and give ONE concrete, specific action for the rest of the day. No cheerleading. No restating numbers he can already see on screen — interpret them.`;
+Give ${personName} a short (4-6 sentence) direct coaching read on today so far — call out real misses against protocol (especially protein floor), acknowledge what's on track, note if today's pin/notes context is relevant, and give ONE concrete, specific action for the rest of the day. No cheerleading. No restating numbers already visible on screen — interpret them.`;
   }
   try {
     const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
@@ -3364,6 +3405,28 @@ function renderWeek(){
       <div class="wdr-bar-wrap"><div class="wdr-bar-fill" style="width:${d.hasData?(d.cal/maxCal*100).toFixed(0):0}%;background:${d.cal>d.calTarget?'var(--red)':d.hasData?'var(--blue)':'var(--border)'}"></div></div>
       <div class="wdr-cals">${d.hasData?d.cal.toLocaleString():'-'}</div>
     </div>`).join('');
+
+  // ── PIN HISTORY (this week) ──────────────────────────────────────────────
+  // Reads the Peptide Calculator's shared 'pinLog' key — same origin, no sync needed.
+  // Runs before the "no food logged" early-return below since pin data is independent
+  // of whether meals were logged that week.
+  const pinPerson = getCurrentPerson();
+  const weekPins = getPinLog()
+    .filter(e => e.person && e.person.toLowerCase() === pinPerson.toLowerCase() && e.date >= toDateKey(sunday) && e.date <= toDateKey(saturday))
+    .sort((a,b) => (a.date+((a.time)||'')) < (b.date+((b.time)||'')) ? 1 : -1);
+  const pinHistoryEl = document.getElementById('week-pin-history');
+  if(pinHistoryEl){
+    if(!weekPins.length){
+      pinHistoryEl.innerHTML = `<div class="card-title">💉 Pins This Week</div><div style="font-size:12px;color:var(--muted);">No pins logged in this week's range.</div>`;
+    } else {
+      const unit = p => p === 'KPV' ? 'mcg' : 'mg';
+      pinHistoryEl.innerHTML = `<div class="card-title">💉 Pins This Week</div>` + weekPins.map(e => `
+        <div style="padding:8px 0;border-top:1px solid var(--border);">
+          <div style="font-size:13px;font-weight:700;">${e.date}${e.time?' '+e.time:''} — ${e.peptide} ${e.dose}${unit(e.peptide)}</div>
+          ${e.notes ? `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:2px;">📝 ${e.notes}</div>` : ''}
+        </div>`).join('');
+    }
+  }
 
   const logged=days.filter(d=>d.hasData);
   if(!logged.length){
