@@ -1764,7 +1764,50 @@ function renderToday() {
   if(exerciseEntries.length){
     exLabel.textContent = exerciseCals.toLocaleString()+' cal burned';
     exLabel.style.color = 'var(--green)';
-    exEntries.innerHTML = exerciseEntries.map((e,i)=>`<div class="exercise-entry"><div class="exercise-name">${e.name}${e.duration?' · '+e.duration+' min':''}</div><div class="exercise-cals">+${e.calories} cal</div><button class="exercise-del" onclick="editExercise(${i})" style="color:var(--blue);" title="Edit">✏️</button><button class="exercise-del" onclick="deleteExercise(${i})">✕</button></div>`).join('');
+    exEntries.innerHTML = exerciseEntries.map((e,i)=>{
+      const routine = findRoutineForEntry(e.name);
+      const isExpanded = expandedExerciseIds.has(i);
+      const summaryRow = `<div class="exercise-entry">
+        <div class="exercise-name" onclick="toggleExerciseExpand(${i})" style="cursor:pointer;">${isExpanded?'▲':'▼'} ${e.name}${e.duration?' · '+e.duration+' min':''}</div>
+        <div class="exercise-cals">+${e.calories} cal</div>
+        <button class="exercise-del" onclick="editExercise(${i})" style="color:var(--blue);" title="Edit">✏️</button>
+        <button class="exercise-del" onclick="deleteExercise(${i})">✕</button>
+      </div>`;
+      if(!isExpanded) return summaryRow;
+
+      const exerciseRows = routine ? routine.exercises.map((ex, exIdx) => {
+        const target = getEffectiveTarget(routine.trackKey, routine.day, ex);
+        const logged = e.exerciseLog && e.exerciseLog[ex.name];
+        // Backward-compat: earlier version stored a single free-text string per exercise.
+        // Treat any pre-existing string as legacy — show it as a reference note, don't try to parse it.
+        const legacyText = typeof logged === 'string' ? logged : '';
+        const loggedObj = (logged && typeof logged === 'object') ? logged : {};
+        return `
+        <div style="padding:7px 0;border-top:1px solid var(--border);">
+          <div style="font-size:12px;font-weight:600;">${ex.name}${ex.caution?' ⚠️':''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+            Target: ${target.sets} sets × ${target.reps}
+            <span onclick="editRoutineTarget('${routine.trackKey}','${routine.day}','${ex.name.replace(/'/g,"\\'")}')" style="cursor:pointer;color:var(--blue);">✏️</span>
+          </div>
+          ${legacyText ? `<div style="font-size:11px;color:var(--muted);font-style:italic;margin-bottom:4px;">Previously logged: "${legacyText}"</div>` : ''}
+          <div style="display:flex;gap:6px;">
+            <input class="field" id="ex-log-sets-${i}-${exIdx}" placeholder="Sets" inputmode="numeric" style="font-size:12px;padding:6px 8px;flex:1;" value="${loggedObj.sets||''}"/>
+            <input class="field" id="ex-log-reps-${i}-${exIdx}" placeholder="Reps" style="font-size:12px;padding:6px 8px;flex:1;" value="${loggedObj.reps||''}"/>
+            <input class="field" id="ex-log-weight-${i}-${exIdx}" placeholder="Weight (lb)" inputmode="decimal" style="font-size:12px;padding:6px 8px;flex:1;" value="${loggedObj.weight||''}"/>
+          </div>
+        </div>`;
+      }).join('') : '';
+
+      return `<div style="padding:10px 0 12px;border-top:1px solid var(--border);background:var(--bg);margin:0 -14px;padding-left:14px;padding-right:14px;">
+        ${summaryRow}
+        ${routine ? `<div style="font-size:11px;color:var(--muted);margin:8px 0 2px;">${routine.day} Day (${routine.trackLabel}) — log sets, reps, and weight:</div>${exerciseRows}` : ''}
+        <div style="margin-top:10px;">
+          <div class="input-label" style="margin-bottom:4px;">Notes</div>
+          <textarea class="field" id="ex-notes-${i}" placeholder="How the session felt, anything worth tracking" style="min-height:50px;resize:vertical;font-size:12px;">${e.notes||''}</textarea>
+        </div>
+        <button onclick="saveExerciseWorkoutLog(${i})" style="width:100%;margin-top:8px;padding:8px;background:var(--green);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Save Workout Log</button>
+      </div>`;
+    }).join('');
   } else {
     exLabel.textContent = 'Nothing logged';
     exLabel.style.color = '';
@@ -2097,6 +2140,81 @@ const EXERCISE_NAME_OPTIONS = (() => {
   });
   return Array.from(names).sort();
 })();
+
+// Matches a logged exercise entry's name (e.g. "Push Day (Machine + Dumbbell)") back to its
+// routine exercise list, so the entry can be expanded to show what's actually in that day.
+function findRoutineForEntry(name){
+  for(const trackKey of Object.keys(ROUTINES)){
+    const track = ROUTINES[trackKey];
+    for(const day of Object.keys(track.days)){
+      if(name === `${day} Day (${track.label})`) return { trackKey, day, trackLabel: track.label, exercises: track.days[day] };
+    }
+  }
+  return null;
+}
+
+// Per-exercise target overrides — lets sets/reps be permanently adjusted from the built-in
+// defaults (e.g. if your actual programming has moved on from the original prescription).
+// Keyed by trackKey|day|exercise name, stored flat, applies to every future view of that slot.
+const getRoutineTargetOverrides = () => { try { return JSON.parse(localStorage.getItem('routineTargetOverrides')||'{}'); } catch { return {}; } };
+const saveRoutineTargetOverrides = (o) => localStorage.setItem('routineTargetOverrides', JSON.stringify(o));
+
+function getEffectiveTarget(trackKey, day, ex){
+  const overrides = getRoutineTargetOverrides();
+  const key = `${trackKey}|${day}|${ex.name}`;
+  const o = overrides[key];
+  return { sets: o?.sets ?? ex.sets, reps: o?.reps ?? ex.reps };
+}
+
+function editRoutineTarget(trackKey, day, exName){
+  const overrides = getRoutineTargetOverrides();
+  const key = `${trackKey}|${day}|${exName}`;
+  const current = overrides[key] || {};
+  const track = ROUTINES[trackKey];
+  const baseEx = track.days[day].find(e => e.name === exName);
+  const newSets = prompt('Target sets for "'+exName+'":', current.sets ?? baseEx.sets);
+  if(newSets === null) return;
+  const newReps = prompt('Target reps for "'+exName+'":', current.reps ?? baseEx.reps);
+  if(newReps === null) return;
+  overrides[key] = { sets: newSets.trim() || baseEx.sets, reps: newReps.trim() || baseEx.reps };
+  saveRoutineTargetOverrides(overrides);
+  renderToday();
+  showToast('Target updated for future sessions');
+}
+
+let expandedExerciseIds = new Set(); // tracks which exercise-log rows are expanded (by index)
+
+function toggleExerciseExpand(idx){
+  if(expandedExerciseIds.has(idx)) expandedExerciseIds.delete(idx);
+  else expandedExerciseIds.add(idx);
+  renderToday();
+}
+
+function saveExerciseWorkoutLog(idx){
+  const arr = getExercise(selectedDateKey);
+  const entry = arr[idx];
+  if(!entry) return;
+  const routine = findRoutineForEntry(entry.name);
+  const exerciseLog = {};
+  if(routine){
+    routine.exercises.forEach((ex, exIdx) => {
+      const setsEl = document.getElementById(`ex-log-sets-${idx}-${exIdx}`);
+      const repsEl = document.getElementById(`ex-log-reps-${idx}-${exIdx}`);
+      const weightEl = document.getElementById(`ex-log-weight-${idx}-${exIdx}`);
+      const sets = setsEl ? setsEl.value.trim() : '';
+      const reps = repsEl ? repsEl.value.trim() : '';
+      const weight = weightEl ? weightEl.value.trim() : '';
+      if(sets || reps || weight) exerciseLog[ex.name] = { sets, reps, weight };
+    });
+  }
+  const notesInput = document.getElementById(`ex-notes-${idx}`);
+  entry.exerciseLog = exerciseLog;
+  entry.notes = notesInput ? notesInput.value.trim() : '';
+  saveExercise2(arr, selectedDateKey);
+  expandedExerciseIds.delete(idx);
+  renderToday();
+  showToast('Workout log saved');
+}
 
 let currentRoutineTrack = 'machine';
 let currentRoutineDay = 'Push';
