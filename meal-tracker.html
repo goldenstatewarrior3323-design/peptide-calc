@@ -189,11 +189,6 @@
     <button onclick="openCoach()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Coach">🧠</button>
     <button onclick="openGapFiller()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Close the Gap">🎯</button>
     <button onclick="showPage('settings')" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Settings">⚙️</button>
-    <select id="day-type-sel" onchange="setDayType(this.value)" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;font-weight:700;border-radius:8px;padding:4px 8px;outline:none;">
-      <option value="rest">Rest</option>
-      <option value="bike">Bike</option>
-      <option value="hiit">HIIT</option>
-    </select>
   </div>
 </div>
 <div class="week-row-nav no-print" style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px 0;background:var(--white);">
@@ -415,9 +410,7 @@
     <div class="nutrient-row"><span class="n-label" id="cal-goal-label">Goal</span><span class="n-val" id="cal-goal-val">—</span></div>
     <div class="nutrient-row" id="cal-deficit-row"><span class="n-label">Deficit needed</span><span class="n-val" id="cal-deficit-val">—</span></div>
     <div class="nutrient-row"><span class="n-label">Est. TDEE (sedentary)</span><span class="n-val" id="tdee-display">—</span></div>
-    <div class="nutrient-row"><span class="n-label" id="cal-base-label">Base cal target (rest day)</span><span class="n-val" id="cal-target-weight">—</span></div>
-    <div class="nutrient-row" id="cal-bike-row"><span class="n-label">Bike day adds</span><span class="n-val">+300 cal</span></div>
-    <div class="nutrient-row" id="cal-hiit-row"><span class="n-label">HIIT day adds</span><span class="n-val">+500 cal</span></div>
+    <div class="nutrient-row"><span class="n-label" id="cal-base-label">Base cal target</span><span class="n-val" id="cal-target-weight">—</span></div>
     <div class="nutrient-row"><span class="n-label">Exercise calories add</span><span class="n-val">+actual burned</span></div>
   </div>
 
@@ -475,12 +468,8 @@
   <div class="weight-card">
     <div class="card-title">Calories</div>
     <div id="cal-fields-rich" style="display:none;">
-      <div class="input-label">Rest Day</div>
-      <input class="field" type="number" id="set-cal-rest" style="margin-bottom:10px;"/>
-      <div class="input-label">Bike Day</div>
-      <input class="field" type="number" id="set-cal-bike" style="margin-bottom:10px;"/>
-      <div class="input-label">HIIT Day</div>
-      <input class="field" type="number" id="set-cal-hiit"/>
+      <div class="input-label">Daily Calorie Floor</div>
+      <input class="field" type="number" id="set-cal-rest"/>
     </div>
     <div id="cal-fields-other" style="display:none;">
       <div class="input-label" id="cal-other-label">Daily Target</div>
@@ -759,7 +748,7 @@ const PERSON_PROFILES = {
     label: 'Rich',
     proteinFloor: 200, // non-negotiable — never adjustable via Settings or auto-calc
     macroDefaults: { fat:58, carbs:96, fiber:38, sodium:2300, potassium:3500, cholesterol:300 },
-    calDefaults: { rest:1722, bike:2100, hiit:2300 },
+    calDefault: 1722,
     doseUnit: 'mg', doseDefault: 4.32,
     protocolContext: `Rich Mendez, 41, 5'8", tirzepatide-based weight loss protocol, clinically overseen (RN wife).
 Non-negotiable macro floors/ceilings: Protein 200g floor (self-set, HARD — never move this regardless of any other adjustment), Fat ~58-65g, Net Carbs 96-140g, Fiber 38g, Sodium 2,300mg ceiling, Calories ~1,706-1,800 floor (food intake floor, NOT net-of-exercise — do not eat back exercise calories).
@@ -775,7 +764,7 @@ Coaching style: direct, data-driven, mentor-style. No blind encouragement. Sales
     label: 'Claudia',
     proteinFloor: 125, // non-negotiable midpoint of 120-130g "muscle shield" range
     macroDefaults: { fat:50, carbs:110, fiber:25, sodium:2300, potassium:3500, cholesterol:300 },
-    calDefaults: { rest:1450, bike:1450, hiit:1450 },
+    calDefault: 1450,
     doseUnit: 'mg', doseDefault: 4.32,
     protocolContext: `Claudia Mendez, RN, female, 5'0", tirzepatide-adjusted protocol, 181→140lb goal, validated against her own nutritionist (Britton Protocol).
 Non-negotiable: Protein 125g floor (HARD — muscle preservation shield, never move this). Fat ~50g, Net Carbs ~110g, Fiber 25g+. Calories ~1,450 (range 1,400-1,500).
@@ -786,7 +775,7 @@ Coaching style: clinical, precise, respects her own professional nutrition liter
     label: 'Dom',
     proteinFloor: 225, // non-negotiable, "always first, never skipped"
     macroDefaults: { fat:100, carbs:90, fiber:30, sodium:2300, potassium:3500, cholesterol:300 }, // fat/carbs midpoints of his ranges
-    calDefaults: { rest:2625, bike:2625, hiit:2625 }, // midpoint default; hunger-day logic nudges from here, not a low floor
+    calDefault: 2625, // midpoint default; hunger-day logic nudges from here, not a low floor
     doseUnit: 'mg', doseDefault: 3.41,
     protocolContext: `Dom Mendez, 19, male, 6'0", 448.2lb start, tirzepatide protocol.
 Non-negotiable: Protein 225g floor (HARD — always first, never skipped, regardless of hunger level). Net Carbs 80-100g, Fat 80-120g. Calories 2,250 (low-hunger day) to 3,000 (high-hunger day) — default/midpoint 2,625, NOT a floor to coast on.
@@ -798,7 +787,7 @@ Coaching style: direct but age-appropriate for 19yo — call out under-eating on
     label: 'Noah',
     proteinFloor: 125, // non-negotiable — muscle-building floor for a growing 15yo athlete
     macroDefaults: { fat:65, carbs:350, fiber:25, sodium:2300, potassium:3500, cholesterol:300 },
-    calDefaults: { rest:2600, bike:2600, hiit:2600 }, // surplus for muscle building, not a deficit
+    calDefault: 2600, // surplus for muscle building, not a deficit
     doseUnit: null, doseDefault: null, // no peptide protocol — dose tracking does not apply to Noah
     protocolContext: `Noah, 15, male, 5'6", ~119lbs, high school wrestler in muscle-building off-season phase. NOT on any peptide protocol — this is nutrition-only, no medication involved.
 Non-negotiable: Protein 125g floor (HARD — muscle building requires this, never move it). Calories 2,600 (a SURPLUS for muscle gain, not a deficit — do not apply adult weight-loss framing). Carbs 350g — deliberately high and non-negotiable for HIIT/wrestling performance and recovery. Fat ~65g. Fiber 25g. Calcium 1,300mg (teen bone growth). Iron 11mg. Vitamin D 600IU.
@@ -890,7 +879,7 @@ function saveGoalWeight(){
 }
 const getWater = () => parseInt(localStorage.getItem('water2_'+todayKey())||'0');
 const saveWater = v => localStorage.setItem('water2_'+todayKey(), v);
-const getDayType = () => localStorage.getItem('dayType2_'+todayKey())||'rest';
+// (getDayType removed — calorie floor is now flat, no manual day-type concept)
 const getExercise = (key) => { try { return JSON.parse(localStorage.getItem('exercise_'+(key||todayKey()))||'[]'); } catch { return []; } };
 const saveExercise2 = (arr, key) => localStorage.setItem('exercise_'+(key||todayKey()), JSON.stringify(arr));
 
@@ -999,25 +988,27 @@ function calcCalTarget(weightLbs, person, rateLbsPerWeek){
 // Manual override takes priority when set. Weight-based auto-calc (Mifflin-St Jeor) currently only
 // applies to Rich — Claudia's and Dom's targets come from their own protocol docs / nutritionist,
 // not a BMR formula wired into this app, so their "auto" value is their fixed protocol default.
-function getCalBase(dayType, person){
+function getCalBase(person){
   const p = person || getCurrentPerson();
   const profile = PERSON_PROFILES[p];
   const co = getCalOverride(p);
-  if(co && co[dayType] != null) return co[dayType];
+  // Migration-safe: old stored shape was {rest,bike,hiit}; new shape is a flat number.
+  if(co != null){
+    if(typeof co === 'number') return co;
+    if(typeof co === 'object' && co.rest != null) return co.rest;
+  }
   if(p === 'rich'){
     const weights = getWeights();
     const latest = weights.length ? weights[0].weight : getStartWeight(p);
     const { base } = calcCalTarget(latest, p);
-    const dayMod = { rest:0, bike:300, hiit:500 };
-    return base + (dayMod[dayType]||0);
+    return base;
   }
-  return profile.calDefaults[dayType] ?? profile.calDefaults.rest;
+  return profile.calDefault;
 }
 
-function getCalTarget(dayTypeOverride, dayKey) {
-  const dt = dayTypeOverride || getDayType();
+function getCalTarget(dayKey) {
   const exerciseCals = getExercise(dayKey).reduce((s,e)=>s+(e.calories||0),0);
-  return getCalBase(dt) + exerciseCals;
+  return getCalBase() + exerciseCals;
 }
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
@@ -1076,14 +1067,13 @@ function buildDaySnapshot(){
   });
   const exerciseEntries = getExercise(key);
   const exerciseCals = exerciseEntries.reduce((s,e)=>s+(e.calories||0),0);
-  const dayType = getDayType();
-  const calTarget = getCalBase(dayType);
-  return { key, dayType, calTarget, exerciseCals, totals:t, targets:mt, items:items.concat(suppItems),
+  const calTarget = getCalBase();
+  return { key, calTarget, exerciseCals, totals:t, targets:mt, items:items.concat(suppItems),
     exercise: exerciseEntries.map(e=>`${e.name}${e.duration?' ('+e.duration+' min)':''}: +${e.calories} cal`) };
 }
 
 function snapshotToText(snap){
-  return `DAILY LOG — ${snap.key} (${snap.dayType} day)
+  return `DAILY LOG — ${snap.key}${snap.exerciseCals?` (${snap.exerciseCals} cal exercise logged)`:''}
 Calorie target: ${snap.calTarget} | Food eaten: ${Math.round(snap.totals.cal)} | Exercise burned: ${snap.exerciseCals}
 
 Totals vs targets:
@@ -1251,7 +1241,7 @@ function buildWeekSnapshot(){
   const log=getLog();
   const today=new Date();
   const mt=getMacroT();
-  const calTarget=getCalBase(getDayType());
+  const calTarget=getCalBase();
   const days=[];
   for(let i=6;i>=0;i--){
     const d=new Date(today); d.setDate(today.getDate()-i);
@@ -1435,16 +1425,15 @@ function renderSettings(){
   document.getElementById('cal-fields-rich').style.display = isRich ? '' : 'none';
   document.getElementById('cal-fields-other').style.display = isRich ? 'none' : '';
 
-  const co = getCalOverride(p) || {};
+  const coRaw = getCalOverride(p);
+  const coVal = coRaw == null ? null : (typeof coRaw === 'number' ? coRaw : coRaw.rest);
   if(isRich){
-    document.getElementById('set-cal-rest').value = co.rest ?? profile.calDefaults.rest;
-    document.getElementById('set-cal-bike').value = co.bike ?? profile.calDefaults.bike;
-    document.getElementById('set-cal-hiit').value = co.hiit ?? profile.calDefaults.hiit;
+    document.getElementById('set-cal-rest').value = coVal ?? profile.calDefault;
   } else {
     document.getElementById('cal-other-label').textContent = p==='dom'
       ? 'Daily Target (2,250 low-hunger – 3,000 high-hunger, default 2,625)'
       : 'Daily Target (1,400–1,500 range, default 1,450)';
-    document.getElementById('set-cal-rest-other').value = co.rest ?? profile.calDefaults.rest;
+    document.getElementById('set-cal-rest-other').value = coVal ?? profile.calDefault;
   }
 
   const mo = getMacroOverride(p) || {};
@@ -1491,10 +1480,9 @@ function saveGoalSettings(){
   const isRich = p === 'rich';
   const num = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; };
   if(isRich){
-    saveCalOverride({ rest: num('set-cal-rest'), bike: num('set-cal-bike'), hiit: num('set-cal-hiit') }, p);
+    saveCalOverride(num('set-cal-rest'), p);
   } else {
-    const v = num('set-cal-rest-other');
-    saveCalOverride({ rest: v, bike: v, hiit: v }, p); // single daily target for non-Rich profiles
+    saveCalOverride(num('set-cal-rest-other'), p);
   }
   // Protein deliberately excluded — it is never editable, always pulled from PERSON_PROFILES[p].proteinFloor
   saveMacroOverride({
@@ -1644,13 +1632,9 @@ function renderToday() {
   const key = selectedDateKey;
   const isToday = key === todayKey();
   const dayLog = log[key]||{};
-  const calTarget = getCalTarget(null, selectedDateKey);
+  const calTarget = getCalTarget(selectedDateKey);
   const exerciseEntries = getExercise(key);
   const exerciseCals = exerciseEntries.reduce((s,e)=>s+(e.calories||0),0);
-
-  // Day type selector sync
-  document.getElementById('day-type-sel').value = getDayType();
-  document.getElementById('day-type-sel').style.display = isToday ? '' : 'none';
 
   const isFuture = selectedDateKey > todayKey();
   const canLog = true; // past days editable now — fixes mislogged historical entries
@@ -1690,12 +1674,12 @@ function renderToday() {
   });
 
   // Calorie budget display — MFP style: Budget - Food + Exercise = Remaining
-  const baseWithDay = getCalBase(getDayType());
-  const remaining = baseWithDay - Math.round(t.cal) + exerciseCals;
+  const calFloor = getCalBase();
+  const remaining = calFloor - Math.round(t.cal) + exerciseCals;
 
   document.getElementById('cal-formula-label').textContent = 'Budget − Food + Exercise = Remaining';
   document.getElementById('cal-budget-row').innerHTML = `
-    <div class="cal-budget-item"><div class="cal-budget-val">${baseWithDay.toLocaleString()}</div><div class="cal-budget-lbl">Budget</div></div>
+    <div class="cal-budget-item"><div class="cal-budget-val">${calFloor.toLocaleString()}</div><div class="cal-budget-lbl">Budget</div></div>
     <div class="cal-divider">−</div>
     <div class="cal-budget-item"><div class="cal-budget-val">${Math.round(t.cal).toLocaleString()}</div><div class="cal-budget-lbl">Food</div></div>
     <div class="cal-divider">+</div>
@@ -1812,12 +1796,6 @@ function renderToday() {
 function goToToday(){
   selectedDateKey = todayKey();
   renderToday();
-}
-
-function setDayType(val){
-  localStorage.setItem('dayType2_'+todayKey(), val);
-  renderToday();
-  showToast(val.charAt(0).toUpperCase()+val.slice(1)+' day — calorie target updated');
 }
 
 function quickLog(mt){
@@ -3298,20 +3276,16 @@ function renderWeight(){
     document.getElementById('cal-goal-val').textContent = 'Muscle building (surplus)';
     document.getElementById('cal-deficit-row').style.display = 'none';
     document.getElementById('cal-base-label').textContent = 'Protocol target (fixed)';
-    document.getElementById('cal-target-weight').textContent = (PERSON_PROFILES[p]?.calDefaults?.rest ?? base).toLocaleString()+' cal';
-    document.getElementById('cal-bike-row').style.display = 'none';
-    document.getElementById('cal-hiit-row').style.display = 'none';
+    document.getElementById('cal-target-weight').textContent = (PERSON_PROFILES[p]?.calDefault ?? base).toLocaleString()+' cal';
   } else {
     document.getElementById('cal-card-title').textContent = 'Calorie Auto-Adjustment';
-    document.getElementById('cal-card-desc').textContent = `Uses Mifflin-St Jeor (sedentary base × 1.2) minus a daily deficit sized to hit ${goal.defaultRate} lbs/week${ageNote}. Recalculates every time you log weight. Exercise calories are added on top.`;
+    document.getElementById('cal-card-desc').textContent = `Uses Mifflin-St Jeor (sedentary base × 1.2) minus a daily deficit sized to hit ${goal.defaultRate} lbs/week${ageNote}. Recalculates every time you log weight. Exercise calories are added on top — the floor stays flat regardless of workout type; actual logged exercise is what adds headroom, not a pre-set guess.`;
     document.getElementById('cal-goal-label').textContent = 'Goal';
     document.getElementById('cal-goal-val').textContent = '−'+goal.defaultRate+' lbs/week';
     document.getElementById('cal-deficit-row').style.display = '';
     document.getElementById('cal-deficit-val').textContent = '~'+deficitPerDay.toLocaleString()+' cal/day';
-    document.getElementById('cal-base-label').textContent = 'Base cal target (rest day)';
+    document.getElementById('cal-base-label').textContent = 'Base cal target';
     document.getElementById('cal-target-weight').textContent = base.toLocaleString()+' cal';
-    document.getElementById('cal-bike-row').style.display = '';
-    document.getElementById('cal-hiit-row').style.display = '';
   }
 
   // Static reference table — replaces the single auto-picked number with several options at once,
@@ -3322,7 +3296,7 @@ function renderWeight(){
   if(isGain){
     tableTitle.textContent = 'Surplus Reference Levels';
     tableDesc.textContent = 'Reference only — actual target comes from protocol, not auto-selected here.';
-    const protocolTarget = PERSON_PROFILES[p]?.calDefaults?.rest ?? tdee+300;
+    const protocolTarget = PERSON_PROFILES[p]?.calDefault ?? tdee+300;
     const levels = [
       { label:'Light surplus', cal: protocolTarget-200 },
       { label:'Protocol target', cal: protocolTarget },
@@ -3381,8 +3355,7 @@ function weekToday(){ weekOffset = 0; renderWeek(); }
 function renderWeek(){
   const log=getLog();
   const { sunday, saturday } = getWeekBounds(weekOffset);
-  const dt=getDayType();
-  const calBase=getCalBase(dt);
+  const calBase=getCalBase();
   const days=[];
   for(let i=0;i<=6;i++){
     const d=new Date(sunday); d.setDate(sunday.getDate()+i);
