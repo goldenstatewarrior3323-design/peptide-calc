@@ -1184,6 +1184,15 @@ Recent pin log (last 14 days, dose + any side-effect/efficacy notes logged):
 ${pinText}
 
 This pin data is for pattern-awareness only — e.g. noting if symptoms or adherence dips cluster around dose days. Never suggest starting, holding, or changing a dose; titration is a clinical decision between Rich and Claudia (RN), not something to recommend here.`;
+
+  const coachingPhilosophy = `
+
+Coaching philosophy — read carefully before writing:
+- Targets are ranges to live inside, not exact numbers to hit every day. A day that's under or over one metric is not automatically a problem.
+- Weekly averages matter more than any single day. Before flagging a daily number as a gap, check it against the trailing average — a day that's off but the week is on track is not something to act on.
+- Not every gap needs a fix. If the week is trending fine, it is completely fine to say so plainly and stop there — do not manufacture an action item just to have one.
+- Only call out a real, sustained pattern (multiple days, or a metric that's consistently off across the week), not a single day's noise.`;
+
   let prompt;
   if(view === 'week'){
     const weekText = weekSnapshotToText(buildWeekSnapshot());
@@ -1194,20 +1203,34 @@ This pin data is for pattern-awareness only — e.g. noting if symptoms or adher
 This week's actual data:
 ${weekText}
 ${pinGuardrail}
+${coachingPhilosophy}
 
-Give ${personName} a short (4-6 sentence) direct coaching read on this week — call out real trends against protocol (especially the protein floor and calorie floor as a floor not a ceiling), acknowledge what's on track, note any pattern worth flagging between pin days and nutrition/symptoms if one is visible, and give ONE concrete, specific action to carry into next week. No cheerleading. No restating numbers already visible on screen — interpret them.`;
+Give ${personName} a short (4-6 sentence) direct coaching read on this week — call out real, sustained trends against protocol (especially the protein floor and calorie floor as a floor not a ceiling), acknowledge what's on track, note any pattern worth flagging between pin days and nutrition/symptoms if one is visible, and give ONE concrete, specific action ONLY if the weekly average actually warrants one. No cheerleading. No restating numbers already visible on screen — interpret them.`;
   } else {
     const snap = buildDaySnapshot();
     const dayText = snapshotToText(snap);
+    const weekSnap = buildWeekSnapshot();
+    const weekAvgText = weekSnap.daysLogged
+      ? `Trailing 7-day averages (${weekSnap.daysLogged}/7 days logged) — use this to judge whether today's numbers are a real pattern or just one day's noise:
+- Calories: ${weekSnap.avg.cal} / ${weekSnap.calTarget}
+- Protein: ${weekSnap.avg.protein}g / ${weekSnap.targets.protein}g
+- Fat: ${weekSnap.avg.fat}g / ${weekSnap.targets.fat}g
+- Net Carbs: ${weekSnap.avg.carbs}g / ${weekSnap.targets.carbs}g
+- Fiber: ${weekSnap.avg.fiber}g / ${weekSnap.targets.fiber}g
+- Sodium: ${weekSnap.avg.sodium}mg / ${weekSnap.targets.sodium}mg ceiling`
+      : '(no other days logged this week yet — no trailing average available, judge today on its own)';
     prompt = `${getFullProtocolContext()}
 
 (Protocol snapshot last updated ${PROTOCOL_SNAPSHOT_DATE} — flag if this seems stale.)
 
 Today's actual data:
 ${dayText}
-${pinGuardrail}
 
-Give ${personName} a short (4-6 sentence) direct coaching read on today so far — call out real misses against protocol (especially protein floor), acknowledge what's on track, note if today's pin/notes context is relevant, and give ONE concrete, specific action for the rest of the day. No cheerleading. No restating numbers already visible on screen — interpret them.`;
+${weekAvgText}
+${pinGuardrail}
+${coachingPhilosophy}
+
+Give ${personName} a short (4-6 sentence) direct coaching read on today so far — call out real, sustained misses against protocol (especially protein floor) after checking them against the weekly average, acknowledge what's on track, note if today's pin/notes context is relevant, and give ONE concrete, specific action ONLY if today's numbers plus the weekly trend actually warrant one. No cheerleading. No restating numbers already visible on screen — interpret them.`;
   }
   try {
     const PROXY = 'https://meal-tracker-proxy.goldenstatewarrior3323.workers.dev';
@@ -2727,10 +2750,16 @@ function scaleFromBase(base, servings){
   const s = servings;
   const sc = v => Math.round((v||0) * s * 10) / 10;
   const sci = v => Math.round((v||0) * s);
-  const baseName = base.name.replace(/\s*\(×[\d.]+\)$/,''); // strip any prior "(×N)" suffix before reapplying
+  const baseName = base.name.replace(/\s*\(×[\d.]+(?:\s*·[^)]*)?\)$/,''); // strip any prior "(×N · Xoz)" suffix before reapplying
+  let nameOut = baseName;
+  if(s !== 1){
+    const gramsPerServing = parseGramsPerServing(baseName, base.notes);
+    const ozSuffix = gramsPerServing ? ` · ${(gramsPerServing * s * OZ_PER_GRAM).toFixed(1)}oz` : '';
+    nameOut = baseName+' (×'+s+ozSuffix+')';
+  }
   return {
     ...base,
-    name: s !== 1 ? baseName+' (×'+s+')' : baseName,
+    name: nameOut,
     calories: sci(base.calories),
     protein_g: sc(base.protein_g),
     fat_total_g: sc(base.fat_total_g),
