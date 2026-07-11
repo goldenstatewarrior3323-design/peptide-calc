@@ -219,23 +219,23 @@
 
   <div class="macros-card">
     <div class="macros-row">
-      <div class="macro-item">
+      <div class="macro-item" onclick="showNutrientBreakdown('carbs_net_g','Net Carbs','g')" style="cursor:pointer;">
         <div class="macro-vals"><span id="nc-eaten">0</span>g</div>
         <div class="macro-target" id="nc-target-label">Net Carbs / 96</div>
         <div class="macro-bar"><div class="macro-fill" id="nc-fill" style="width:0%;background:#0d9488;"></div></div>
       </div>
-      <div class="macro-item" style="text-align:center;">
+      <div class="macro-item" onclick="showNutrientBreakdown('fat_total_g','Fat','g')" style="text-align:center;cursor:pointer;">
         <div class="macro-vals"><span id="fat-eaten">0</span>g</div>
         <div class="macro-target" id="fat-target-label">Fat / 58</div>
         <div class="macro-bar"><div class="macro-fill" id="fat-fill" style="width:0%;background:#7c3aed;"></div></div>
       </div>
-      <div class="macro-item" style="text-align:right;">
+      <div class="macro-item" onclick="showNutrientBreakdown('protein_g','Protein','g')" style="text-align:right;cursor:pointer;">
         <div class="macro-vals"><span id="prot-eaten">0</span>g</div>
         <div class="macro-target" id="prot-target-label">Protein / 200</div>
         <div class="macro-bar"><div class="macro-fill" id="prot-fill" style="width:0%;background:#ea580c;"></div></div>
       </div>
     </div>
-    <div class="fiber-row">
+    <div class="fiber-row" onclick="showNutrientBreakdown('fiber_g','Fiber','g')" style="cursor:pointer;">
       <div class="fiber-label">Fiber</div>
       <div class="fiber-bar-wrap"><div class="fiber-fill" id="fiber-fill" style="width:0%"></div></div>
       <div class="fiber-val"><span id="fiber-eaten">0</span>g / 38g</div>
@@ -243,6 +243,18 @@
     <div class="flags-wrap" id="macro-flags"></div>
     <button onclick="toggleNutrientDetail()" id="nutrient-toggle-btn" style="width:100%;margin-top:10px;padding:9px;background:none;border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;">▾ All Nutrients</button>
     <div id="nutrient-detail" style="display:none;margin-top:8px;"></div>
+  </div>
+
+  <!-- NUTRIENT BREAKDOWN MODAL — "which foods contributed to this today", MFP-style ranked list -->
+  <div id="nutrient-breakdown-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:998;align-items:flex-end;justify-content:center;">
+    <div style="background:var(--white);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:78vh;overflow-y:auto;padding-bottom:32px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:17px;font-weight:800;" id="nbd-title">Breakdown</div>
+        <button onclick="closeNutrientBreakdown()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;" id="nbd-subtitle"></div>
+      <div id="nbd-list"></div>
+    </div>
   </div>
 
   <div class="section-title">Diary</div>
@@ -1383,13 +1395,13 @@ function toggleNutrientDetail(){
   document.getElementById('nutrient-detail').style.display = nutrientDetailOpen ? '' : 'none';
   document.getElementById('nutrient-toggle-btn').textContent = nutrientDetailOpen ? '▴ Hide Nutrients' : '▾ All Nutrients';
 }
-function nutrientRow(label, val, goal, unit, invert){
+function nutrientRow(label, val, goal, unit, invert, field){
   const pct = goal ? Math.min((val/goal)*100,100) : 0;
   const over = invert ? val > goal : (goal && val < goal);
   const color = invert ? (val>goal?'var(--red)':'var(--blue)') : (goal && val>=goal?'var(--green)':'var(--blue)');
-  return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+  return `<div style="padding:8px 0;border-bottom:1px solid var(--border);${field?'cursor:pointer;':''}" ${field?`onclick="showNutrientBreakdown('${field}','${label}','${unit}')"`:''}>
     <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-      <span style="font-weight:600;">${label}</span>
+      <span style="font-weight:600;">${label}${field?' 🔍':''}</span>
       <span>${val}${unit} <span style="color:var(--muted);">/ ${goal}${unit}${invert?' ceiling':''}</span></span>
     </div>
     <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;">
@@ -1399,20 +1411,73 @@ function nutrientRow(label, val, goal, unit, invert){
 }
 function renderNutrientDetail(t, mt){
   const html = `<div class="weight-card" style="padding:12px;">
-    ${nutrientRow('Sodium', Math.round(t.sodium), mt.sodium, 'mg', true)}
-    ${nutrientRow('Potassium', Math.round(t.potassium), mt.potassium, 'mg', false)}
-    ${nutrientRow('Magnesium', Math.round(t.magnesium), 400, 'mg', false)}
-    ${nutrientRow('Cholesterol', Math.round(t.cholesterol), mt.cholesterol, 'mg', true)}
-    ${nutrientRow('Saturated Fat', Math.round(t.satfat), 20, 'g', true)}
-    ${nutrientRow('Trans Fat', Math.round(t.transfat*10)/10, 0, 'g', true)}
-    ${nutrientRow('Omega-3', Math.round(t.omega3), 2600, 'mg', false)}
-    ${nutrientRow('Sugar', Math.round(t.sugar), 50, 'g', true)}
-    ${nutrientRow('Calcium', Math.round(t.calcium), 1000, 'mg', false)}
-    ${nutrientRow('Iron', Math.round(t.iron*10)/10, 8, 'mg', false)}
-    ${nutrientRow('Vitamin C', Math.round(t.vitc), 90, 'mg', false)}
+    ${nutrientRow('Sodium', Math.round(t.sodium), mt.sodium, 'mg', true, 'sodium_mg')}
+    ${nutrientRow('Potassium', Math.round(t.potassium), mt.potassium, 'mg', false, 'potassium_mg')}
+    ${nutrientRow('Magnesium', Math.round(t.magnesium), 400, 'mg', false, 'magnesium_mg')}
+    ${nutrientRow('Cholesterol', Math.round(t.cholesterol), mt.cholesterol, 'mg', true, 'cholesterol_mg')}
+    ${nutrientRow('Saturated Fat', Math.round(t.satfat), 20, 'g', true, 'fat_saturated_g')}
+    ${nutrientRow('Trans Fat', Math.round(t.transfat*10)/10, 0, 'g', true, 'fat_trans_g')}
+    ${nutrientRow('Omega-3', Math.round(t.omega3), 2600, 'mg', false, 'omega3_mg')}
+    ${nutrientRow('Sugar', Math.round(t.sugar), 50, 'g', true, 'sugar_g')}
+    ${nutrientRow('Calcium', Math.round(t.calcium), 1000, 'mg', false, 'calcium_mg')}
+    ${nutrientRow('Iron', Math.round(t.iron*10)/10, 8, 'mg', false, 'iron_mg')}
+    ${nutrientRow('Vitamin C', Math.round(t.vitc), 90, 'mg', false, 'vitamin_c_mg')}
     <div style="font-size:11px;color:var(--muted);padding-top:6px;">Total Carbs (before fiber): ${Math.round(t.carbsTotal)}g</div>
   </div>`;
   document.getElementById('nutrient-detail').innerHTML = html;
+}
+
+// ── NUTRIENT BREAKDOWN — "which foods today contributed most to X", MFP-style ──
+// Answers "what's actually moving this number" so gaps can be closed by adjusting a specific
+// food, not by guessing. Pulls from the same entries (food + taken supplements) that already
+// feed the day's totals everywhere else in the app, so the numbers always reconcile.
+function showNutrientBreakdown(field, label, unit){
+  const log = getLog();
+  const key = selectedDateKey;
+  const dayLog = log[key] || {};
+  const contributions = {}; // name -> total contribution that day (aggregated if logged more than once)
+
+  MEAL_TYPES.forEach(mt => (dayLog[mt]||[]).forEach(item => {
+    const v = item[field] || 0;
+    if (v <= 0) return;
+    contributions[item.name] = (contributions[item.name]||0) + v;
+  }));
+
+  const suppLog = getSuppLog(key);
+  getSupps().forEach(s => {
+    if (!suppLog[s.id]) return;
+    const v = s[field] || 0;
+    if (v <= 0) return;
+    contributions[s.name] = (contributions[s.name]||0) + v;
+  });
+
+  const ranked = Object.entries(contributions).sort((a,b)=>b[1]-a[1]);
+  const total = ranked.reduce((s,[,v])=>s+v, 0);
+
+  document.getElementById('nbd-title').textContent = label + ' — Today\'s Breakdown';
+  document.getElementById('nbd-subtitle').textContent = ranked.length
+    ? `What's actually contributing to your ${total.toFixed(1)}${unit} total today`
+    : `Nothing logged today has contributed to ${label} yet`;
+  document.getElementById('nbd-list').innerHTML = ranked.length ? ranked.map(([name, val], i) => {
+    const pctOfTotal = total > 0 ? Math.round((val/total)*100) : 0;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);">
+      <div style="flex:1;padding-right:10px;">
+        <div style="font-size:13px;font-weight:600;">${name}</div>
+        <div style="height:3px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden;width:100%;">
+          <div style="height:100%;width:${pctOfTotal}%;background:var(--blue);"></div>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:13px;font-weight:700;">${val.toFixed(1)}${unit}</div>
+        <div style="font-size:10px;color:var(--muted);">${pctOfTotal}%</div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty" style="padding:20px 0;">Log something today to see what's driving this number.</div>`;
+
+  document.getElementById('nutrient-breakdown-modal').style.display = 'flex';
+}
+function closeNutrientBreakdown(){
+  document.getElementById('nutrient-breakdown-modal').style.display = 'none';
 }
 
 function selectPerson(person){
