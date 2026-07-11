@@ -495,6 +495,11 @@
     </div>
 
     <div class="section-label">History</div>
+    <div class="mode-wrap" style="margin-bottom:10px;">
+      <button class="mode-btn active" id="pl-filter-all" onclick="setPinLogFilter('all')">All</button>
+      <button class="mode-btn" id="pl-filter-tirz" onclick="setPinLogFilter('Tirzepatide')">Tirzepatide</button>
+      <button class="mode-btn" id="pl-filter-kpv" onclick="setPinLogFilter('KPV')">KPV</button>
+    </div>
     <div id="pinlog-list"></div>
   </div>
 
@@ -1079,47 +1084,76 @@
     renderPinLog();
   }
 
-  let expandedPinNotesIds = new Set(); // tracks which history rows have their notes editor open
+  let expandedPinEditIds = new Set(); // tracks which history rows have their editor open
+  let pinLogFilter = 'all'; // 'all' | 'Tirzepatide' | 'KPV' — filters the History list for readability
 
-  function togglePinNotesEditor(id){
-    if(expandedPinNotesIds.has(id)) expandedPinNotesIds.delete(id);
-    else expandedPinNotesIds.add(id);
+  function setPinLogFilter(val){
+    pinLogFilter = val;
+    ['all','Tirzepatide','KPV'].forEach(v => {
+      const id = v === 'all' ? 'pl-filter-all' : (v === 'Tirzepatide' ? 'pl-filter-tirz' : 'pl-filter-kpv');
+      document.getElementById(id).classList.toggle('active', v === val);
+      document.getElementById(id).style.background = v === val ? 'var(--accent)' : 'transparent';
+      document.getElementById(id).style.color = v === val ? '#060f1e' : 'var(--muted)';
+    });
     renderPinLog();
   }
 
-  function savePinLogNotes(id){
-    const textarea = document.getElementById('pl-notes-edit-'+id);
-    if(!textarea) return;
+  function togglePinEntryEditor(id){
+    if(expandedPinEditIds.has(id)) expandedPinEditIds.delete(id);
+    else expandedPinEditIds.add(id);
+    renderPinLog();
+  }
+
+  function savePinLogEdit(id){
+    const dateInput = document.getElementById('pl-date-edit-'+id);
+    const timeInput = document.getElementById('pl-time-edit-'+id);
+    const notesInput = document.getElementById('pl-notes-edit-'+id);
+    if(!dateInput || !dateInput.value){ alert('Date is required.'); return; }
     const log = getPinLog();
     const entry = log.find(e => e.id === id);
     if(!entry) return;
-    entry.notes = textarea.value.trim();
+    entry.date = dateInput.value;
+    entry.time = timeInput ? timeInput.value : entry.time;
+    entry.notes = notesInput ? notesInput.value.trim() : entry.notes;
     savePinLog(log);
-    expandedPinNotesIds.delete(id);
+    expandedPinEditIds.delete(id);
     renderPinLog();
-    showToastGeneric('Notes saved');
+    showToastGeneric('Entry updated');
   }
 
   function renderPinLog() {
-    const log = getPinLog();
+    const fullLog = getPinLog();
+    const log = pinLogFilter === 'all' ? fullLog : fullLog.filter(e => e.peptide === pinLogFilter);
     const el = document.getElementById('pinlog-list');
-    if (!log.length) { el.innerHTML = '<div class="empty"><div class="empty-text">No pins logged yet</div></div>'; return; }
+    if (!fullLog.length) { el.innerHTML = '<div class="empty"><div class="empty-text">No pins logged yet</div></div>'; return; }
+    if (!log.length) { el.innerHTML = `<div class="empty"><div class="empty-text">No ${pinLogFilter} entries logged yet</div></div>`; return; }
     const unit = p => p === 'KPV' ? 'mcg' : 'mg';
     el.innerHTML = log.map(e => {
       const coaBits = [];
       if (e.fill) coaBits.push(`Fill: ${e.fill}mg`);
       if (e.purity) coaBits.push(`Purity: ${e.purity}%`);
       const coaLine = coaBits.length ? `<div class="pinlog-row-sub" style="color:#f59e0b;">${coaBits.join(' · ')}</div>` : '';
-      const isEditing = expandedPinNotesIds.has(e.id);
+      const isEditing = expandedPinEditIds.has(e.id);
       const notesDisplay = e.notes
-        ? `<div class="pinlog-row-sub" style="color:var(--text);font-style:italic;margin-top:4px;cursor:pointer;" onclick="togglePinNotesEditor(${e.id})">📝 ${e.notes}</div>`
-        : `<div class="pinlog-row-sub" style="cursor:pointer;text-decoration:underline;" onclick="togglePinNotesEditor(${e.id})">+ Add notes (side effects, efficacy)</div>`;
-      const notesEditor = isEditing ? `
-        <div style="margin-top:6px;">
+        ? `<div class="pinlog-row-sub" style="color:var(--text);font-style:italic;margin-top:4px;cursor:pointer;" onclick="togglePinEntryEditor(${e.id})">📝 ${e.notes}</div>`
+        : `<div class="pinlog-row-sub" style="cursor:pointer;text-decoration:underline;" onclick="togglePinEntryEditor(${e.id})">✏️ Edit date/time or add notes</div>`;
+      const editor = isEditing ? `
+        <div style="margin-top:8px;">
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <div style="flex:1;">
+              <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">Date</div>
+              <input class="field" type="date" id="pl-date-edit-${e.id}" value="${e.date}" style="font-size:13px;padding:8px;"/>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">Time</div>
+              <input class="field" type="time" id="pl-time-edit-${e.id}" value="${e.time||''}" style="font-size:13px;padding:8px;"/>
+            </div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">Notes</div>
           <textarea class="field" id="pl-notes-edit-${e.id}" style="min-height:50px;resize:vertical;font-size:13px;" placeholder="Side effects, efficacy, anything worth tracking">${e.notes||''}</textarea>
           <div style="display:flex;gap:8px;margin-top:6px;">
-            <button style="flex:1;padding:6px;font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:8px;cursor:pointer;" onclick="togglePinNotesEditor(${e.id})">Cancel</button>
-            <button class="btn-primary" style="flex:1;padding:6px;font-size:12px;" onclick="savePinLogNotes(${e.id})">Save Notes</button>
+            <button style="flex:1;padding:6px;font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:8px;cursor:pointer;" onclick="togglePinEntryEditor(${e.id})">Cancel</button>
+            <button class="btn-primary" style="flex:1;padding:6px;font-size:12px;" onclick="savePinLogEdit(${e.id})">Save</button>
           </div>
         </div>` : '';
       return `
@@ -1128,7 +1162,7 @@
           <div class="pinlog-row-main">${e.person} · ${e.peptide} · ${e.dose}${unit(e.peptide)}</div>
           <div class="pinlog-row-sub">${e.date}${e.time?' at '+e.time:''}${e.vendor?' · '+e.vendor:''}</div>
           ${coaLine}
-          ${isEditing ? notesEditor : notesDisplay}
+          ${isEditing ? editor : notesDisplay}
         </div>
         <button class="pinlog-del" onclick="deletePinLogEntry(${e.id})">✕</button>
       </div>`;
