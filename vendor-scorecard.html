@@ -629,8 +629,12 @@ const CARD_GROUP = 'approved'; // approved-cards container is always group=appro
 const STORE_KEY = 'vendorScorecardEdits_v2';
 
 function getStore() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{"edits":{},"deletes":{},"additions":{}}'); }
-  catch { return {edits:{},deletes:{},additions:{}}; }
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE_KEY) || '{"edits":{},"deletes":{},"additions":{}}');
+    if (!s.order) s.order = {};
+    if (!s.rowColors) s.rowColors = {};
+    return s;
+  } catch { return {edits:{},deletes:{},additions:{},order:{},rowColors:{}}; }
 }
 function setStore(s) { localStorage.setItem(STORE_KEY, JSON.stringify(s)); }
 
@@ -703,10 +707,19 @@ function renderTable(tableId) {
   tbody.querySelectorAll('tr.add-row-ctl').forEach(r => r.remove());
   tbody.querySelectorAll('td.rowctl').forEach(td => td.remove());
 
-  // apply edits + deletes to seed rows, add control column
+  const rowElements = {}; // rowId -> <tr>, used for the final reorder pass below
+  const naturalOrder = [];
+
+  // apply edits + deletes to seed rows, add control column.
+  // IMPORTANT: rowId must be based on a PERMANENT identity, not live DOM position — this
+  // function also reorders the DOM below, so re-deriving id from position would cause every
+  // edit/color/delete to silently drift onto the wrong vendor after any reordering.
   const seedRows = Array.from(tbody.querySelectorAll('tr:not([data-injected]):not(.add-row-ctl)'));
   seedRows.forEach((tr, idx) => {
-    const rowId = `${tableId}-${idx}`;
+    if (tr.dataset.stableId === undefined) tr.dataset.stableId = String(idx); // assigned once, on first-ever render
+    const rowId = `${tableId}-${tr.dataset.stableId}`;
+    naturalOrder.push(rowId);
+    rowElements[rowId] = tr;
     if (store.deletes[rowId]) { tr.style.display = 'none'; tr.classList.add('row-deleted'); return; }
     tr.classList.remove('row-deleted');
     if (store.edits[rowId]) {
@@ -716,19 +729,15 @@ function renderTable(tableId) {
     } else {
       tr.style.display = '';
     }
-    if (editMode) {
-      const ctl = document.createElement('td');
-      ctl.className = 'rowctl no-print';
-      ctl.style.whiteSpace = 'nowrap';
-      ctl.innerHTML = `<button onclick="editTableRow('${tableId}','${rowId}',false)" style="font-size:10px;padding:3px 7px;margin-right:4px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;">Edit</button><button onclick="deleteTableRow('${tableId}','${rowId}')" style="font-size:10px;padding:3px 7px;background:none;color:var(--red);border:1px solid var(--red);border-radius:4px;cursor:pointer;">Del</button>`;
-      tr.appendChild(ctl);
-    }
+    applyRowColor(tr, store.rowColors[rowId]);
+    if (editMode) tr.appendChild(buildRowCtl(tableId, rowId, false));
   });
 
   // render additions (brand new rows) for this table
   const additions = store.additions[tableId] || [];
   additions.forEach((cells, i) => {
     const rowId = `${tableId}-add-${i}`;
+    naturalOrder.push(rowId);
     const tr = document.createElement('tr');
     tr.setAttribute('data-injected', '1');
     tr.setAttribute('data-group', inferGroupFromTable(tableId));
@@ -739,15 +748,16 @@ function renderTable(tableId) {
       td.innerHTML = html;
       tr.appendChild(td);
     });
-    if (editMode) {
-      const ctl = document.createElement('td');
-      ctl.className = 'rowctl no-print';
-      ctl.style.whiteSpace = 'nowrap';
-      ctl.innerHTML = `<button onclick="editTableRow('${tableId}','${rowId}',true)" style="font-size:10px;padding:3px 7px;margin-right:4px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;">Edit</button><button onclick="deleteTableRow('${tableId}','${rowId}')" style="font-size:10px;padding:3px 7px;background:none;color:var(--red);border:1px solid var(--red);border-radius:4px;cursor:pointer;">Del</button>`;
-      tr.appendChild(ctl);
-    }
-    tbody.appendChild(tr);
+    applyRowColor(tr, store.rowColors[rowId]);
+    if (editMode) tr.appendChild(buildRowCtl(tableId, rowId, true));
+    rowElements[rowId] = tr;
   });
+
+  // final display order: saved custom order first, then any rows not yet ranked (new/unranked) appended at the end
+  const savedOrder = (store.order[tableId] || []).filter(id => rowElements[id]);
+  const unranked = naturalOrder.filter(id => !savedOrder.includes(id));
+  const finalOrder = [...savedOrder, ...unranked];
+  finalOrder.forEach(rowId => tbody.appendChild(rowElements[rowId])); // appendChild on existing node moves it
 
   // add-row control at bottom of table
   let addRow = table.querySelector('tr.add-row-ctl');
@@ -763,6 +773,62 @@ function renderTable(tableId) {
     addRow.appendChild(td);
     tbody.appendChild(addRow);
   }
+}
+
+// Applies a custom highlight color to the first two data cells of a row (name + one
+// other key column), so vendors can be visually flagged/ranked independent of status.
+function applyRowColor(tr, color){
+  const cells = Array.from(tr.children).filter(td => !td.classList.contains('rowctl'));
+  [cells[0], cells[1]].forEach(td => { if (td) td.style.background = color || ''; });
+}
+
+function buildRowCtl(tableId, rowId, isAddition){
+  const ctl = document.createElement('td');
+  ctl.className = 'rowctl no-print';
+  ctl.style.whiteSpace = 'nowrap';
+  const store = getStore();
+  const currentColor = store.rowColors[rowId] || '#ffffff';
+  ctl.innerHTML = `
+    <button onclick="moveRow('${tableId}','${rowId}','up')" style="font-size:10px;padding:2px 5px;background:none;color:var(--muted);border:1px solid var(--border2);border-radius:4px;cursor:pointer;" title="Move up">▲</button>
+    <button onclick="moveRow('${tableId}','${rowId}','down')" style="font-size:10px;padding:2px 5px;margin-right:4px;background:none;color:var(--muted);border:1px solid var(--border2);border-radius:4px;cursor:pointer;" title="Move down">▼</button>
+    <input type="color" value="${currentColor}" onchange="setRowColor('${tableId}','${rowId}',this.value)" style="width:20px;height:20px;padding:0;border:1px solid var(--border2);border-radius:4px;cursor:pointer;vertical-align:middle;margin-right:2px;" title="Highlight color for name + first column"/>
+    <button onclick="setRowColor('${tableId}','${rowId}',null)" style="font-size:10px;padding:2px 5px;margin-right:4px;background:none;color:var(--muted);border:1px solid var(--border2);border-radius:4px;cursor:pointer;" title="Clear color">✕</button>
+    <button onclick="editTableRow('${tableId}','${rowId}',${isAddition})" style="font-size:10px;padding:3px 7px;margin-right:4px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue);border-radius:4px;cursor:pointer;">Edit</button>
+    <button onclick="deleteTableRow('${tableId}','${rowId}')" style="font-size:10px;padding:3px 7px;background:none;color:var(--red);border:1px solid var(--red);border-radius:4px;cursor:pointer;">Del</button>`;
+  return ctl;
+}
+
+function moveRow(tableId, rowId, direction){
+  const store = getStore();
+  if (!store.order[tableId]) store.order[tableId] = getNaturalRowOrder(tableId);
+  const order = store.order[tableId];
+  if (!order.includes(rowId)) order.push(rowId); // newly-added row not yet ranked — append before moving it
+  const idx = order.indexOf(rowId);
+  const swapWith = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapWith < 0 || swapWith >= order.length) return;
+  [order[idx], order[swapWith]] = [order[swapWith], order[idx]];
+  setStore(store);
+  renderTable(tableId);
+}
+
+function getNaturalRowOrder(tableId){
+  const table = document.getElementById(tableId);
+  const tbody = table.querySelector('tbody');
+  const seedCount = tbody.querySelectorAll('tr:not([data-injected]):not(.add-row-ctl)').length;
+  const store = getStore();
+  const addCount = (store.additions[tableId] || []).length;
+  const order = [];
+  for (let i = 0; i < seedCount; i++) order.push(`${tableId}-${i}`);
+  for (let i = 0; i < addCount; i++) order.push(`${tableId}-add-${i}`);
+  return order;
+}
+
+function setRowColor(tableId, rowId, color){
+  const store = getStore();
+  if (color) store.rowColors[rowId] = color;
+  else delete store.rowColors[rowId];
+  setStore(store);
+  renderTable(tableId);
 }
 
 function inferGroupFromTable(tableId) {
