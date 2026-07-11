@@ -3669,10 +3669,10 @@ function renderWeightChart(weights, person, goal, startWeight, latest){
   const totalDays = Math.max(1, daysBetween(minDate, maxDate));
   const weightVals = allPoints.map(p=>p.weight);
   const minW = Math.min(...weightVals), maxW = Math.max(...weightVals);
-  const pad = Math.max(2, (maxW-minW)*0.15);
+  const pad = Math.max(3, (maxW-minW)*0.22); // extra headroom so point value labels don't clip the plot edge
   const yMin = minW - pad, yMax = maxW + pad;
 
-  const W = 400, H = 220, ML = 34, MR = 10, MT = 12, MB = 22;
+  const W = 400, H = 260, ML = 40, MR = 12, MT = 26, MB = 24;
   const plotW = W-ML-MR, plotH = H-MT-MB;
   const xScale = dateKey => ML + (daysBetween(minDate, dateKey)/totalDays)*plotW;
   const yScale = w => MT + (1-(w-yMin)/(yMax-yMin))*plotH;
@@ -3683,22 +3683,54 @@ function renderWeightChart(weights, person, goal, startWeight, latest){
   const trendPath = trendLine ? pathFor([{dateKey:dated[dated.length-1].dateKey, weight:latest}, ...trendLine]) : '';
   const calPath = calorieLine ? pathFor([{dateKey:dated[dated.length-1].dateKey, weight:latest}, ...calorieLine]) : '';
 
-  const dots = actualPoints.filter(p=>!p.isStart).map(p =>
-    `<circle cx="${xScale(p.dateKey).toFixed(1)}" cy="${yScale(p.weight).toFixed(1)}" r="2.5" fill="var(--accent)"/>`).join('');
-  const startDot = `<circle cx="${xScale(actualPoints[0].dateKey).toFixed(1)}" cy="${yScale(actualPoints[0].weight).toFixed(1)}" r="3.5" fill="none" stroke="var(--muted)" stroke-width="1.5"/>`;
+  // Value labels directly on points, like a native health-app chart — but skip some if there
+  // are too many logged entries to avoid the labels overlapping each other.
+  const realPoints = actualPoints.filter(p=>!p.isStart);
+  const labelEvery = realPoints.length <= 7 ? 1 : Math.ceil(realPoints.length/6);
+  const dots = realPoints.map((p,i) => {
+    const showLabel = i===0 || i===realPoints.length-1 || i%labelEvery===0;
+    const cx = xScale(p.dateKey), cy = yScale(p.weight);
+    const prevW = i>0 ? realPoints[i-1].weight : p.weight;
+    const labelAbove = p.weight <= prevW; // put label on the side away from the line's direction
+    const label = showLabel ? `<text x="${cx.toFixed(1)}" y="${(labelAbove ? cy-8 : cy+15).toFixed(1)}" font-size="10" font-weight="700" fill="var(--accent)" text-anchor="middle">${p.weight.toFixed(1)}</text>` : '';
+    return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="var(--accent)"/>${label}`;
+  }).join('');
+  const startDot = `<circle cx="${xScale(actualPoints[0].dateKey).toFixed(1)}" cy="${yScale(actualPoints[0].weight).toFixed(1)}" r="4" fill="none" stroke="var(--muted)" stroke-width="1.5"/>
+    <text x="${xScale(actualPoints[0].dateKey).toFixed(1)}" y="${(yScale(actualPoints[0].weight)-10).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="middle">Start</text>`;
 
-  const yGridLines = [yMin, (yMin+yMax)/2, yMax].map(w =>
+  const yGridLines = [yMin+pad*0.3, (yMin+yMax)/2, yMax-pad*0.3].map(w =>
     `<line x1="${ML}" y1="${yScale(w).toFixed(1)}" x2="${W-MR}" y2="${yScale(w).toFixed(1)}" stroke="var(--border)" stroke-width="0.5"/>
-     <text x="${ML-4}" y="${(yScale(w)+3).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="end">${w.toFixed(0)}</text>`).join('');
+     <text x="${ML-6}" y="${(yScale(w)+3).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="end">${w.toFixed(0)}</text>`).join('');
+
+  // date ticks along the bottom, evenly spaced
+  const xTickCount = 4;
+  const xTicks = Array.from({length:xTickCount+1}, (_,i) => {
+    const dk = addDays(minDate, Math.round(totalDays*i/xTickCount));
+    const d = new Date(dk+'T12:00:00');
+    return `<text x="${xScale(dk).toFixed(1)}" y="${H-6}" font-size="9" fill="var(--muted)" text-anchor="middle">${d.toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}</text>`;
+  }).join('');
 
   const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
     ${yGridLines}
-    <path d="${actualPath}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    ${xTicks}
+    <path d="${actualPath}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
     ${trendLine ? `<path d="${trendPath}" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3"/>` : ''}
     ${calorieLine ? `<path d="${calPath}" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="4,3"/>` : ''}
     ${dots}
     ${startDot}
   </svg>`;
+
+  // Stat header row — average / min / max over the logged (non-start) points, matching the
+  // "Average / Min / Max" presentation from native health-app weight charts.
+  const realWeights = realPoints.map(p=>p.weight);
+  const avgW = realWeights.reduce((s,w)=>s+w,0)/realWeights.length;
+  const statHeader = `<div style="display:flex;align-items:baseline;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
+    <div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;">Average</div>
+      <div style="font-size:26px;font-weight:800;">${avgW.toFixed(1)}<span style="font-size:13px;font-weight:600;color:var(--muted);"> lbs</span></div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);">Min <strong style="color:var(--text);">${Math.min(...realWeights).toFixed(1)}</strong> &nbsp;|&nbsp; Max <strong style="color:var(--text);">${Math.max(...realWeights).toFixed(1)}</strong></div>
+  </div>`;
 
   const legend = `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-top:6px;">
     <div><span style="display:inline-block;width:10px;height:2px;background:var(--accent);vertical-align:middle;"></span> Actual</div>
@@ -3710,7 +3742,7 @@ function renderWeightChart(weights, person, goal, startWeight, latest){
     ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Log a few more weigh-ins (5+, across 10+ days) to unlock projected trend lines.</div>`
     : `<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Projections are rough — recent trend uses your last ~4 weeks of real weigh-ins; calorie-math uses TDEE vs. this week's logged intake. Shown 6 weeks out max. Your scale is the real number; these are leading indicators, not a promise. ${isGain?'Trending up is the goal here.':''}</div>`;
 
-  el.innerHTML = svg + legend + guardrailNote;
+  el.innerHTML = statHeader + svg + legend + guardrailNote;
 }
 
 // ── WEEK ──────────────────────────────────────────────────────────────────────
