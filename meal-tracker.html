@@ -401,7 +401,20 @@
       <input class="weight-input" type="number" id="weight-input" placeholder="Enter weight (lbs)" inputmode="decimal" step="0.1"/>
       <button class="weight-log-btn" onclick="logWeight()">Log</button>
     </div>
+    <div style="margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--blue);cursor:pointer;text-decoration:underline;" onclick="document.getElementById('past-entry-row').style.display=document.getElementById('past-entry-row').style.display==='none'?'flex':'none';">+ Add a past entry</div>
+      <div id="past-entry-row" style="display:none;gap:8px;margin-top:8px;align-items:center;">
+        <input class="field" type="date" id="past-weight-date" style="flex:1;padding:8px;font-size:13px;"/>
+        <input class="field" type="number" id="past-weight-value" placeholder="lbs" inputmode="decimal" step="0.1" style="width:80px;padding:8px;font-size:13px;"/>
+        <button class="weight-log-btn" style="padding:8px 14px;" onclick="addPastWeightEntry()">Add</button>
+      </div>
+    </div>
     <div class="weight-history" id="weight-history"></div>
+  </div>
+
+  <div class="weight-card">
+    <div class="card-title">Weight Trend</div>
+    <div id="weight-chart-container"></div>
   </div>
 
   <div class="weight-card">
@@ -3388,6 +3401,7 @@ function renderWeight(){
   const p = getCurrentPerson();
   const goal = PERSON_GOALS[p] || PERSON_GOALS.rich;
   const weights=getWeights();
+  if (migrateWeightLogDates(weights)) saveWeights(weights); // backfill dateKey on legacy entries, once
   const latest=weights.length?weights[0].weight:getStartWeight();
   const {tdee,base,deficitPerDay}=calcCalTarget(latest, p);
   const goalWeight = getGoalWeight();
@@ -3465,28 +3479,238 @@ function renderWeight(){
     el.style.color = isGain ? (diff>=0?'var(--green)':'var(--red)') : (diff<=0?'var(--green)':'var(--red)');
   }
   const hist=document.getElementById('weight-history');
-  if(!weights.length){ hist.innerHTML='<div class="empty">No entries yet — log your first weight</div>'; return; }
-  hist.innerHTML=weights.slice(0,10).map((w,i)=>{
-    const diff=i<weights.length-1?w.weight-weights[i+1].weight:null;
-    return `<div class="weight-entry">
-      <div style="color:var(--muted)">${w.date}</div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <div style="font-weight:700">${w.weight.toFixed(1)} lbs</div>
-        ${diff!==null?`<div style="font-size:11px;font-weight:600;color:${diff<=0?'var(--green)':'var(--red)'}">${diff>0?'+':''}${diff.toFixed(1)}</div>`:''}
-      </div>
-    </div>`;
-  }).join('');
+  if(!weights.length){ hist.innerHTML='<div class="empty">No entries yet — log your first weight</div>'; }
+  else {
+    hist.innerHTML=weights.slice(0,10).map((w,i)=>{
+      const diff=i<weights.length-1?w.weight-weights[i+1].weight:null;
+      const isEditing = expandedWeightEditIdx.has(i);
+      const editor = isEditing ? `
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+          <input class="field" type="date" id="wt-edit-date-${i}" value="${w.dateKey||''}" style="flex:1;padding:7px;font-size:13px;"/>
+          <input class="field" type="number" id="wt-edit-weight-${i}" value="${w.weight}" step="0.1" style="width:70px;padding:7px;font-size:13px;"/>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button style="flex:1;padding:6px;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="toggleWeightEntryEditor(${i})">Cancel</button>
+          <button style="flex:1;padding:6px;font-size:12px;background:var(--green);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;" onclick="saveWeightEntryEdit(${i})">Save</button>
+          <button style="padding:6px 10px;font-size:12px;background:none;color:var(--red);border:1px solid var(--red);border-radius:8px;cursor:pointer;" onclick="deleteWeightEntry(${i})">Delete</button>
+        </div>` : '';
+      return `<div class="weight-entry" style="display:block;padding:8px 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:var(--muted);cursor:pointer;" onclick="toggleWeightEntryEditor(${i})">${w.date} ${isEditing?'▲':'✏️'}</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div style="font-weight:700">${w.weight.toFixed(1)} lbs</div>
+            ${diff!==null?`<div style="font-size:11px;font-weight:600;color:${diff<=0?'var(--green)':'var(--red)'}">${diff>0?'+':''}${diff.toFixed(1)}</div>`:''}
+          </div>
+        </div>
+        ${editor}
+      </div>`;
+    }).join('');
+  }
+
+  renderWeightChart(weights, p, goal, startWeight, latest);
 }
 
 function logWeight(){
   const val=parseFloat(document.getElementById('weight-input').value);
   if(!val||val<100||val>600){ showToast('Enter a valid weight'); return; }
   const weights=getWeights();
-  weights.unshift({weight:val,date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})});
+  const now=new Date();
+  weights.unshift({weight:val,date:now.toLocaleDateString('en-US',{month:'short',day:'numeric'}),dateKey:toDateKey(now)});
   saveWeights(weights);
   document.getElementById('weight-input').value='';
   renderWeight();
   showToast('Weight logged — calorie target updated');
+}
+
+// One-time-per-load migration: older entries only stored a display string like "Jul 10" with
+// no year, which breaks real date math (charting, sorting across a year boundary). Infers the
+// correct year using "most recent year in which this month/day falls on or before today" —
+// safe for a body-weight log since entries won't span more than ~12 months without a real date.
+function migrateWeightLogDates(weights){
+  let changed = false;
+  const today = new Date();
+  weights.forEach(w => {
+    if (w.dateKey) return;
+    const parsed = new Date(w.date + ', ' + today.getFullYear());
+    if (isNaN(parsed)) return; // unparseable legacy string — leave it out of chart/regression, list display still works
+    if (parsed > today) parsed.setFullYear(today.getFullYear() - 1);
+    w.dateKey = toDateKey(parsed);
+    changed = true;
+  });
+  return changed;
+}
+
+function addPastWeightEntry(){
+  const dateInput = document.getElementById('past-weight-date');
+  const weightInput = document.getElementById('past-weight-value');
+  const dateVal = dateInput.value;
+  const weightVal = parseFloat(weightInput.value);
+  if(!dateVal){ showToast('Pick a date'); return; }
+  if(!weightVal||weightVal<100||weightVal>600){ showToast('Enter a valid weight'); return; }
+  const weights=getWeights();
+  const d = new Date(dateVal+'T12:00:00');
+  weights.push({weight:weightVal, date:d.toLocaleDateString('en-US',{month:'short',day:'numeric'}), dateKey:dateVal});
+  weights.sort((a,b)=> (a.dateKey||'') < (b.dateKey||'') ? 1 : -1); // keep newest-first, matching logWeight's convention
+  saveWeights(weights);
+  dateInput.value=''; weightInput.value='';
+  renderWeight();
+  showToast('Past entry added');
+}
+
+let expandedWeightEditIdx = new Set();
+function toggleWeightEntryEditor(idx){
+  if(expandedWeightEditIdx.has(idx)) expandedWeightEditIdx.delete(idx);
+  else expandedWeightEditIdx.add(idx);
+  renderWeight();
+}
+
+function saveWeightEntryEdit(idx){
+  const dateInput = document.getElementById('wt-edit-date-'+idx);
+  const weightInput = document.getElementById('wt-edit-weight-'+idx);
+  const dateVal = dateInput.value;
+  const weightVal = parseFloat(weightInput.value);
+  if(!dateVal){ showToast('Pick a date'); return; }
+  if(!weightVal||weightVal<100||weightVal>600){ showToast('Enter a valid weight'); return; }
+  const weights=getWeights();
+  if(!weights[idx]) return;
+  const d = new Date(dateVal+'T12:00:00');
+  weights[idx] = { weight:weightVal, date:d.toLocaleDateString('en-US',{month:'short',day:'numeric'}), dateKey:dateVal };
+  weights.sort((a,b)=> (a.dateKey||'') < (b.dateKey||'') ? 1 : -1);
+  saveWeights(weights);
+  expandedWeightEditIdx.delete(idx);
+  renderWeight();
+  showToast('Entry updated');
+}
+
+function deleteWeightEntry(idx){
+  const weights=getWeights();
+  weights.splice(idx,1);
+  saveWeights(weights);
+  renderWeight();
+}
+
+// ── WEIGHT TREND CHART ────────────────────────────────────────────────────
+// Two projection lines, deliberately not one: GLP-1 weight loss isn't linear, so a single
+// full-history straight-line fit would be misleading. "Actual trend" extrapolates only the
+// last few weeks of real weigh-ins. "Calorie-math" extrapolates from TDEE vs logged intake —
+// what SHOULD happen if current eating/exercise patterns hold. When they diverge, that's a
+// real signal (water retention, adherence gap, metabolic adaptation), not noise.
+function daysBetween(dateKeyA, dateKeyB){
+  const a = new Date(dateKeyA+'T12:00:00'), b = new Date(dateKeyB+'T12:00:00');
+  return Math.round((b - a) / 86400000);
+}
+function addDays(dateKey, n){
+  const d = new Date(dateKey+'T12:00:00');
+  d.setDate(d.getDate()+n);
+  return toDateKey(d);
+}
+
+function linearRegression(points){
+  // points: [{x:days, y:weight}] — returns {slope, intercept} for y = slope*x + intercept
+  const n = points.length;
+  const sumX = points.reduce((s,p)=>s+p.x,0), sumY = points.reduce((s,p)=>s+p.y,0);
+  const sumXY = points.reduce((s,p)=>s+p.x*p.y,0), sumXX = points.reduce((s,p)=>s+p.x*p.x,0);
+  const denom = n*sumXX - sumX*sumX;
+  if (denom === 0) return { slope: 0, intercept: sumY/n };
+  const slope = (n*sumXY - sumX*sumY) / denom;
+  const intercept = (sumY - slope*sumX) / n;
+  return { slope, intercept };
+}
+
+function renderWeightChart(weights, person, goal, startWeight, latest){
+  const el = document.getElementById('weight-chart-container');
+  if (!el) return;
+
+  const dated = weights.filter(w => w.dateKey).slice().sort((a,b)=> a.dateKey < b.dateKey ? -1 : 1);
+  if (!dated.length){
+    el.innerHTML = '<div class="empty">Log a few weigh-ins to see your trend</div>';
+    return;
+  }
+
+  const isGain = goal.direction === 'gain';
+  const earliestKey = dated[0].dateKey;
+  const todayKeyVal = todayKey();
+  const showProjection = dated.length >= 5 && daysBetween(dated[0].dateKey, dated[dated.length-1].dateKey) >= 10;
+
+  // Actual series, plus the user's true starting weight anchored one day before the first
+  // real entry (so the chart shows the full journey, not just the logged window).
+  const actualPoints = [{ dateKey: addDays(earliestKey, -1), weight: startWeight, isStart: true },
+    ...dated.map(w => ({ dateKey: w.dateKey, weight: w.weight, isStart: false }))];
+
+  let trendLine = null, calorieLine = null;
+  if (showProjection){
+    const cutoff = addDays(dated[dated.length-1].dateKey, -28);
+    const recent = dated.filter(w => w.dateKey >= cutoff);
+    const regressionInput = (recent.length >= 3 ? recent : dated).map(w => ({ x: daysBetween(earliestKey, w.dateKey), y: w.weight }));
+    const { slope, intercept } = linearRegression(regressionInput);
+    const lastX = daysBetween(earliestKey, dated[dated.length-1].dateKey);
+    trendLine = [0,7,14,21,28,35,42].map(offset => ({
+      dateKey: addDays(dated[dated.length-1].dateKey, offset),
+      weight: intercept + slope*(lastX+offset),
+    }));
+
+    const weekSnap = buildWeekSnapshot();
+    if (weekSnap.daysLogged > 0){
+      const { tdee } = calcCalTarget(latest, person);
+      const avgExCals = 0; // weekSnap doesn't expose a per-day exercise avg here; conservative (ignores exercise headroom) rather than overstate the projected rate
+      const dailyDeficit = tdee - weekSnap.avg.cal + avgExCals;
+      const weeklyRate = dailyDeficit / 3500; // +rate = losing, -rate = gaining, in lb/week terms consistent with "start-latest" framing
+      calorieLine = [0,7,14,21,28,35,42].map(offset => ({
+        dateKey: addDays(dated[dated.length-1].dateKey, offset),
+        weight: latest - weeklyRate*(offset/7),
+      }));
+    }
+  }
+
+  // ── coordinate scaling ──
+  const allPoints = [...actualPoints, ...(trendLine||[]), ...(calorieLine||[])];
+  const minDate = actualPoints[0].dateKey;
+  const maxDate = allPoints.reduce((m,p)=> p.dateKey > m ? p.dateKey : m, actualPoints[actualPoints.length-1].dateKey);
+  const totalDays = Math.max(1, daysBetween(minDate, maxDate));
+  const weightVals = allPoints.map(p=>p.weight);
+  const minW = Math.min(...weightVals), maxW = Math.max(...weightVals);
+  const pad = Math.max(2, (maxW-minW)*0.15);
+  const yMin = minW - pad, yMax = maxW + pad;
+
+  const W = 400, H = 220, ML = 34, MR = 10, MT = 12, MB = 22;
+  const plotW = W-ML-MR, plotH = H-MT-MB;
+  const xScale = dateKey => ML + (daysBetween(minDate, dateKey)/totalDays)*plotW;
+  const yScale = w => MT + (1-(w-yMin)/(yMax-yMin))*plotH;
+
+  const pathFor = pts => pts.map((p,i)=> `${i===0?'M':'L'}${xScale(p.dateKey).toFixed(1)},${yScale(p.weight).toFixed(1)}`).join(' ');
+
+  const actualPath = pathFor(actualPoints);
+  const trendPath = trendLine ? pathFor([{dateKey:dated[dated.length-1].dateKey, weight:latest}, ...trendLine]) : '';
+  const calPath = calorieLine ? pathFor([{dateKey:dated[dated.length-1].dateKey, weight:latest}, ...calorieLine]) : '';
+
+  const dots = actualPoints.filter(p=>!p.isStart).map(p =>
+    `<circle cx="${xScale(p.dateKey).toFixed(1)}" cy="${yScale(p.weight).toFixed(1)}" r="2.5" fill="var(--accent)"/>`).join('');
+  const startDot = `<circle cx="${xScale(actualPoints[0].dateKey).toFixed(1)}" cy="${yScale(actualPoints[0].weight).toFixed(1)}" r="3.5" fill="none" stroke="var(--muted)" stroke-width="1.5"/>`;
+
+  const yGridLines = [yMin, (yMin+yMax)/2, yMax].map(w =>
+    `<line x1="${ML}" y1="${yScale(w).toFixed(1)}" x2="${W-MR}" y2="${yScale(w).toFixed(1)}" stroke="var(--border)" stroke-width="0.5"/>
+     <text x="${ML-4}" y="${(yScale(w)+3).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="end">${w.toFixed(0)}</text>`).join('');
+
+  const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+    ${yGridLines}
+    <path d="${actualPath}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    ${trendLine ? `<path d="${trendPath}" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3"/>` : ''}
+    ${calorieLine ? `<path d="${calPath}" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="4,3"/>` : ''}
+    ${dots}
+    ${startDot}
+  </svg>`;
+
+  const legend = `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-top:6px;">
+    <div><span style="display:inline-block;width:10px;height:2px;background:var(--accent);vertical-align:middle;"></span> Actual</div>
+    ${trendLine ? `<div><span style="display:inline-block;width:10px;height:2px;background:#f59e0b;vertical-align:middle;border-top:2px dashed #f59e0b;"></span> Recent trend (projected)</div>` : ''}
+    ${calorieLine ? `<div><span style="display:inline-block;width:10px;height:2px;background:#a78bfa;vertical-align:middle;border-top:2px dashed #a78bfa;"></span> Calorie-math projection</div>` : ''}
+  </div>`;
+
+  const guardrailNote = !showProjection
+    ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Log a few more weigh-ins (5+, across 10+ days) to unlock projected trend lines.</div>`
+    : `<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Projections are rough — recent trend uses your last ~4 weeks of real weigh-ins; calorie-math uses TDEE vs. this week's logged intake. Shown 6 weeks out max. Your scale is the real number; these are leading indicators, not a promise. ${isGain?'Trending up is the goal here.':''}</div>`;
+
+  el.innerHTML = svg + legend + guardrailNote;
 }
 
 // ── WEEK ──────────────────────────────────────────────────────────────────────
