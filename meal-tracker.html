@@ -612,6 +612,10 @@
       <input type="number" id="servings-modal-oz-input" min="0.1" step="0.1" style="font-size:20px;font-weight:700;width:60px;border:none;border-bottom:2px solid var(--border);outline:none;color:var(--muted);background:transparent;"/>
       <span style="font-size:14px;color:var(--muted);">oz</span>
     </div>
+    <div id="servings-modal-g-row" style="display:none;align-items:baseline;gap:8px;margin-bottom:6px;">
+      <input type="number" id="servings-modal-g-input" min="1" step="1" style="font-size:20px;font-weight:700;width:60px;border:none;border-bottom:2px solid var(--border);outline:none;color:var(--muted);background:transparent;"/>
+      <span style="font-size:14px;color:var(--muted);">g</span>
+    </div>
     <div id="servings-modal-name" style="font-size:14px;color:var(--muted);margin-bottom:18px;"></div>
     <div style="display:flex;justify-content:flex-end;gap:20px;">
       <button onclick="closeServingsModal()" style="background:none;border:none;color:var(--blue);font-size:15px;font-weight:700;cursor:pointer;padding:8px;">Cancel</button>
@@ -3002,7 +3006,9 @@ function openServingsModal(name, currentServings, onConfirm, notes){
 
   const gramsPerServing = parseGramsPerServing(name, notes);
   const ozRow = document.getElementById('servings-modal-oz-row');
+  const gRow = document.getElementById('servings-modal-g-row');
   const ozInput = document.getElementById('servings-modal-oz-input');
+  const gInput = document.getElementById('servings-modal-g-input');
   const servingsInput = document.getElementById('servings-modal-input');
 
   // clear any previously-attached listeners by cloning (cheap way to avoid stacking handlers
@@ -3011,21 +3017,39 @@ function openServingsModal(name, currentServings, onConfirm, notes){
   servingsInput.parentNode.replaceChild(freshServingsInput, servingsInput);
   const freshOzInput = ozInput.cloneNode(true);
   ozInput.parentNode.replaceChild(freshOzInput, ozInput);
+  const freshGInput = gInput.cloneNode(true);
+  gInput.parentNode.replaceChild(freshGInput, gInput);
   freshServingsInput.value = currentServings;
 
   if(gramsPerServing){
     ozRow.style.display = 'flex';
-    freshOzInput.value = Math.round(currentServings * gramsPerServing * OZ_PER_GRAM * 10) / 10;
+    gRow.style.display = 'flex';
+    const grams0 = currentServings * gramsPerServing;
+    freshOzInput.value = Math.round(grams0 * OZ_PER_GRAM * 10) / 10;
+    freshGInput.value = Math.round(grams0);
     freshServingsInput.oninput = () => {
       const s = parseFloat(freshServingsInput.value);
-      if(!isNaN(s)) freshOzInput.value = Math.round(s * gramsPerServing * OZ_PER_GRAM * 10) / 10;
+      if(isNaN(s)) return;
+      const g = s * gramsPerServing;
+      freshOzInput.value = Math.round(g * OZ_PER_GRAM * 10) / 10;
+      freshGInput.value = Math.round(g);
     };
     freshOzInput.oninput = () => {
       const oz = parseFloat(freshOzInput.value);
-      if(!isNaN(oz) && gramsPerServing>0) freshServingsInput.value = Math.round((oz/OZ_PER_GRAM/gramsPerServing) * 100) / 100;
+      if(isNaN(oz) || gramsPerServing<=0) return;
+      const g = oz / OZ_PER_GRAM;
+      freshServingsInput.value = Math.round((g/gramsPerServing) * 100) / 100;
+      freshGInput.value = Math.round(g);
+    };
+    freshGInput.oninput = () => {
+      const g = parseFloat(freshGInput.value);
+      if(isNaN(g) || gramsPerServing<=0) return;
+      freshServingsInput.value = Math.round((g/gramsPerServing) * 100) / 100;
+      freshOzInput.value = Math.round(g * OZ_PER_GRAM * 10) / 10;
     };
   } else {
     ozRow.style.display = 'none';
+    gRow.style.display = 'none';
   }
 
   const confirmBtn = document.getElementById('servings-modal-confirm');
