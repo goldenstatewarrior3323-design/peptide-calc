@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Monthly Ledger</title>
+<link rel="manifest" href="ledger-manifest.json">
+<meta name="theme-color" content="#0B2340">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ledger">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
   * { box-sizing: border-box; }
@@ -182,6 +188,15 @@ function render(){
   incomeList.innerHTML = '';
   state.income.forEach(i => incomeList.appendChild(renderIncomeRow(i)));
 
+  updateSummary();
+
+  document.getElementById('history-count').textContent = history.length;
+  renderHistory();
+}
+
+// Lightweight refresh of just the totals card — safe to call on every keystroke
+// since it never touches the row inputs, so focus/cursor position is preserved.
+function updateSummary(){
   const totalExpenses = state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0);
   const paidTotal = state.bills.filter(b=>b.paid).reduce((s,b)=>s+(Number(b.amount)||0),0);
   const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
@@ -198,9 +213,6 @@ function render(){
   document.getElementById('progress-fill').style.width = pct + '%';
   document.getElementById('progress-caption').textContent =
     fmt(currentBalance) + ' cash on hand right now · ' + fmt(receivedTotal) + ' received · ' + fmt(paidTotal) + ' paid';
-
-  document.getElementById('history-count').textContent = history.length;
-  renderHistory();
 }
 
 function renderBillRow(b){
@@ -226,8 +238,14 @@ function renderBillRow(b){
 
   nameInput.addEventListener('input', e => { b.name = e.target.value; save(); });
   dueInput.addEventListener('input', e => { b.dueDay = parseInt(e.target.value) || 0; save(); });
-  amountInput.addEventListener('input', e => { b.amount = parseFloat(e.target.value) || 0; save(); render(); });
-  stampBtn.addEventListener('click', () => { b.paid = !b.paid; save(); render(); });
+  amountInput.addEventListener('input', e => { b.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
+  stampBtn.addEventListener('click', () => {
+    b.paid = !b.paid; save();
+    stampBtn.classList.toggle('on', b.paid);
+    stampBtn.textContent = b.paid ? '✓' : '';
+    row.querySelector('.icon-wrap').classList.toggle('paid', b.paid);
+    updateSummary();
+  });
   removeBtn.addEventListener('click', () => { state.bills = state.bills.filter(x => x.id !== b.id); save(); render(); });
 
   return row;
@@ -249,8 +267,14 @@ function renderIncomeRow(i){
   const removeBtn = row.querySelector('.remove-btn');
 
   nameInput.addEventListener('input', e => { i.name = e.target.value; save(); });
-  amountInput.addEventListener('input', e => { i.amount = parseFloat(e.target.value) || 0; save(); render(); });
-  stampBtn.addEventListener('click', () => { i.received = !i.received; save(); render(); });
+  amountInput.addEventListener('input', e => { i.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
+  stampBtn.addEventListener('click', () => {
+    i.received = !i.received; save();
+    stampBtn.classList.toggle('on', i.received);
+    stampBtn.textContent = i.received ? '✓' : '';
+    row.querySelector('.icon-wrap').classList.toggle('received', i.received);
+    updateSummary();
+  });
   removeBtn.addEventListener('click', () => { state.income = state.income.filter(x => x.id !== i.id); save(); render(); });
 
   return row;
@@ -354,6 +378,12 @@ function renderHistory(){
 
 load();
 render();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('ledger-sw.js', { scope: 'monthly-ledger.html' }).catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
