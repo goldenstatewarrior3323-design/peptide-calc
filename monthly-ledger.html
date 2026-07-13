@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monthly Ledger</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: #0B2340; color: #EAF2FB;
+    font-family: 'Inter', sans-serif;
+    background-image: linear-gradient(rgba(93,169,233,0.07) 1px, transparent 1px),
+                       linear-gradient(90deg, rgba(93,169,233,0.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .content { max-width: 560px; margin: 0 auto; padding: 28px 16px 48px; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 3px; color: #5DA9E9; margin-bottom: 4px; }
+  .month-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.5px; margin-bottom: 18px; }
+  .summary-card { background: #123157; border: 1px solid rgba(93,169,233,0.25); border-radius: 14px; padding: 18px 18px 16px; margin-bottom: 22px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+  .summary-row { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+  .summary-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 1.5px; color: #7FA8C9; margin-bottom: 4px; }
+  .summary-med { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; }
+  .summary-big { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 22px; text-align: right; }
+  .progress-track { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg,#5DA9E9,#4FAE7A); border-radius: 4px; transition: width .3s ease; }
+  .progress-caption { margin-top: 8px; font-size: 11.5px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; }
+  .section-header { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 2px; color: #7FA8C9; margin: 18px 2px 8px; }
+  .list-wrap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 8px; background: #0E2C4E; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; }
+  .icon-wrap { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; background: rgba(93,169,233,0.1); }
+  .icon-wrap.received, .icon-wrap.paid { background: rgba(79,174,122,0.15); }
+  .row-main { flex: 1; min-width: 0; }
+  .name-input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.12); color: #EAF2FB; font-family: 'Inter', sans-serif; font-size: 14.5px; font-weight: 500; padding: 2px; outline: none; }
+  .name-input:focus { border-bottom-color: #5DA9E9; }
+  .due-row { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+  .due-label { font-size: 10.5px; color: #5A7DA0; font-family: 'IBM Plex Mono', monospace; }
+  .due-input { width: 28px; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; padding: 0; outline: none; }
+  .amount-wrap { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+  .currency { color: #5A7DA0; font-size: 13px; font-family: 'IBM Plex Mono', monospace; }
+  .amount-input { width: 58px; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.15); color: #EAF2FB; font-family: 'IBM Plex Mono', monospace; font-size: 14px; padding: 2px; text-align: right; outline: none; }
+  .amount-input:focus { border-bottom-color: #5DA9E9; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  .stamp-btn { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.25); background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; color: #0B2340; font-weight: 800; font-size: 13px; }
+  .stamp-btn.on { background: #4FAE7A; border-color: #4FAE7A; }
+  .remove-btn { background: transparent; border: none; cursor: pointer; padding: 2px; color: #7FA8C9; font-size: 14px; flex-shrink: 0; }
+  .add-card { display: flex; align-items: center; gap: 8px; background: #0E2C4E; border: 1px dashed rgba(93,169,233,0.4); border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+  .add-input-name { flex: 1; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.15); color: #EAF2FB; font-size: 14px; padding: 2px; outline: none; font-family: 'Inter', sans-serif; }
+  .add-confirm { background: #5DA9E9; color: #0B2340; border: none; border-radius: 6px; padding: 6px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .add-cancel { background: transparent; border: none; cursor: pointer; color: #7FA8C9; font-size: 14px; }
+  .add-row-btn { display: flex; align-items: center; gap: 8px; background: transparent; border: 1px dashed rgba(93,169,233,0.3); border-radius: 10px; padding: 10px 12px; color: #5DA9E9; font-size: 13.5px; cursor: pointer; margin-bottom: 8px; width: 100%; font-family: 'Inter', sans-serif; }
+  .add-row-btn.income { border-color: rgba(79,174,122,0.3); color: #4FAE7A; }
+  .close-month-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: #1B4B72; border: 1px solid rgba(93,169,233,0.3); border-radius: 10px; padding: 12px; color: #EAF2FB; font-size: 13.5px; font-weight: 500; cursor: pointer; margin-top: 14px; font-family: 'Inter', sans-serif; }
+  .close-month-hint { text-align: center; font-size: 11px; color: #5A7DA0; margin-top: 8px; margin-bottom: 24px; font-family: 'IBM Plex Mono', monospace; }
+  .history-toggle { display: flex; align-items: center; gap: 8px; background: transparent; border: none; color: #7FA8C9; font-size: 13px; cursor: pointer; padding: 6px 0; font-family: 'Inter', sans-serif; }
+  .history-list { margin-top: 10px; display: none; flex-direction: column; gap: 6px; }
+  .history-list.open { display: flex; }
+  .history-row { display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 6px 0; font-family: 'IBM Plex Mono', monospace; }
+  .history-empty { font-size: 12.5px; color: #5A7DA0; font-family: 'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
+<div class="content">
+  <div class="eyebrow">MONTHLY LEDGER</div>
+  <div class="month-title" id="month-title">—</div>
+
+  <div class="summary-card">
+    <div class="summary-row">
+      <div>
+        <div class="summary-label">INCOME</div>
+        <div class="summary-med" id="sum-income" style="color:#4FAE7A;">$0</div>
+      </div>
+      <div>
+        <div class="summary-label">EXPENSES</div>
+        <div class="summary-med" id="sum-expenses" style="color:#E8A33D;">$0</div>
+      </div>
+      <div>
+        <div class="summary-label" style="text-align:right;">END-OF-MONTH BALANCE</div>
+        <div class="summary-big" id="sum-balance">$0</div>
+      </div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="progress-caption" id="progress-caption">$0 cash on hand · $0 received · $0 paid</div>
+  </div>
+
+  <div class="section-header">📈 MONEY IN</div>
+  <div class="list-wrap" id="income-list"></div>
+  <div class="add-card" id="income-add-card" style="display:none;">
+    <input class="add-input-name" id="income-add-name" placeholder="Income source">
+    <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" id="income-add-amount" type="number" inputmode="decimal" placeholder="0"></div>
+    <button class="add-confirm" onclick="confirmAddIncome()">Add</button>
+    <button class="add-cancel" onclick="cancelAddIncome()">✕</button>
+  </div>
+  <button class="add-row-btn income" id="income-add-toggle" onclick="showAddIncome()">+ Add income source</button>
+
+  <div class="section-header">📉 MONEY OUT</div>
+  <div class="list-wrap" id="bills-list"></div>
+  <div class="add-card" id="bill-add-card" style="display:none;">
+    <input class="add-input-name" id="bill-add-name" placeholder="Bill name">
+    <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" id="bill-add-amount" type="number" inputmode="decimal" placeholder="0"></div>
+    <button class="add-confirm" onclick="confirmAddBill()">Add</button>
+    <button class="add-cancel" onclick="cancelAddBill()">✕</button>
+  </div>
+  <button class="add-row-btn" id="bill-add-toggle" onclick="showAddBill()">+ Add bill</button>
+
+  <button class="close-month-btn" onclick="closeMonth()">↺ Close month &amp; start new month</button>
+  <div class="close-month-hint">Archives this month, resets paid/received stamps, and carries leftover balance into next month as savings income.</div>
+
+  <button class="history-toggle" onclick="toggleHistory()">📒 History (<span id="history-count">0</span>) <span id="history-chevron">▾</span></button>
+  <div class="history-list" id="history-list"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'monthlyLedgerState_v1';
+const HISTORY_KEY = 'monthlyLedgerHistory_v1';
+
+const DEFAULT_BILLS = [
+  {name:'Rent', icon:'🏠', amount:0, dueDay:1, paid:false},
+  {name:'Car Payment', icon:'🚗', amount:0, dueDay:5, paid:false},
+  {name:'Car Insurance', icon:'🛡️', amount:0, dueDay:5, paid:false},
+  {name:'Health Insurance', icon:'❤️', amount:0, dueDay:1, paid:false},
+  {name:'Cell Phones', icon:'📱', amount:0, dueDay:10, paid:false},
+  {name:'Gas', icon:'⛽', amount:0, dueDay:15, paid:false},
+  {name:'Electric', icon:'⚡', amount:0, dueDay:12, paid:false},
+  {name:'Water', icon:'💧', amount:0, dueDay:12, paid:false},
+  {name:'Trash', icon:'🗑️', amount:0, dueDay:12, paid:false},
+  {name:'Internet', icon:'📶', amount:0, dueDay:18, paid:false},
+  {name:'Streaming', icon:'📺', amount:0, dueDay:20, paid:false},
+  {name:'Food', icon:'🛒', amount:0, dueDay:0, paid:false},
+  {name:'Household Items', icon:'📦', amount:0, dueDay:0, paid:false},
+  {name:'Nails', icon:'💅', amount:0, dueDay:0, paid:false},
+  {name:'Haircuts', icon:'✂️', amount:0, dueDay:0, paid:false},
+  {name:'Miscellaneous', icon:'➕', amount:0, dueDay:0, paid:false},
+];
+const DEFAULT_INCOME = [
+  {name:'Paycheck / Commission', icon:'💵', amount:0, received:false},
+];
+
+let state = null;
+let history = [];
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function fmt(n){ const v = Number.isFinite(n) ? n : 0; return v.toLocaleString('en-US',{style:'currency',currency:'USD'}); }
+function monthLabel(y,m){ return new Date(y, m, 1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); }
+
+function load(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    state = raw ? JSON.parse(raw) : null;
+  } catch(e){ state = null; }
+  if (!state || !state.bills || !state.income) {
+    const now = new Date();
+    state = {
+      year: now.getFullYear(),
+      month: now.getMonth(),
+      bills: DEFAULT_BILLS.map(b => ({...b, id: uid()})),
+      income: DEFAULT_INCOME.map(i => ({...i, id: uid()})),
+    };
+  }
+  try {
+    const rawH = localStorage.getItem(HISTORY_KEY);
+    history = rawH ? JSON.parse(rawH) : [];
+  } catch(e){ history = []; }
+}
+
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function saveHistory(){
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
+function render(){
+  document.getElementById('month-title').textContent = monthLabel(state.year, state.month);
+
+  const billsList = document.getElementById('bills-list');
+  billsList.innerHTML = '';
+  state.bills.forEach(b => billsList.appendChild(renderBillRow(b)));
+
+  const incomeList = document.getElementById('income-list');
+  incomeList.innerHTML = '';
+  state.income.forEach(i => incomeList.appendChild(renderIncomeRow(i)));
+
+  const totalExpenses = state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0);
+  const paidTotal = state.bills.filter(b=>b.paid).reduce((s,b)=>s+(Number(b.amount)||0),0);
+  const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
+  const receivedTotal = state.income.filter(i=>i.received).reduce((s,i)=>s+(Number(i.amount)||0),0);
+  const projectedBalance = totalIncome - totalExpenses;
+  const currentBalance = receivedTotal - paidTotal;
+  const pct = totalExpenses > 0 ? Math.round((paidTotal/totalExpenses)*100) : 0;
+
+  document.getElementById('sum-income').textContent = fmt(totalIncome);
+  document.getElementById('sum-expenses').textContent = fmt(totalExpenses);
+  const balEl = document.getElementById('sum-balance');
+  balEl.textContent = fmt(projectedBalance);
+  balEl.style.color = projectedBalance >= 0 ? '#4FAE7A' : '#E2555A';
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-caption').textContent =
+    fmt(currentBalance) + ' cash on hand right now · ' + fmt(receivedTotal) + ' received · ' + fmt(paidTotal) + ' paid';
+
+  document.getElementById('history-count').textContent = history.length;
+  renderHistory();
+}
+
+function renderBillRow(b){
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `
+    <div class="icon-wrap ${b.paid ? 'paid' : ''}">${b.icon || '➕'}</div>
+    <div class="row-main">
+      <input class="name-input" value="${escapeAttr(b.name)}" />
+      <div class="due-row">
+        <span class="due-label">Due day</span>
+        <input class="due-input" type="number" inputmode="numeric" value="${b.dueDay ? b.dueDay : ''}" placeholder="—" />
+      </div>
+    </div>
+    <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" type="number" inputmode="decimal" value="${b.amount ? b.amount : ''}" placeholder="0" /></div>
+    <button class="stamp-btn ${b.paid ? 'on' : ''}">${b.paid ? '✓' : ''}</button>
+    <button class="remove-btn">✕</button>
+  `;
+  const [nameInput, dueInput] = row.querySelectorAll('.name-input, .due-input');
+  const amountInput = row.querySelector('.amount-input');
+  const stampBtn = row.querySelector('.stamp-btn');
+  const removeBtn = row.querySelector('.remove-btn');
+
+  nameInput.addEventListener('input', e => { b.name = e.target.value; save(); });
+  dueInput.addEventListener('input', e => { b.dueDay = parseInt(e.target.value) || 0; save(); });
+  amountInput.addEventListener('input', e => { b.amount = parseFloat(e.target.value) || 0; save(); render(); });
+  stampBtn.addEventListener('click', () => { b.paid = !b.paid; save(); render(); });
+  removeBtn.addEventListener('click', () => { state.bills = state.bills.filter(x => x.id !== b.id); save(); render(); });
+
+  return row;
+}
+
+function renderIncomeRow(i){
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `
+    <div class="icon-wrap ${i.received ? 'received' : ''}">${i.icon || '💵'}</div>
+    <input class="name-input" style="flex:1;" value="${escapeAttr(i.name)}" />
+    <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" type="number" inputmode="decimal" value="${i.amount ? i.amount : ''}" placeholder="0" /></div>
+    <button class="stamp-btn ${i.received ? 'on' : ''}">${i.received ? '✓' : ''}</button>
+    <button class="remove-btn">✕</button>
+  `;
+  const nameInput = row.querySelector('.name-input');
+  const amountInput = row.querySelector('.amount-input');
+  const stampBtn = row.querySelector('.stamp-btn');
+  const removeBtn = row.querySelector('.remove-btn');
+
+  nameInput.addEventListener('input', e => { i.name = e.target.value; save(); });
+  amountInput.addEventListener('input', e => { i.amount = parseFloat(e.target.value) || 0; save(); render(); });
+  stampBtn.addEventListener('click', () => { i.received = !i.received; save(); render(); });
+  removeBtn.addEventListener('click', () => { state.income = state.income.filter(x => x.id !== i.id); save(); render(); });
+
+  return row;
+}
+
+function escapeAttr(s){
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function showAddBill(){
+  document.getElementById('bill-add-card').style.display = 'flex';
+  document.getElementById('bill-add-toggle').style.display = 'none';
+  document.getElementById('bill-add-name').focus();
+}
+function cancelAddBill(){
+  document.getElementById('bill-add-card').style.display = 'none';
+  document.getElementById('bill-add-toggle').style.display = 'flex';
+  document.getElementById('bill-add-name').value = '';
+  document.getElementById('bill-add-amount').value = '';
+}
+function confirmAddBill(){
+  const name = document.getElementById('bill-add-name').value.trim();
+  if (!name) return;
+  const amount = parseFloat(document.getElementById('bill-add-amount').value) || 0;
+  state.bills.push({id: uid(), name, icon:'➕', amount, dueDay:0, paid:false});
+  save();
+  cancelAddBill();
+  render();
+}
+
+function showAddIncome(){
+  document.getElementById('income-add-card').style.display = 'flex';
+  document.getElementById('income-add-toggle').style.display = 'none';
+  document.getElementById('income-add-name').focus();
+}
+function cancelAddIncome(){
+  document.getElementById('income-add-card').style.display = 'none';
+  document.getElementById('income-add-toggle').style.display = 'flex';
+  document.getElementById('income-add-name').value = '';
+  document.getElementById('income-add-amount').value = '';
+}
+function confirmAddIncome(){
+  const name = document.getElementById('income-add-name').value.trim();
+  if (!name) return;
+  const amount = parseFloat(document.getElementById('income-add-amount').value) || 0;
+  state.income.push({id: uid(), name, icon:'📈', amount, received:false});
+  save();
+  cancelAddIncome();
+  render();
+}
+
+function closeMonth(){
+  const totalExpenses = state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0);
+  const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
+  const balance = totalIncome - totalExpenses;
+  const label = monthLabel(state.year, state.month);
+
+  history.unshift({
+    key: state.year + '-' + String(state.month+1).padStart(2,'0'),
+    label, income: totalIncome, expenses: totalExpenses, balance,
+    closedAt: new Date().toISOString(),
+  });
+  history = history.slice(0, 24);
+  saveHistory();
+
+  let nextMonth = state.month + 1, nextYear = state.year;
+  if (nextMonth > 11) { nextMonth = 0; nextYear += 1; }
+
+  const resetBills = state.bills.map(b => ({...b, paid:false}));
+  let carryIncome = state.income.filter(i => i.icon !== '🐷').map(i => ({...i, received:false}));
+  if (balance !== 0) {
+    carryIncome.unshift({id: uid(), name: 'Savings carried from ' + label, icon:'🐷', amount: balance, received:true});
+  }
+
+  state = { year: nextYear, month: nextMonth, bills: resetBills, income: carryIncome };
+  save();
+  render();
+}
+
+function toggleHistory(){
+  const list = document.getElementById('history-list');
+  const chevron = document.getElementById('history-chevron');
+  list.classList.toggle('open');
+  chevron.textContent = list.classList.contains('open') ? '▴' : '▾';
+}
+
+function renderHistory(){
+  const list = document.getElementById('history-list');
+  list.innerHTML = '';
+  if (history.length === 0) {
+    list.innerHTML = '<div class="history-empty">No closed months yet.</div>';
+    return;
+  }
+  history.forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'history-row';
+    row.innerHTML = `<span>${h.label}</span><span style="color:${h.balance >= 0 ? '#4FAE7A' : '#E2555A'}">${fmt(h.balance)} balance</span>`;
+    list.appendChild(row);
+  });
+}
+
+load();
+render();
+</script>
+</body>
+</html>
