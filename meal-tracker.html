@@ -616,6 +616,14 @@
       <input type="number" id="servings-modal-g-input" min="1" step="1" style="font-size:20px;font-weight:700;width:60px;border:none;border-bottom:2px solid var(--border);outline:none;color:var(--muted);background:transparent;"/>
       <span style="font-size:14px;color:var(--muted);">g</span>
     </div>
+    <div id="servings-modal-tbsp-row" style="display:none;align-items:baseline;gap:8px;margin-bottom:6px;">
+      <input type="number" id="servings-modal-tbsp-input" min="0.25" step="0.25" style="font-size:20px;font-weight:700;width:60px;border:none;border-bottom:2px solid var(--border);outline:none;color:var(--muted);background:transparent;"/>
+      <span style="font-size:14px;color:var(--muted);">tbsp</span>
+    </div>
+    <div id="servings-modal-tsp-row" style="display:none;align-items:baseline;gap:8px;margin-bottom:6px;">
+      <input type="number" id="servings-modal-tsp-input" min="0.25" step="0.25" style="font-size:20px;font-weight:700;width:60px;border:none;border-bottom:2px solid var(--border);outline:none;color:var(--muted);background:transparent;"/>
+      <span style="font-size:14px;color:var(--muted);">tsp</span>
+    </div>
     <div id="servings-modal-name" style="font-size:14px;color:var(--muted);margin-bottom:18px;"></div>
     <div style="display:flex;justify-content:flex-end;gap:20px;">
       <button onclick="closeServingsModal()" style="background:none;border:none;color:var(--blue);font-size:15px;font-weight:700;cursor:pointer;padding:8px;">Cancel</button>
@@ -2988,7 +2996,7 @@ function scaleFromBase(base, servings){
 
 const OZ_PER_GRAM = 1/28.3495;
 
-// Pulls a per-1-serving gram weight for the oz converter. Checks the food name first
+// Pulls a per-1-serving gram weight for the oz/g converters. Checks the food name first
 // (e.g. "Tri Tip Steak, Cooked (100g)"), then falls back to the AI-generated notes field,
 // since AI-estimated entries often state their gram-equivalent there instead
 // (e.g. "Assumed a conservative 100g post-cook serving..." or "6oz = 170g, matched against...").
@@ -3000,15 +3008,33 @@ function parseGramsPerServing(name, notes){
   return notesMatch ? parseFloat(notesMatch[1]) : null;
 }
 
+// Pulls how many teaspoons make up 1 serving, for the tbsp/tsp converters — but ONLY when
+// the food's own definition already states its serving in tablespoon/teaspoon terms (e.g.
+// "Chia Seeds (1 tablespoon, ~12g)"). Deliberately NOT derived from grams: converting mass to
+// volume requires a food-specific density (a tbsp of oil and a tbsp of sugar don't weigh the
+// same), and guessing that would quietly corrupt otherwise-verified nutrition numbers. If the
+// food isn't already spoon-defined, this returns null and the tbsp/tsp rows just don't show.
+function parseTspPerServing(name){
+  const n = (name||'').toLowerCase();
+  if(/\btablespoons?\b|\btbsp\b/.test(n)) return 3;
+  if(/\bteaspoons?\b|\btsp\b/.test(n)) return 1;
+  return null;
+}
+
 function openServingsModal(name, currentServings, onConfirm, notes){
   document.getElementById('servings-modal-input').value = currentServings;
   document.getElementById('servings-modal-name').textContent = name;
 
   const gramsPerServing = parseGramsPerServing(name, notes);
+  const tspPerServing = parseTspPerServing(name);
   const ozRow = document.getElementById('servings-modal-oz-row');
   const gRow = document.getElementById('servings-modal-g-row');
+  const tbspRow = document.getElementById('servings-modal-tbsp-row');
+  const tspRow = document.getElementById('servings-modal-tsp-row');
   const ozInput = document.getElementById('servings-modal-oz-input');
   const gInput = document.getElementById('servings-modal-g-input');
+  const tbspInput = document.getElementById('servings-modal-tbsp-input');
+  const tspInput = document.getElementById('servings-modal-tsp-input');
   const servingsInput = document.getElementById('servings-modal-input');
 
   // clear any previously-attached listeners by cloning (cheap way to avoid stacking handlers
@@ -3019,37 +3045,68 @@ function openServingsModal(name, currentServings, onConfirm, notes){
   ozInput.parentNode.replaceChild(freshOzInput, ozInput);
   const freshGInput = gInput.cloneNode(true);
   gInput.parentNode.replaceChild(freshGInput, gInput);
+  const freshTbspInput = tbspInput.cloneNode(true);
+  tbspInput.parentNode.replaceChild(freshTbspInput, tbspInput);
+  const freshTspInput = tspInput.cloneNode(true);
+  tspInput.parentNode.replaceChild(freshTspInput, tspInput);
   freshServingsInput.value = currentServings;
 
-  if(gramsPerServing){
-    ozRow.style.display = 'flex';
-    gRow.style.display = 'flex';
-    const grams0 = currentServings * gramsPerServing;
-    freshOzInput.value = Math.round(grams0 * OZ_PER_GRAM * 10) / 10;
-    freshGInput.value = Math.round(grams0);
-    freshServingsInput.oninput = () => {
-      const s = parseFloat(freshServingsInput.value);
-      if(isNaN(s)) return;
+  ozRow.style.display = gramsPerServing ? 'flex' : 'none';
+  gRow.style.display = gramsPerServing ? 'flex' : 'none';
+  tbspRow.style.display = tspPerServing ? 'flex' : 'none';
+  tspRow.style.display = tspPerServing ? 'flex' : 'none';
+
+  // Single source of truth: given a servings value, refresh every OTHER active unit field from
+  // it. `skip` is whichever field the user just typed into, so we don't stomp on their input.
+  function syncFromServings(s, skip){
+    if(gramsPerServing){
       const g = s * gramsPerServing;
-      freshOzInput.value = Math.round(g * OZ_PER_GRAM * 10) / 10;
-      freshGInput.value = Math.round(g);
-    };
+      if(skip!=='oz') freshOzInput.value = Math.round(g * OZ_PER_GRAM * 10) / 10;
+      if(skip!=='g') freshGInput.value = Math.round(g);
+    }
+    if(tspPerServing){
+      const tsp = s * tspPerServing;
+      if(skip!=='tbsp') freshTbspInput.value = Math.round((tsp/3) * 4) / 4;
+      if(skip!=='tsp') freshTspInput.value = Math.round(tsp * 4) / 4;
+    }
+  }
+  syncFromServings(currentServings, null);
+
+  freshServingsInput.oninput = () => {
+    const s = parseFloat(freshServingsInput.value);
+    if(!isNaN(s)) syncFromServings(s, 'servings');
+  };
+  if(gramsPerServing){
     freshOzInput.oninput = () => {
       const oz = parseFloat(freshOzInput.value);
-      if(isNaN(oz) || gramsPerServing<=0) return;
-      const g = oz / OZ_PER_GRAM;
-      freshServingsInput.value = Math.round((g/gramsPerServing) * 100) / 100;
-      freshGInput.value = Math.round(g);
+      if(isNaN(oz)) return;
+      const s = Math.round((oz/OZ_PER_GRAM/gramsPerServing) * 100) / 100;
+      freshServingsInput.value = s;
+      syncFromServings(s, 'oz');
     };
     freshGInput.oninput = () => {
       const g = parseFloat(freshGInput.value);
-      if(isNaN(g) || gramsPerServing<=0) return;
-      freshServingsInput.value = Math.round((g/gramsPerServing) * 100) / 100;
-      freshOzInput.value = Math.round(g * OZ_PER_GRAM * 10) / 10;
+      if(isNaN(g)) return;
+      const s = Math.round((g/gramsPerServing) * 100) / 100;
+      freshServingsInput.value = s;
+      syncFromServings(s, 'g');
     };
-  } else {
-    ozRow.style.display = 'none';
-    gRow.style.display = 'none';
+  }
+  if(tspPerServing){
+    freshTbspInput.oninput = () => {
+      const tbsp = parseFloat(freshTbspInput.value);
+      if(isNaN(tbsp)) return;
+      const s = Math.round(((tbsp*3)/tspPerServing) * 100) / 100;
+      freshServingsInput.value = s;
+      syncFromServings(s, 'tbsp');
+    };
+    freshTspInput.oninput = () => {
+      const tsp = parseFloat(freshTspInput.value);
+      if(isNaN(tsp)) return;
+      const s = Math.round((tsp/tspPerServing) * 100) / 100;
+      freshServingsInput.value = s;
+      syncFromServings(s, 'tsp');
+    };
   }
 
   const confirmBtn = document.getElementById('servings-modal-confirm');
