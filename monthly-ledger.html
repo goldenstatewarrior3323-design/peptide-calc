@@ -50,7 +50,11 @@
   input[type=number] { -moz-appearance: textfield; }
   .stamp-btn { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.25); background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; color: #0B2340; font-weight: 800; font-size: 13px; }
   .stamp-btn.on { background: #4FAE7A; border-color: #4FAE7A; }
-  .remove-btn { background: transparent; border: none; cursor: pointer; padding: 2px; color: #7FA8C9; font-size: 14px; flex-shrink: 0; }
+  .remove-btn { background: transparent; border: none; cursor: pointer; padding: 2px; color: #7FA8C9; font-size: 14px; flex-shrink: 0; display: none; }
+  body.edit-mode .remove-btn { display: inline-flex; align-items: center; justify-content: center; }
+  .edit-toggle-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+  .edit-toggle-btn { background: transparent; border: 1px solid rgba(93,169,233,0.3); color: #7FA8C9; font-size: 12px; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 5px; }
+  body.edit-mode .edit-toggle-btn { background: rgba(232,163,61,0.15); border-color: #E8A33D; color: #E8A33D; }
   .add-card { display: flex; align-items: center; gap: 8px; background: #0E2C4E; border: 1px dashed rgba(93,169,233,0.4); border-radius: 10px; padding: 10px; margin-bottom: 12px; }
   .add-input-name { flex: 1; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.15); color: #EAF2FB; font-size: 14px; padding: 2px; outline: none; font-family: 'Inter', sans-serif; }
   .add-confirm { background: #5DA9E9; color: #0B2340; border: none; border-radius: 6px; padding: 6px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
@@ -76,6 +80,10 @@
     </span>
   </div>
   <div class="month-title" id="month-title">—</div>
+
+  <div class="edit-toggle-row">
+    <button class="edit-toggle-btn" id="edit-mode-toggle" onclick="toggleEditMode()">✏️ Edit mode: Off</button>
+  </div>
 
   <div class="summary-card">
     <div class="summary-row">
@@ -178,11 +186,17 @@ let pendingRemoteState = null;
 let pendingRemoteHistory = null;
 let saveTimer = null;
 
+function toggleEditMode(){
+  const on = document.body.classList.toggle('edit-mode');
+  document.getElementById('edit-mode-toggle').textContent = on ? '✏️ Edit mode: On — tap ✕ to remove' : '✏️ Edit mode: Off';
+}
+
 function defaultState(){
   const now = new Date();
   return {
     year: now.getFullYear(),
     month: now.getMonth(),
+    rev: 0,
     bills: DEFAULT_BILLS.map(b => ({...b, id: uid()})),
     income: DEFAULT_INCOME.map(i => ({...i, id: uid()})),
   };
@@ -194,6 +208,7 @@ function load(){
     const raw = localStorage.getItem(STORAGE_KEY);
     state = raw ? JSON.parse(raw) : defaultState();
     if (!state || !state.bills || !state.income) state = defaultState();
+    if (typeof state.rev !== 'number') state.rev = 0;
   } catch(e){ state = defaultState(); }
   try {
     const rawH = localStorage.getItem(HISTORY_KEY);
@@ -211,25 +226,32 @@ function isInputActive(){
 
 // Debounced write — used while typing, so we don't hammer the database every keystroke.
 function save(){
+  state.rev = (state.rev || 0) + 1;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { stateRef.set(state).catch(()=>{}); }, 400);
+  saveTimer = setTimeout(() => {
+    stateRef.set(JSON.parse(JSON.stringify(state))).catch(err => console.error('Ledger sync (save) failed:', err));
+  }, 400);
 }
 // Immediate write — used for discrete actions (stamp, add, remove, close month).
 function saveNow(){
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  state.rev = (state.rev || 0) + 1;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  stateRef.set(state).catch(()=>{});
+  stateRef.set(JSON.parse(JSON.stringify(state))).catch(err => console.error('Ledger sync (saveNow) failed:', err));
 }
 function saveHistory(){
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  historyRef.set(history).catch(()=>{});
+  historyRef.set(JSON.parse(JSON.stringify(history))).catch(err => console.error('Ledger sync (history) failed:', err));
 }
 
 // Applies data arriving from Firebase (Claudia's device, or the echo of our own write).
 // If a field is actively being typed into, the update is held until it's safe to apply.
 function applyRemoteState(remote){
-  if (!remote) { stateRef.set(state).catch(()=>{}); return; }
+  if (!remote) { stateRef.set(JSON.parse(JSON.stringify(state))).catch(err => console.error('Ledger sync (seed) failed:', err)); return; }
+  const remoteRev = typeof remote.rev === 'number' ? remote.rev : 0;
+  const localRev = typeof state.rev === 'number' ? state.rev : 0;
+  if (remoteRev < localRev) return; // stale echo — a newer local change is already showing, ignore it
   if (isInputActive()) { pendingRemoteState = remote; return; }
   state = remote;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -247,7 +269,12 @@ function applyRemoteHistory(remote){
 document.addEventListener('focusout', () => {
   setTimeout(() => {
     if (isInputActive()) return;
-    if (pendingRemoteState) { state = pendingRemoteState; pendingRemoteState = null; localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); }
+    if (pendingRemoteState) {
+      const remoteRev = typeof pendingRemoteState.rev === 'number' ? pendingRemoteState.rev : 0;
+      const localRev = typeof state.rev === 'number' ? state.rev : 0;
+      if (remoteRev >= localRev) { state = pendingRemoteState; localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); }
+      pendingRemoteState = null;
+    }
     if (pendingRemoteHistory) { history = pendingRemoteHistory; pendingRemoteHistory = null; localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); renderHistory(); document.getElementById('history-count').textContent = history.length; }
   }, 50);
 });
