@@ -328,7 +328,7 @@
 
   <button class="scan-btn" onclick="startScanner()">📷 Scan Barcode</button>
   <button class="scan-btn" onclick="document.getElementById('label-photo-input').click()" style="background:var(--blue-light);color:var(--blue);border-color:var(--blue);">🏷️ Photo of Label</button>
-  <input type="file" id="label-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="onLabelPhotoSelected(event)"/>
+  <input type="file" id="label-photo-input" accept="image/*" style="display:none;" onchange="onLabelPhotoSelected(event)"/>
   <div id="label-photo-status" style="display:none;font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 10px;"></div>
 
   <div class="input-group">
