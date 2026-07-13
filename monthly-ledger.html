@@ -68,7 +68,13 @@
 </head>
 <body>
 <div class="content">
-  <div class="eyebrow">MONTHLY LEDGER</div>
+  <div class="eyebrow" style="display:flex; align-items:center; justify-content:space-between;">
+    <span>MONTHLY LEDGER</span>
+    <span id="sync-status" style="display:flex; align-items:center; gap:5px; letter-spacing:0;">
+      <span id="sync-dot" style="width:7px; height:7px; border-radius:50%; background:#7FA8C9; display:inline-block;"></span>
+      <span id="sync-label">connecting…</span>
+    </span>
+  </div>
   <div class="month-title" id="month-title">—</div>
 
   <div class="summary-card">
@@ -117,6 +123,24 @@
   <div class="history-list" id="history-list"></div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCCSX9GdjfwwFRpVFb4b4DT8E9E7m23O7U",
+  authDomain: "finances-a3b1c.firebaseapp.com",
+  databaseURL: "https://finances-a3b1c-default-rtdb.firebaseio.com",
+  projectId: "finances-a3b1c",
+  storageBucket: "finances-a3b1c.firebasestorage.app",
+  messagingSenderId: "786083371741",
+  appId: "1:786083371741:web:9142f94e6f1ade29471934"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const stateRef = db.ref('ledger/state');
+const historyRef = db.ref('ledger/history');
+const connectedRef = db.ref('.info/connected');
+</script>
 <script>
 const STORAGE_KEY = 'monthlyLedgerState_v1';
 const HISTORY_KEY = 'monthlyLedgerHistory_v1';
@@ -150,32 +174,83 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 function fmt(n){ const v = Number.isFinite(n) ? n : 0; return v.toLocaleString('en-US',{style:'currency',currency:'USD'}); }
 function monthLabel(y,m){ return new Date(y, m, 1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); }
 
+let pendingRemoteState = null;
+let pendingRemoteHistory = null;
+let saveTimer = null;
+
+function defaultState(){
+  const now = new Date();
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth(),
+    bills: DEFAULT_BILLS.map(b => ({...b, id: uid()})),
+    income: DEFAULT_INCOME.map(i => ({...i, id: uid()})),
+  };
+}
+
+// Paints instantly from whatever this device last saw, before Firebase responds.
 function load(){
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    state = raw ? JSON.parse(raw) : null;
-  } catch(e){ state = null; }
-  if (!state || !state.bills || !state.income) {
-    const now = new Date();
-    state = {
-      year: now.getFullYear(),
-      month: now.getMonth(),
-      bills: DEFAULT_BILLS.map(b => ({...b, id: uid()})),
-      income: DEFAULT_INCOME.map(i => ({...i, id: uid()})),
-    };
-  }
+    state = raw ? JSON.parse(raw) : defaultState();
+    if (!state || !state.bills || !state.income) state = defaultState();
+  } catch(e){ state = defaultState(); }
   try {
     const rawH = localStorage.getItem(HISTORY_KEY);
     history = rawH ? JSON.parse(rawH) : [];
   } catch(e){ history = []; }
 }
 
+function isInputActive(){
+  const el = document.activeElement;
+  if (!el || el.tagName !== 'INPUT') return false;
+  return el.classList.contains('name-input') || el.classList.contains('amount-input') ||
+         el.classList.contains('due-input') || el.id === 'bill-add-name' || el.id === 'bill-add-amount' ||
+         el.id === 'income-add-name' || el.id === 'income-add-amount';
+}
+
+// Debounced write — used while typing, so we don't hammer the database every keystroke.
 function save(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { stateRef.set(state).catch(()=>{}); }, 400);
+}
+// Immediate write — used for discrete actions (stamp, add, remove, close month).
+function saveNow(){
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  stateRef.set(state).catch(()=>{});
 }
 function saveHistory(){
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  historyRef.set(history).catch(()=>{});
 }
+
+// Applies data arriving from Firebase (Claudia's device, or the echo of our own write).
+// If a field is actively being typed into, the update is held until it's safe to apply.
+function applyRemoteState(remote){
+  if (!remote) { stateRef.set(state).catch(()=>{}); return; }
+  if (isInputActive()) { pendingRemoteState = remote; return; }
+  state = remote;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  render();
+}
+function applyRemoteHistory(remote){
+  const next = Array.isArray(remote) ? remote : [];
+  if (isInputActive()) { pendingRemoteHistory = next; return; }
+  history = next;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  renderHistory();
+  document.getElementById('history-count').textContent = history.length;
+}
+
+document.addEventListener('focusout', () => {
+  setTimeout(() => {
+    if (isInputActive()) return;
+    if (pendingRemoteState) { state = pendingRemoteState; pendingRemoteState = null; localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); }
+    if (pendingRemoteHistory) { history = pendingRemoteHistory; pendingRemoteHistory = null; localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); renderHistory(); document.getElementById('history-count').textContent = history.length; }
+  }, 50);
+});
 
 function render(){
   document.getElementById('month-title').textContent = monthLabel(state.year, state.month);
@@ -240,13 +315,13 @@ function renderBillRow(b){
   dueInput.addEventListener('input', e => { b.dueDay = parseInt(e.target.value) || 0; save(); });
   amountInput.addEventListener('input', e => { b.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
   stampBtn.addEventListener('click', () => {
-    b.paid = !b.paid; save();
+    b.paid = !b.paid; saveNow();
     stampBtn.classList.toggle('on', b.paid);
     stampBtn.textContent = b.paid ? '✓' : '';
     row.querySelector('.icon-wrap').classList.toggle('paid', b.paid);
     updateSummary();
   });
-  removeBtn.addEventListener('click', () => { state.bills = state.bills.filter(x => x.id !== b.id); save(); render(); });
+  removeBtn.addEventListener('click', () => { state.bills = state.bills.filter(x => x.id !== b.id); saveNow(); render(); });
 
   return row;
 }
@@ -269,13 +344,13 @@ function renderIncomeRow(i){
   nameInput.addEventListener('input', e => { i.name = e.target.value; save(); });
   amountInput.addEventListener('input', e => { i.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
   stampBtn.addEventListener('click', () => {
-    i.received = !i.received; save();
+    i.received = !i.received; saveNow();
     stampBtn.classList.toggle('on', i.received);
     stampBtn.textContent = i.received ? '✓' : '';
     row.querySelector('.icon-wrap').classList.toggle('received', i.received);
     updateSummary();
   });
-  removeBtn.addEventListener('click', () => { state.income = state.income.filter(x => x.id !== i.id); save(); render(); });
+  removeBtn.addEventListener('click', () => { state.income = state.income.filter(x => x.id !== i.id); saveNow(); render(); });
 
   return row;
 }
@@ -300,7 +375,7 @@ function confirmAddBill(){
   if (!name) return;
   const amount = parseFloat(document.getElementById('bill-add-amount').value) || 0;
   state.bills.push({id: uid(), name, icon:'➕', amount, dueDay:0, paid:false});
-  save();
+  saveNow();
   cancelAddBill();
   render();
 }
@@ -321,7 +396,7 @@ function confirmAddIncome(){
   if (!name) return;
   const amount = parseFloat(document.getElementById('income-add-amount').value) || 0;
   state.income.push({id: uid(), name, icon:'📈', amount, received:false});
-  save();
+  saveNow();
   cancelAddIncome();
   render();
 }
@@ -350,7 +425,7 @@ function closeMonth(){
   }
 
   state = { year: nextYear, month: nextMonth, bills: resetBills, income: carryIncome };
-  save();
+  saveNow();
   render();
 }
 
@@ -378,6 +453,22 @@ function renderHistory(){
 
 load();
 render();
+
+const syncDot = document.getElementById('sync-dot');
+const syncLabel = document.getElementById('sync-label');
+
+connectedRef.on('value', (snap) => {
+  if (snap.val() === true) {
+    syncDot.style.background = '#4FAE7A';
+    syncLabel.textContent = 'synced';
+  } else {
+    syncDot.style.background = '#E8A33D';
+    syncLabel.textContent = 'offline · saved on this device';
+  }
+});
+
+stateRef.on('value', (snap) => applyRemoteState(snap.val()));
+historyRef.on('value', (snap) => applyRemoteHistory(snap.val()));
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
