@@ -31,7 +31,15 @@
   .progress-track { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; }
   .progress-fill { height: 100%; background: linear-gradient(90deg,#5DA9E9,#4FAE7A); border-radius: 4px; transition: width .3s ease; }
   .progress-caption { margin-top: 8px; font-size: 11.5px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; }
-  .section-header { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 2px; color: #7FA8C9; margin: 18px 2px 8px; }
+  .section-header { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 2px; color: #7FA8C9; margin: 18px 2px 8px; cursor: pointer; user-select: none; }
+  .section-chevron { font-size: 12px; }
+  .adjustment-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.12); }
+  .adj-icon { font-size: 14px; }
+  .adj-label-input { flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.12); color: #C9B6EA; font-family: 'Inter', sans-serif; font-size: 12px; padding: 3px 2px; outline: none; }
+  .adj-label-input:focus { border-bottom-color: #B18CE8; }
+  .scan-btn { background: transparent; border: 1px dashed rgba(93,169,233,0.3); color: #5DA9E9; font-size: 12px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .scan-status { font-size: 11px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; margin-top: 4px; }
+  .item-add-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .list-wrap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
   .row { display: flex; align-items: center; gap: 8px; background: #0E2C4E; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; }
   .icon-wrap { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; background: rgba(93,169,233,0.1); }
@@ -113,17 +121,27 @@
     </div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
     <div class="progress-caption" id="progress-caption">$0 cash on hand · $0 received · $0 paid</div>
+    <div class="adjustment-row">
+      <span class="adj-icon">👻</span>
+      <input id="adj-label-input" class="adj-label-input" value="Ghost Funds (unaccounted)">
+      <div class="amount-wrap"><span class="currency">$</span><input id="adj-amount-input" class="amount-input" type="number" inputmode="decimal" placeholder="0"></div>
+    </div>
   </div>
 
-  <div class="section-header">📈 MONEY IN</div>
-  <div class="list-wrap" id="income-list"></div>
-  <div class="add-card" id="income-add-card" style="display:none;">
-    <input class="add-input-name" id="income-add-name" placeholder="Income source">
-    <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" id="income-add-amount" type="number" inputmode="decimal" placeholder="0"></div>
-    <button class="add-confirm" onclick="confirmAddIncome()">Add</button>
-    <button class="add-cancel" onclick="cancelAddIncome()">✕</button>
+  <div class="section-header" id="income-section-header" onclick="toggleIncomeSection()">
+    <span class="section-chevron" id="income-section-chevron">▾</span>
+    <span>📈 MONEY IN</span>
   </div>
-  <button class="add-row-btn income" id="income-add-toggle" onclick="showAddIncome()">+ Add income source</button>
+  <div id="income-section-body">
+    <div class="list-wrap" id="income-list"></div>
+    <div class="add-card" id="income-add-card" style="display:none;">
+      <input class="add-input-name" id="income-add-name" placeholder="Income source">
+      <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" id="income-add-amount" type="number" inputmode="decimal" placeholder="0"></div>
+      <button class="add-confirm" onclick="confirmAddIncome()">Add</button>
+      <button class="add-cancel" onclick="cancelAddIncome()">✕</button>
+    </div>
+    <button class="add-row-btn income" id="income-add-toggle" onclick="showAddIncome()">+ Add income source</button>
+  </div>
 
   <div class="section-header">📉 MONEY OUT</div>
   <div class="list-wrap" id="bills-list"></div>
@@ -140,6 +158,7 @@
 
   <button class="history-toggle" onclick="toggleHistory()">📒 History (<span id="history-count">0</span>) <span id="history-chevron">▾</span></button>
   <div class="history-list" id="history-list"></div>
+  <input type="file" id="receipt-file-input" accept="image/*" capture="environment" style="display:none;">
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -202,12 +221,105 @@ function toggleEditMode(){
   document.getElementById('edit-mode-toggle').textContent = on ? '✏️ Edit mode: On — tap ✕ to remove' : '✏️ Edit mode: Off';
 }
 
+function toggleIncomeSection(){
+  const body = document.getElementById('income-section-body');
+  const chevron = document.getElementById('income-section-chevron');
+  const collapsed = body.style.display !== 'none';
+  body.style.display = collapsed ? 'none' : '';
+  chevron.textContent = collapsed ? '▸' : '▾';
+  try { localStorage.setItem('incomeSectionCollapsed', collapsed ? '1' : '0'); } catch(e){}
+}
+
+const BILL_ICON_RULES = [
+  [/rent|mortgage/i, '🏠'], [/car (payment|loan)/i, '🚗'], [/car ins|auto ins/i, '🛡️'],
+  [/health|medical|dental|vision/i, '❤️'], [/phone|cell/i, '📱'], [/^gas$|gasoline|fuel/i, '⛽'],
+  [/electric|power ?bill/i, '⚡'], [/water/i, '💧'], [/trash|garbage/i, '🗑️'], [/internet|wifi/i, '📶'],
+  [/stream|netflix|hulu|disney|spotify|hbo/i, '📺'], [/food|grocer|restaurant/i, '🛒'],
+  [/household/i, '📦'], [/nail/i, '💅'], [/hair|barber|salon/i, '✂️'], [/insurance/i, '🛡️'],
+  [/gift/i, '🎁'], [/pet|dog|cat|vet/i, '🐾'], [/gym|fitness/i, '🏋️'], [/school|tuition|education/i, '🎓'],
+  [/subscription|membership/i, '📺'], [/credit ?card|loan|debt/i, '💳'], [/travel|vacation|flight/i, '✈️'],
+  [/child|kids?|daycare/i, '🧒'], [/savings/i, '🐷'], [/car(?!e)/i, '🚗'],
+];
+const INCOME_ICON_RULES = [
+  [/paycheck|salary|wage/i, '💵'], [/commission/i, '💰'], [/bonus/i, '⭐'],
+  [/side|freelance|gig|contract/i, '🧰'], [/gift/i, '🎁'], [/refund|reimburse/i, '↩️'],
+  [/interest|dividend|stock/i, '📈'], [/tax/i, '🧾'], [/rental|rent income/i, '🏠'],
+  [/ghost|unaccounted/i, '👻'], [/saving/i, '🐷'],
+];
+function guessIcon(name, isIncome){
+  const rules = isIncome ? INCOME_ICON_RULES : BILL_ICON_RULES;
+  for (const [re, icon] of rules) { if (re.test(name)) return icon; }
+  return isIncome ? '💰' : '➕';
+}
+
+// Receipt scanning — loads the OCR library only when first used, to keep initial page load light.
+let receiptCtx = null;
+let tesseractLoadPromise = null;
+function loadTesseract(){
+  if (window.Tesseract) return Promise.resolve();
+  if (tesseractLoadPromise) return tesseractLoadPromise;
+  tesseractLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Could not load the scanner library'));
+    document.head.appendChild(s);
+  });
+  return tesseractLoadPromise;
+}
+function extractTotal(text){
+  const lines = text.split('\n');
+  let best = null;
+  for (const line of lines) {
+    if (/sub[\s-]?total/i.test(line)) continue;
+    const m = line.match(/total[^0-9]{0,12}\$?\s?(\d{1,5}\.\d{2})/i);
+    if (m) best = parseFloat(m[1]);
+  }
+  if (best != null) return best;
+  const all = [...text.matchAll(/\$\s?(\d{1,5}\.\d{2})/g)].map(m => parseFloat(m[1]));
+  if (all.length) return Math.max(...all);
+  const anyNum = [...text.matchAll(/\b(\d{1,5}\.\d{2})\b/g)].map(m => parseFloat(m[1]));
+  return anyNum.length ? Math.max(...anyNum) : null;
+}
+function extractStoreName(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of lines.slice(0, 5)) {
+    if (line.length >= 3 && /[a-zA-Z]/.test(line)) return line.slice(0, 40);
+  }
+  return '';
+}
+document.getElementById('receipt-file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file || !receiptCtx) return;
+  const { b, refreshAmountDisplay, renderItemsPanel, statusEl } = receiptCtx;
+  statusEl.textContent = 'Loading scanner…';
+  try {
+    await loadTesseract();
+    statusEl.textContent = '📷 Reading receipt… this can take a moment';
+    const result = await Tesseract.recognize(file, 'eng');
+    const text = result.data.text || '';
+    const amount = extractTotal(text);
+    const store = extractStoreName(text);
+    if (!b.items) b.items = [];
+    b.items.push({ id: uid(), desc: store || 'Receipt', amount: amount || 0 });
+    saveNow(); refreshAmountDisplay(); renderItemsPanel();
+    statusEl.textContent = amount
+      ? `Added "${store || 'Receipt'}" — ${fmt(amount)}. Double-check it before trusting it.`
+      : `Added "${store || 'Receipt'}" but couldn't find a total — enter it manually.`;
+  } catch (err) {
+    statusEl.textContent = 'Scan failed — enter this one manually.';
+    console.error('Receipt scan failed:', err);
+  }
+});
+
 function defaultState(){
   const now = new Date();
   return {
     year: now.getFullYear(),
     month: now.getMonth(),
     rev: 0,
+    adjLabel: 'Ghost Funds (unaccounted)',
+    adjAmount: 0,
     bills: DEFAULT_BILLS.map(b => ({...b, id: uid()})),
     income: DEFAULT_INCOME.map(i => ({...i, id: uid()})),
   };
@@ -220,6 +332,8 @@ function load(){
     state = raw ? JSON.parse(raw) : defaultState();
     if (!state || !state.bills || !state.income) state = defaultState();
     if (typeof state.rev !== 'number') state.rev = 0;
+    if (typeof state.adjAmount !== 'number') state.adjAmount = 0;
+    if (typeof state.adjLabel !== 'string') state.adjLabel = 'Ghost Funds (unaccounted)';
   } catch(e){ state = defaultState(); }
   try {
     const rawH = localStorage.getItem(HISTORY_KEY);
@@ -233,7 +347,8 @@ function isInputActive(){
   return el.classList.contains('name-input') || el.classList.contains('amount-input') ||
          el.classList.contains('due-input') || el.classList.contains('item-desc-input') ||
          el.id === 'bill-add-name' || el.id === 'bill-add-amount' ||
-         el.id === 'income-add-name' || el.id === 'income-add-amount';
+         el.id === 'income-add-name' || el.id === 'income-add-amount' ||
+         el.id === 'adj-label-input' || el.id === 'adj-amount-input';
 }
 
 // Debounced write — used while typing, so we don't hammer the database every keystroke.
@@ -266,6 +381,8 @@ function applyRemoteState(remote){
   if (remoteRev < localRev) return; // stale echo — a newer local change is already showing, ignore it
   if (isInputActive()) { pendingRemoteState = remote; return; }
   state = remote;
+  if (typeof state.adjAmount !== 'number') state.adjAmount = 0;
+  if (typeof state.adjLabel !== 'string') state.adjLabel = 'Ghost Funds (unaccounted)';
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
 }
@@ -315,8 +432,9 @@ function updateSummary(){
   const paidTotal = state.bills.filter(b=>b.paid).reduce((s,b)=>s+(Number(b.amount)||0),0);
   const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
   const receivedTotal = state.income.filter(i=>i.received).reduce((s,i)=>s+(Number(i.amount)||0),0);
-  const projectedBalance = totalIncome - totalExpenses;
-  const currentBalance = receivedTotal - paidTotal;
+  const adj = Number(state.adjAmount) || 0;
+  const projectedBalance = totalIncome - totalExpenses + adj;
+  const currentBalance = receivedTotal - paidTotal + adj;
   const pct = totalExpenses > 0 ? Math.round((paidTotal/totalExpenses)*100) : 0;
 
   document.getElementById('sum-income').textContent = fmt(totalIncome);
@@ -325,8 +443,14 @@ function updateSummary(){
   balEl.textContent = fmt(projectedBalance);
   balEl.style.color = projectedBalance >= 0 ? '#4FAE7A' : '#E2555A';
   document.getElementById('progress-fill').style.width = pct + '%';
-  document.getElementById('progress-caption').textContent =
-    fmt(currentBalance) + ' cash on hand right now · ' + fmt(receivedTotal) + ' received · ' + fmt(paidTotal) + ' paid';
+  let caption = fmt(currentBalance) + ' cash on hand right now · ' + fmt(receivedTotal) + ' received · ' + fmt(paidTotal) + ' paid';
+  if (adj !== 0) caption += ' · ' + fmt(adj) + ' adjustment applied';
+  document.getElementById('progress-caption').textContent = caption;
+
+  const adjLabelEl = document.getElementById('adj-label-input');
+  const adjAmountEl = document.getElementById('adj-amount-input');
+  if (document.activeElement !== adjLabelEl) adjLabelEl.value = state.adjLabel || '';
+  if (document.activeElement !== adjAmountEl) adjAmountEl.value = adj ? adj : '';
 }
 
 let openItemPanels = new Set();
@@ -397,6 +521,9 @@ function renderBillRow(b){
       itemsPanel.appendChild(itRow);
     });
 
+    const addRow = document.createElement('div');
+    addRow.className = 'item-add-row';
+
     const addBtn = document.createElement('button');
     addBtn.className = 'item-add-btn';
     addBtn.textContent = '+ Add item';
@@ -407,7 +534,22 @@ function renderBillRow(b){
       const inputs = itemsPanel.querySelectorAll('.item-desc-input');
       if (inputs.length) inputs[inputs.length - 1].focus();
     });
-    itemsPanel.appendChild(addBtn);
+    addRow.appendChild(addBtn);
+
+    const scanBtn = document.createElement('button');
+    scanBtn.className = 'scan-btn';
+    scanBtn.textContent = '📷 Scan receipt';
+    scanBtn.addEventListener('click', () => {
+      receiptCtx = { b, refreshAmountDisplay, renderItemsPanel, statusEl };
+      document.getElementById('receipt-file-input').value = '';
+      document.getElementById('receipt-file-input').click();
+    });
+    addRow.appendChild(scanBtn);
+    itemsPanel.appendChild(addRow);
+
+    const statusEl = document.createElement('div');
+    statusEl.className = 'scan-status';
+    itemsPanel.appendChild(statusEl);
 
     if (b.items && b.items.length) {
       const subtotal = document.createElement('div');
@@ -493,7 +635,7 @@ function confirmAddBill(){
   const name = document.getElementById('bill-add-name').value.trim();
   if (!name) return;
   const amount = parseFloat(document.getElementById('bill-add-amount').value) || 0;
-  state.bills.push({id: uid(), name, icon:'➕', amount, dueDay:0, paid:false});
+  state.bills.push({id: uid(), name, icon: guessIcon(name, false), amount, dueDay:0, paid:false});
   saveNow();
   cancelAddBill();
   render();
@@ -514,7 +656,7 @@ function confirmAddIncome(){
   const name = document.getElementById('income-add-name').value.trim();
   if (!name) return;
   const amount = parseFloat(document.getElementById('income-add-amount').value) || 0;
-  state.income.push({id: uid(), name, icon:'📈', amount, received:false});
+  state.income.push({id: uid(), name, icon: guessIcon(name, true), amount, received:false});
   saveNow();
   cancelAddIncome();
   render();
@@ -523,7 +665,8 @@ function confirmAddIncome(){
 function closeMonth(){
   const totalExpenses = state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0);
   const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
-  const balance = totalIncome - totalExpenses;
+  const adj = Number(state.adjAmount) || 0;
+  const balance = totalIncome - totalExpenses + adj;
   const label = monthLabel(state.year, state.month);
 
   history.unshift({
@@ -543,7 +686,7 @@ function closeMonth(){
     carryIncome.unshift({id: uid(), name: 'Savings carried from ' + label, icon:'🐷', amount: balance, received:true});
   }
 
-  state = { year: nextYear, month: nextMonth, bills: resetBills, income: carryIncome };
+  state = { year: nextYear, month: nextMonth, rev: state.rev, adjLabel: 'Ghost Funds (unaccounted)', adjAmount: 0, bills: resetBills, income: carryIncome };
   saveNow();
   render();
 }
@@ -572,6 +715,16 @@ function renderHistory(){
 
 load();
 render();
+
+document.getElementById('adj-label-input').addEventListener('input', e => { state.adjLabel = e.target.value; save(); });
+document.getElementById('adj-amount-input').addEventListener('input', e => { state.adjAmount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
+
+try {
+  if (localStorage.getItem('incomeSectionCollapsed') === '1') {
+    document.getElementById('income-section-body').style.display = 'none';
+    document.getElementById('income-section-chevron').textContent = '▸';
+  }
+} catch(e){}
 
 const syncDot = document.getElementById('sync-dot');
 const syncLabel = document.getElementById('sync-label');
