@@ -55,6 +55,17 @@
   .edit-toggle-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
   .edit-toggle-btn { background: transparent; border: 1px solid rgba(93,169,233,0.3); color: #7FA8C9; font-size: 12px; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 5px; }
   body.edit-mode .edit-toggle-btn { background: rgba(232,163,61,0.15); border-color: #E8A33D; color: #E8A33D; }
+  .chevron-btn { background: transparent; border: none; cursor: pointer; color: #5A7DA0; font-size: 13px; width: 18px; flex-shrink: 0; padding: 0; }
+  .items-count { font-size: 10.5px; color: #5A7DA0; font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+  .items-panel { display: none; flex-direction: column; gap: 5px; background: #0A2340; border: 1px solid rgba(255,255,255,0.06); border-top: none; border-radius: 0 0 10px 10px; padding: 8px 10px 10px 40px; margin-top: -8px; margin-bottom: 2px; }
+  .items-panel.open { display: flex; }
+  .item-row { display: flex; align-items: center; gap: 8px; }
+  .item-desc-input { flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); color: #C7D9EC; font-family: 'Inter', sans-serif; font-size: 13px; padding: 3px 2px; outline: none; }
+  .item-desc-input:focus { border-bottom-color: #5DA9E9; }
+  .item-remove-btn { background: transparent; border: none; cursor: pointer; padding: 2px; color: #5A7DA0; font-size: 12px; flex-shrink: 0; }
+  .item-add-btn { background: transparent; border: 1px dashed rgba(93,169,233,0.3); color: #5DA9E9; font-size: 12px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; align-self: flex-start; margin-top: 2px; }
+  .item-subtotal { font-size: 11px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; }
+  .amount-input[readonly] { color: #7FA8C9; }
   .add-card { display: flex; align-items: center; gap: 8px; background: #0E2C4E; border: 1px dashed rgba(93,169,233,0.4); border-radius: 10px; padding: 10px; margin-bottom: 12px; }
   .add-input-name { flex: 1; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.15); color: #EAF2FB; font-size: 14px; padding: 2px; outline: none; font-family: 'Inter', sans-serif; }
   .add-confirm { background: #5DA9E9; color: #0B2340; border: none; border-radius: 6px; padding: 6px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
@@ -220,7 +231,8 @@ function isInputActive(){
   const el = document.activeElement;
   if (!el || el.tagName !== 'INPUT') return false;
   return el.classList.contains('name-input') || el.classList.contains('amount-input') ||
-         el.classList.contains('due-input') || el.id === 'bill-add-name' || el.id === 'bill-add-amount' ||
+         el.classList.contains('due-input') || el.classList.contains('item-desc-input') ||
+         el.id === 'bill-add-name' || el.id === 'bill-add-amount' ||
          el.id === 'income-add-name' || el.id === 'income-add-amount';
 }
 
@@ -317,10 +329,19 @@ function updateSummary(){
     fmt(currentBalance) + ' cash on hand right now · ' + fmt(receivedTotal) + ' received · ' + fmt(paidTotal) + ' paid';
 }
 
+let openItemPanels = new Set();
+
+function itemsSum(b){
+  return (b.items || []).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+}
+
 function renderBillRow(b){
+  const wrapper = document.createElement('div');
+
   const row = document.createElement('div');
   row.className = 'row';
   row.innerHTML = `
+    <button class="chevron-btn">▸</button>
     <div class="icon-wrap ${b.paid ? 'paid' : ''}">${b.icon || '➕'}</div>
     <div class="row-main">
       <input class="name-input" value="${escapeAttr(b.name)}" />
@@ -328,19 +349,84 @@ function renderBillRow(b){
         <span class="due-label">Due day</span>
         <input class="due-input" type="number" inputmode="numeric" value="${b.dueDay ? b.dueDay : ''}" placeholder="—" />
       </div>
+      <div class="items-count"></div>
     </div>
     <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" type="number" inputmode="decimal" value="${b.amount ? b.amount : ''}" placeholder="0" /></div>
     <button class="stamp-btn ${b.paid ? 'on' : ''}">${b.paid ? '✓' : ''}</button>
     <button class="remove-btn">✕</button>
   `;
+  wrapper.appendChild(row);
+
+  const itemsPanel = document.createElement('div');
+  itemsPanel.className = 'items-panel';
+  wrapper.appendChild(itemsPanel);
+
   const [nameInput, dueInput] = row.querySelectorAll('.name-input, .due-input');
   const amountInput = row.querySelector('.amount-input');
   const stampBtn = row.querySelector('.stamp-btn');
   const removeBtn = row.querySelector('.remove-btn');
+  const chevronBtn = row.querySelector('.chevron-btn');
+  const itemsCountEl = row.querySelector('.items-count');
+
+  function refreshAmountDisplay(){
+    const hasItems = b.items && b.items.length > 0;
+    if (hasItems) { b.amount = itemsSum(b); amountInput.value = b.amount ? b.amount : ''; amountInput.readOnly = true; }
+    else { amountInput.readOnly = false; }
+    itemsCountEl.textContent = hasItems ? `🧾 ${b.items.length} item${b.items.length>1?'s':''} · ${fmt(itemsSum(b))}` : '';
+  }
+
+  function renderItemsPanel(){
+    itemsPanel.innerHTML = '';
+    (b.items || []).forEach(it => {
+      const itRow = document.createElement('div');
+      itRow.className = 'item-row';
+      itRow.innerHTML = `
+        <input class="item-desc-input" value="${escapeAttr(it.desc)}" placeholder="What was this for?" />
+        <div class="amount-wrap"><span class="currency">$</span><input class="amount-input item-amount-input" type="number" inputmode="decimal" value="${it.amount ? it.amount : ''}" placeholder="0" style="width:52px;" /></div>
+        <button class="item-remove-btn">✕</button>
+      `;
+      const descInput = itRow.querySelector('.item-desc-input');
+      const amtInput = itRow.querySelector('.item-amount-input');
+      const remBtn = itRow.querySelector('.item-remove-btn');
+      descInput.addEventListener('input', e => { it.desc = e.target.value; save(); });
+      amtInput.addEventListener('input', e => { it.amount = parseFloat(e.target.value) || 0; save(); refreshAmountDisplay(); updateSummary(); });
+      remBtn.addEventListener('click', () => {
+        b.items = b.items.filter(x => x.id !== it.id);
+        saveNow(); refreshAmountDisplay(); updateSummary(); renderItemsPanel();
+      });
+      itemsPanel.appendChild(itRow);
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'item-add-btn';
+    addBtn.textContent = '+ Add item';
+    addBtn.addEventListener('click', () => {
+      if (!b.items) b.items = [];
+      b.items.push({ id: uid(), desc: '', amount: 0 });
+      saveNow(); refreshAmountDisplay(); renderItemsPanel();
+      const inputs = itemsPanel.querySelectorAll('.item-desc-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+    itemsPanel.appendChild(addBtn);
+
+    if (b.items && b.items.length) {
+      const subtotal = document.createElement('div');
+      subtotal.className = 'item-subtotal';
+      subtotal.textContent = `Subtotal: ${fmt(itemsSum(b))}`;
+      itemsPanel.appendChild(subtotal);
+    }
+  }
+
+  chevronBtn.addEventListener('click', () => {
+    const open = itemsPanel.classList.toggle('open');
+    chevronBtn.textContent = open ? '▾' : '▸';
+    if (open) { openItemPanels.add(b.id); renderItemsPanel(); }
+    else { openItemPanels.delete(b.id); }
+  });
 
   nameInput.addEventListener('input', e => { b.name = e.target.value; save(); });
   dueInput.addEventListener('input', e => { b.dueDay = parseInt(e.target.value) || 0; save(); });
-  amountInput.addEventListener('input', e => { b.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
+  amountInput.addEventListener('input', e => { if (!amountInput.readOnly) { b.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); } });
   stampBtn.addEventListener('click', () => {
     b.paid = !b.paid; saveNow();
     stampBtn.classList.toggle('on', b.paid);
@@ -350,7 +436,13 @@ function renderBillRow(b){
   });
   removeBtn.addEventListener('click', () => { state.bills = state.bills.filter(x => x.id !== b.id); saveNow(); render(); });
 
-  return row;
+  refreshAmountDisplay();
+  if (openItemPanels.has(b.id)) {
+    itemsPanel.classList.add('open');
+    chevronBtn.textContent = '▾';
+    renderItemsPanel();
+  }
+  return wrapper;
 }
 
 function renderIncomeRow(i){
@@ -445,7 +537,7 @@ function closeMonth(){
   let nextMonth = state.month + 1, nextYear = state.year;
   if (nextMonth > 11) { nextMonth = 0; nextYear += 1; }
 
-  const resetBills = state.bills.map(b => ({...b, paid:false}));
+  const resetBills = state.bills.map(b => ({...b, paid:false, items:[]}));
   let carryIncome = state.income.filter(i => i.icon !== '🐷').map(i => ({...i, received:false}));
   if (balance !== 0) {
     carryIncome.unshift({id: uid(), name: 'Savings carried from ' + label, icon:'🐷', amount: balance, received:true});
