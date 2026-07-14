@@ -675,22 +675,92 @@ function renderIncomeGroup(name, items){
 }
 
 function renderIncomeRow(i){
+  const wrapper = document.createElement('div');
+
   const row = document.createElement('div');
   row.className = 'row';
   row.innerHTML = `
+    <button class="chevron-btn">▸</button>
     <div class="icon-wrap ${i.received ? 'received' : ''}">${i.icon || '💵'}</div>
-    <input class="name-input" style="flex:1;" value="${escapeAttr(i.name)}" />
+    <div class="row-main">
+      <input class="name-input" value="${escapeAttr(i.name)}" />
+      <div class="items-count"></div>
+    </div>
     <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" type="number" inputmode="decimal" value="${i.amount ? i.amount : ''}" placeholder="0" /></div>
     <button class="stamp-btn ${i.received ? 'on' : ''}">${i.received ? '✓' : ''}</button>
     <button class="remove-btn">✕</button>
   `;
+  wrapper.appendChild(row);
+
+  const itemsPanel = document.createElement('div');
+  itemsPanel.className = 'items-panel';
+  wrapper.appendChild(itemsPanel);
+
   const nameInput = row.querySelector('.name-input');
   const amountInput = row.querySelector('.amount-input');
   const stampBtn = row.querySelector('.stamp-btn');
   const removeBtn = row.querySelector('.remove-btn');
+  const chevronBtn = row.querySelector('.chevron-btn');
+  const itemsCountEl = row.querySelector('.items-count');
+
+  function refreshAmountDisplay(){
+    const hasItems = i.items && i.items.length > 0;
+    if (hasItems) { i.amount = itemsSum(i); amountInput.value = i.amount ? i.amount : ''; amountInput.readOnly = true; }
+    else { amountInput.readOnly = false; }
+    itemsCountEl.textContent = hasItems ? `🧾 ${i.items.length} entr${i.items.length>1?'ies':'y'} · ${fmt(itemsSum(i))}` : '';
+  }
+
+  function renderItemsPanel(){
+    itemsPanel.innerHTML = '';
+    (i.items || []).forEach(it => {
+      const itRow = document.createElement('div');
+      itRow.className = 'item-row';
+      itRow.innerHTML = `
+        <input class="item-desc-input" value="${escapeAttr(it.desc)}" placeholder="e.g. pay date or note" />
+        <div class="amount-wrap"><span class="currency">$</span><input class="amount-input item-amount-input" type="number" inputmode="decimal" value="${it.amount ? it.amount : ''}" placeholder="0" style="width:62px;" /></div>
+        <button class="item-remove-btn">✕</button>
+      `;
+      const descInput = itRow.querySelector('.item-desc-input');
+      const amtInput = itRow.querySelector('.item-amount-input');
+      const remBtn = itRow.querySelector('.item-remove-btn');
+      descInput.addEventListener('input', e => { it.desc = e.target.value; save(); });
+      amtInput.addEventListener('input', e => { it.amount = parseFloat(e.target.value) || 0; save(); refreshAmountDisplay(); updateSummary(); });
+      remBtn.addEventListener('click', () => {
+        i.items = i.items.filter(x => x.id !== it.id);
+        saveNow(); refreshAmountDisplay(); updateSummary(); renderItemsPanel();
+      });
+      itemsPanel.appendChild(itRow);
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'item-add-btn';
+    addBtn.textContent = '+ Add entry';
+    addBtn.addEventListener('click', () => {
+      if (!i.items) i.items = [];
+      i.items.push({ id: uid(), desc: '', amount: 0 });
+      saveNow(); refreshAmountDisplay(); renderItemsPanel();
+      const inputs = itemsPanel.querySelectorAll('.item-desc-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+    itemsPanel.appendChild(addBtn);
+
+    if (i.items && i.items.length) {
+      const subtotal = document.createElement('div');
+      subtotal.className = 'item-subtotal';
+      subtotal.textContent = `Subtotal: ${fmt(itemsSum(i))}`;
+      itemsPanel.appendChild(subtotal);
+    }
+  }
+
+  chevronBtn.addEventListener('click', () => {
+    const open = itemsPanel.classList.toggle('open');
+    chevronBtn.textContent = open ? '▾' : '▸';
+    if (open) { openItemPanels.add(i.id); renderItemsPanel(); }
+    else { openItemPanels.delete(i.id); }
+  });
 
   nameInput.addEventListener('input', e => { i.name = e.target.value; save(); });
-  amountInput.addEventListener('input', e => { i.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
+  amountInput.addEventListener('input', e => { if (!amountInput.readOnly) { i.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); } });
   stampBtn.addEventListener('click', () => {
     i.received = !i.received; saveNow();
     stampBtn.classList.toggle('on', i.received);
@@ -700,7 +770,13 @@ function renderIncomeRow(i){
   });
   removeBtn.addEventListener('click', () => { state.income = state.income.filter(x => x.id !== i.id); saveNow(); render(); });
 
-  return row;
+  refreshAmountDisplay();
+  if (openItemPanels.has(i.id)) {
+    itemsPanel.classList.add('open');
+    chevronBtn.textContent = '▾';
+    renderItemsPanel();
+  }
+  return wrapper;
 }
 
 function escapeAttr(s){
