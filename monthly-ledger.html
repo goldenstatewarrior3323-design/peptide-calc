@@ -54,6 +54,11 @@
   .scan-btn { background: transparent; border: 1px dashed rgba(93,169,233,0.3); color: #5DA9E9; font-size: 12px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; }
   .scan-status { font-size: 11px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; margin-top: 4px; }
   .item-add-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .item-receipt-thumb { width: 26px; height: 26px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); background-size: cover; background-position: center; flex-shrink: 0; cursor: pointer; padding: 0; }
+  .receipt-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 999; display: none; align-items: center; justify-content: center; padding: 24px; }
+  .receipt-lightbox.open { display: flex; }
+  .receipt-lightbox img { max-width: 100%; max-height: 85vh; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+  .receipt-lightbox-close { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.12); border: none; color: #EAF2FB; width: 36px; height: 36px; border-radius: 50%; font-size: 18px; cursor: pointer; }
   .group-wrapper { margin-bottom: 6px; }
   .group-header { display: flex; align-items: center; gap: 8px; background: #123157; border: 1px solid rgba(93,169,233,0.25); border-radius: 10px; padding: 10px; }
   .group-subtotal { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #4FAE7A; flex-shrink: 0; }
@@ -192,6 +197,11 @@
   <input type="file" id="receipt-file-input" accept="image/*" capture="environment" style="display:none;">
 </div>
 
+<div class="receipt-lightbox" id="receipt-lightbox" onclick="closeReceiptLightbox()">
+  <button class="receipt-lightbox-close" onclick="closeReceiptLightbox()">✕</button>
+  <img id="receipt-lightbox-img" src="" alt="Receipt photo" onclick="event.stopPropagation()">
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
@@ -248,6 +258,15 @@ function monthLabel(y,m){ return new Date(y, m, 1).toLocaleDateString('en-US',{m
 let pendingRemoteState = null;
 let pendingRemoteHistory = null;
 let saveTimer = null;
+
+function openReceiptLightbox(src){
+  if (!src) return;
+  document.getElementById('receipt-lightbox-img').src = src;
+  document.getElementById('receipt-lightbox').classList.add('open');
+}
+function closeReceiptLightbox(){
+  document.getElementById('receipt-lightbox').classList.remove('open');
+}
 
 function toggleEditMode(){
   const on = document.body.classList.toggle('edit-mode');
@@ -315,32 +334,66 @@ function extractTotal(text){
   return anyNum.length ? Math.max(...anyNum) : null;
 }
 function extractStoreName(text){
+  const junk = [/feedback/i, /survey/i, /thank you/i, /\.com/i, /www\./i, /^id\s*#/i, /https?:/i, /^tel[:\s]/i];
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  for (const line of lines.slice(0, 5)) {
-    if (line.length >= 3 && /[a-zA-Z]/.test(line)) return line.slice(0, 40);
+  for (const line of lines.slice(0, 12)) {
+    if (junk.some(re => re.test(line))) continue;
+    if (line.length < 3) continue;
+    const letters = (line.match(/[a-zA-Z]/g) || []).length;
+    if (letters < line.length * 0.4) continue; // mostly numbers/symbols — skip (phone #s, IDs, barcodes read as text)
+    return line.slice(0, 40);
   }
   return '';
+}
+function compressImageFile(file, maxDim, quality){
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else if (height >= width && height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(null);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
 }
 document.getElementById('receipt-file-input').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file || !receiptCtx) return;
   const { b, refreshAmountDisplay, renderItemsPanel, statusEl } = receiptCtx;
-  statusEl.textContent = 'Loading scanner…';
+  statusEl.textContent = 'Attaching photo…';
+
+  const receiptImg = await compressImageFile(file, 500, 0.55);
+  if (!b.items) b.items = [];
+  const newItem = { id: uid(), desc: '', amount: 0, receiptImg: receiptImg || null };
+  b.items.push(newItem);
+  saveNow(); refreshAmountDisplay(); renderItemsPanel();
+
   try {
+    statusEl.textContent = 'Loading scanner…';
     await loadTesseract();
     statusEl.textContent = '📷 Reading receipt… this can take a moment';
     const result = await Tesseract.recognize(file, 'eng');
     const text = result.data.text || '';
     const amount = extractTotal(text);
     const store = extractStoreName(text);
-    if (!b.items) b.items = [];
-    b.items.push({ id: uid(), desc: store || 'Receipt', amount: amount || 0 });
+    newItem.desc = store || '';
+    newItem.amount = amount || 0;
     saveNow(); refreshAmountDisplay(); renderItemsPanel();
     statusEl.textContent = amount
-      ? `Added "${store || 'Receipt'}" — ${fmt(amount)}. Double-check it before trusting it.`
-      : `Added "${store || 'Receipt'}" but couldn't find a total — enter it manually.`;
+      ? `Filled in "${store || 'Receipt'}" — ${fmt(amount)}. Photo attached — double-check before trusting it.`
+      : `Photo attached, but couldn't find a total — enter it manually.`;
   } catch (err) {
-    statusEl.textContent = 'Scan failed — enter this one manually.';
+    statusEl.textContent = 'Photo attached — scan failed, so enter the details manually.';
     console.error('Receipt scan failed:', err);
   }
 });
@@ -571,11 +624,14 @@ function renderBillRow(b){
       itRow.innerHTML = `
         <input class="item-desc-input" value="${escapeAttr(it.desc)}" placeholder="What was this for?" />
         <div class="amount-wrap"><span class="currency">$</span><input class="amount-input item-amount-input" type="number" inputmode="decimal" value="${it.amount ? it.amount : ''}" placeholder="0" style="width:52px;" /></div>
+        ${it.receiptImg ? `<button class="item-receipt-thumb" style="background-image:url('${it.receiptImg}')" aria-label="View receipt photo"></button>` : ''}
         <button class="item-remove-btn">✕</button>
       `;
       const descInput = itRow.querySelector('.item-desc-input');
       const amtInput = itRow.querySelector('.item-amount-input');
       const remBtn = itRow.querySelector('.item-remove-btn');
+      const thumbBtn = itRow.querySelector('.item-receipt-thumb');
+      if (thumbBtn) thumbBtn.addEventListener('click', () => openReceiptLightbox(it.receiptImg));
       descInput.addEventListener('input', e => { it.desc = e.target.value; save(); });
       amtInput.addEventListener('input', e => { it.amount = parseFloat(e.target.value) || 0; save(); refreshAmountDisplay(); updateSummary(); });
       remBtn.addEventListener('click', () => {
