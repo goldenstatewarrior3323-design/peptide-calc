@@ -128,7 +128,7 @@
     <div class="balance-hero">
       <input id="label-balance" class="summary-label-input center" value="BALANCE">
       <div class="balance-value-row">
-        <span class="currency-big">$</span><input id="sum-balance" class="balance-value" type="number" inputmode="decimal" placeholder="0">
+        <span class="currency-big">$</span><input id="sum-balance" class="balance-value" type="text" inputmode="decimal" placeholder="0">
         <button class="reset-override-btn" id="reset-balance" title="Back to auto-calculated">↺</button>
       </div>
     </div>
@@ -136,14 +136,14 @@
       <div class="stat-chip">
         <input id="label-income" class="summary-label-input" value="INCOME">
         <div class="stat-value-row">
-          <span class="currency-sm">$</span><input id="sum-income" class="stat-value" type="number" inputmode="decimal" placeholder="0" style="color:#4FAE7A;">
+          <span class="currency-sm">$</span><input id="sum-income" class="stat-value" type="text" inputmode="decimal" placeholder="0" style="color:#4FAE7A;">
           <button class="reset-override-btn" id="reset-income" title="Back to auto-calculated">↺</button>
         </div>
       </div>
       <div class="stat-chip">
         <input id="label-expenses" class="summary-label-input" value="EXPENSES">
         <div class="stat-value-row">
-          <span class="currency-sm">$</span><input id="sum-expenses" class="stat-value" type="number" inputmode="decimal" placeholder="0" style="color:#E8A33D;">
+          <span class="currency-sm">$</span><input id="sum-expenses" class="stat-value" type="text" inputmode="decimal" placeholder="0" style="color:#E8A33D;">
           <button class="reset-override-btn" id="reset-expenses" title="Back to auto-calculated">↺</button>
         </div>
       </div>
@@ -241,6 +241,8 @@ let history = [];
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function fmt(n){ const v = Number.isFinite(n) ? n : 0; return v.toLocaleString('en-US',{style:'currency',currency:'USD'}); }
+function round2(n){ return Math.round((Number(n)||0) * 100) / 100; }
+function fmtPlain(n){ return round2(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
 function monthLabel(y,m){ return new Date(y, m, 1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); }
 
 let pendingRemoteState = null;
@@ -467,28 +469,28 @@ function render(){
 // Lightweight refresh of just the totals card — safe to call on every keystroke
 // since it never touches the row inputs, so focus/cursor position is preserved.
 function updateSummary(){
-  const totalExpenses = state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0);
-  const paidTotal = state.bills.filter(b=>b.paid).reduce((s,b)=>s+(Number(b.amount)||0),0);
-  const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
-  const receivedTotal = state.income.reduce((s,i) => {
+  const totalExpenses = round2(state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0));
+  const paidTotal = round2(state.bills.filter(b=>b.paid).reduce((s,b)=>s+(Number(b.amount)||0),0));
+  const totalIncome = round2(state.income.reduce((s,i)=>s+(Number(i.amount)||0),0));
+  const receivedTotal = round2(state.income.reduce((s,i) => {
     if (i.items && i.items.length) return s + i.items.filter(it=>it.received).reduce((s2,it)=>s2+(Number(it.amount)||0),0);
     return s + (i.received ? (Number(i.amount)||0) : 0);
-  }, 0);
-  const adj = Number(state.adjAmount) || 0;
-  const actualBalance = receivedTotal - paidTotal + adj;
+  }, 0));
+  const adj = round2(state.adjAmount);
+  const actualBalance = round2(receivedTotal - paidTotal + adj);
   const pct = totalExpenses > 0 ? Math.round((paidTotal/totalExpenses)*100) : 0;
 
   const ov = state.dashOverrides || {};
-  const incomeVal = ov.income != null ? ov.income : totalIncome;
-  const expensesVal = ov.expenses != null ? ov.expenses : totalExpenses;
-  const balanceVal = ov.balance != null ? ov.balance : actualBalance;
+  const incomeVal = ov.income != null ? round2(ov.income) : totalIncome;
+  const expensesVal = ov.expenses != null ? round2(ov.expenses) : totalExpenses;
+  const balanceVal = ov.balance != null ? round2(ov.balance) : actualBalance;
 
   const incomeEl = document.getElementById('sum-income');
   const expensesEl = document.getElementById('sum-expenses');
   const balEl = document.getElementById('sum-balance');
-  if (document.activeElement !== incomeEl) incomeEl.value = incomeVal ? incomeVal : '';
-  if (document.activeElement !== expensesEl) expensesEl.value = expensesVal ? expensesVal : '';
-  if (document.activeElement !== balEl) balEl.value = balanceVal ? balanceVal : (balanceVal === 0 ? '0' : '');
+  if (document.activeElement !== incomeEl) incomeEl.value = incomeVal ? fmtPlain(incomeVal) : '';
+  if (document.activeElement !== expensesEl) expensesEl.value = expensesVal ? fmtPlain(expensesVal) : '';
+  if (document.activeElement !== balEl) balEl.value = (balanceVal || balanceVal === 0) ? fmtPlain(balanceVal) : '';
   balEl.style.color = balanceVal >= 0 ? '#4FAE7A' : '#E2555A';
 
   document.getElementById('reset-income').classList.toggle('visible', ov.income != null);
@@ -518,7 +520,7 @@ function updateSummary(){
 let openItemPanels = new Set();
 
 function itemsSum(b){
-  return (b.items || []).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  return round2((b.items || []).reduce((s, x) => s + (Number(x.amount) || 0), 0));
 }
 
 function renderBillRow(b){
@@ -916,10 +918,10 @@ function confirmAddIncome(){
 }
 
 function closeMonth(){
-  const totalExpenses = state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0);
-  const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
-  const adj = Number(state.adjAmount) || 0;
-  const balance = totalIncome - totalExpenses + adj;
+  const totalExpenses = round2(state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0));
+  const totalIncome = round2(state.income.reduce((s,i)=>s+(Number(i.amount)||0),0));
+  const adj = round2(state.adjAmount);
+  const balance = round2(totalIncome - totalExpenses + adj);
   const label = monthLabel(state.year, state.month);
 
   history.unshift({
@@ -979,18 +981,27 @@ document.getElementById('label-balance').addEventListener('input', e => { state.
 document.getElementById('label-income').addEventListener('input', e => { state.dashLabels.income = e.target.value; save(); });
 document.getElementById('label-expenses').addEventListener('input', e => { state.dashLabels.expenses = e.target.value; save(); });
 
-document.getElementById('sum-balance').addEventListener('input', e => {
-  state.dashOverrides.balance = e.target.value === '' ? null : (parseFloat(e.target.value) || 0);
-  save(); updateSummary();
-});
-document.getElementById('sum-income').addEventListener('input', e => {
-  state.dashOverrides.income = e.target.value === '' ? null : (parseFloat(e.target.value) || 0);
-  save(); updateSummary();
-});
-document.getElementById('sum-expenses').addEventListener('input', e => {
-  state.dashOverrides.expenses = e.target.value === '' ? null : (parseFloat(e.target.value) || 0);
-  save(); updateSummary();
-});
+function parseMoneyInput(v){
+  const cleaned = String(v).replace(/,/g, '').trim();
+  return cleaned === '' ? null : (parseFloat(cleaned) || 0);
+}
+function wireDashValueInput(id, overrideKey){
+  const el = document.getElementById(id);
+  el.addEventListener('focus', () => {
+    // show raw editable digits (no commas) while typing
+    const v = state.dashOverrides[overrideKey];
+    el.value = (v == null) ? el.value.replace(/,/g, '') : v;
+    el.select();
+  });
+  el.addEventListener('input', e => {
+    state.dashOverrides[overrideKey] = parseMoneyInput(e.target.value);
+    save();
+  });
+  el.addEventListener('blur', () => { updateSummary(); });
+}
+wireDashValueInput('sum-balance', 'balance');
+wireDashValueInput('sum-income', 'income');
+wireDashValueInput('sum-expenses', 'expenses');
 document.getElementById('reset-balance').addEventListener('click', () => { state.dashOverrides.balance = null; saveNow(); updateSummary(); });
 document.getElementById('reset-income').addEventListener('click', () => { state.dashOverrides.income = null; saveNow(); updateSummary(); });
 document.getElementById('reset-expenses').addEventListener('click', () => { state.dashOverrides.expenses = null; saveNow(); updateSummary(); });
