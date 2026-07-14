@@ -195,6 +195,7 @@
   <button class="history-toggle" onclick="toggleHistory()">📒 History (<span id="history-count">0</span>) <span id="history-chevron">▾</span></button>
   <div class="history-list" id="history-list"></div>
   <input type="file" id="receipt-file-input" accept="image/*" capture="environment" style="display:none;">
+  <input type="file" id="receipt-upload-input" accept="image/*" style="display:none;">
 </div>
 
 <div class="receipt-lightbox" id="receipt-lightbox" onclick="closeReceiptLightbox()">
@@ -366,8 +367,7 @@ function compressImageFile(file, maxDim, quality){
     reader.readAsDataURL(file);
   });
 }
-document.getElementById('receipt-file-input').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
+async function handleReceiptFile(file){
   if (!file || !receiptCtx) return;
   const { b, refreshAmountDisplay, renderItemsPanel, statusEl } = receiptCtx;
   statusEl.textContent = 'Attaching photo…';
@@ -396,7 +396,9 @@ document.getElementById('receipt-file-input').addEventListener('change', async (
     statusEl.textContent = 'Photo attached — scan failed, so enter the details manually.';
     console.error('Receipt scan failed:', err);
   }
-});
+}
+document.getElementById('receipt-file-input').addEventListener('change', (e) => handleReceiptFile(e.target.files[0]));
+document.getElementById('receipt-upload-input').addEventListener('change', (e) => handleReceiptFile(e.target.files[0]));
 
 function defaultState(){
   const now = new Date();
@@ -658,13 +660,23 @@ function renderBillRow(b){
 
     const scanBtn = document.createElement('button');
     scanBtn.className = 'scan-btn';
-    scanBtn.textContent = '📷 Scan receipt';
+    scanBtn.textContent = '📷 Take photo';
     scanBtn.addEventListener('click', () => {
       receiptCtx = { b, refreshAmountDisplay, renderItemsPanel, statusEl };
       document.getElementById('receipt-file-input').value = '';
       document.getElementById('receipt-file-input').click();
     });
     addRow.appendChild(scanBtn);
+
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'scan-btn';
+    uploadBtn.textContent = '🖼️ Upload receipt';
+    uploadBtn.addEventListener('click', () => {
+      receiptCtx = { b, refreshAmountDisplay, renderItemsPanel, statusEl };
+      document.getElementById('receipt-upload-input').value = '';
+      document.getElementById('receipt-upload-input').click();
+    });
+    addRow.appendChild(uploadBtn);
     itemsPanel.appendChild(addRow);
 
     const statusEl = document.createElement('div');
