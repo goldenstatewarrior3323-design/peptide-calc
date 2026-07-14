@@ -23,14 +23,18 @@
   .content { max-width: 560px; margin: 0 auto; padding: 28px 16px 48px; }
   .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 3px; color: #5DA9E9; margin-bottom: 4px; }
   .month-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.5px; margin-bottom: 18px; }
-  .summary-card { background: #123157; border: 1px solid rgba(93,169,233,0.25); border-radius: 14px; padding: 18px 18px 16px; margin-bottom: 22px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
-  .summary-row { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+  .summary-card { background: #123157; border: 1px solid rgba(93,169,233,0.25); border-radius: 14px; padding: 20px 18px 16px; margin-bottom: 22px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+  .balance-hero { text-align: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .balance-value { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 36px; margin-top: 3px; }
+  .stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .stat-chip { flex: 1; background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 12px; }
+  .stat-value { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 19px; margin-top: 2px; }
   .summary-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 1.5px; color: #7FA8C9; margin-bottom: 4px; }
-  .summary-med { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; }
-  .summary-big { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 22px; text-align: right; }
   .progress-track { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; }
   .progress-fill { height: 100%; background: linear-gradient(90deg,#5DA9E9,#4FAE7A); border-radius: 4px; transition: width .3s ease; }
-  .progress-caption { margin-top: 8px; font-size: 11.5px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; }
+  .progress-caption { margin-top: 10px; font-size: 12px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; display: flex; flex-direction: column; gap: 4px; }
+  .caption-item { display: flex; align-items: baseline; gap: 7px; }
+  .caption-dot { color: #5DA9E9; flex-shrink: 0; }
   .section-header { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 2px; color: #7FA8C9; margin: 18px 2px 8px; cursor: pointer; user-select: none; }
   .section-chevron { font-size: 12px; }
   .adjustment-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.12); }
@@ -40,6 +44,12 @@
   .scan-btn { background: transparent; border: 1px dashed rgba(93,169,233,0.3); color: #5DA9E9; font-size: 12px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; }
   .scan-status { font-size: 11px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; margin-top: 4px; }
   .item-add-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .group-wrapper { margin-bottom: 6px; }
+  .group-header { display: flex; align-items: center; gap: 8px; background: #123157; border: 1px solid rgba(93,169,233,0.25); border-radius: 10px; padding: 10px; }
+  .group-subtotal { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #4FAE7A; flex-shrink: 0; }
+  .group-body { display: none; flex-direction: column; gap: 6px; padding: 8px 0 2px 22px; }
+  .group-body.open { display: flex; }
+  .group-select { background: #0E2C4E; color: #EAF2FB; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; font-size: 12px; padding: 6px; font-family: 'Inter', sans-serif; }
   .list-wrap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
   .row { display: flex; align-items: center; gap: 8px; background: #0E2C4E; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; }
   .icon-wrap { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; background: rgba(93,169,233,0.1); }
@@ -105,18 +115,18 @@
   </div>
 
   <div class="summary-card">
-    <div class="summary-row">
-      <div>
+    <div class="balance-hero">
+      <div class="summary-label">BALANCE</div>
+      <div class="balance-value" id="sum-balance">$0</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-chip">
         <div class="summary-label">INCOME</div>
-        <div class="summary-med" id="sum-income" style="color:#4FAE7A;">$0</div>
+        <div class="stat-value" id="sum-income" style="color:#4FAE7A;">$0</div>
       </div>
-      <div>
+      <div class="stat-chip">
         <div class="summary-label">EXPENSES</div>
-        <div class="summary-med" id="sum-expenses" style="color:#E8A33D;">$0</div>
-      </div>
-      <div>
-        <div class="summary-label" style="text-align:right;">END-OF-MONTH BALANCE</div>
-        <div class="summary-big" id="sum-balance">$0</div>
+        <div class="stat-value" id="sum-expenses" style="color:#E8A33D;">$0</div>
       </div>
     </div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
@@ -134,9 +144,11 @@
   </div>
   <div id="income-section-body">
     <div class="list-wrap" id="income-list"></div>
-    <div class="add-card" id="income-add-card" style="display:none;">
+    <div class="add-card" id="income-add-card" style="display:none; flex-wrap:wrap;">
       <input class="add-input-name" id="income-add-name" placeholder="Income source">
       <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" id="income-add-amount" type="number" inputmode="decimal" placeholder="0"></div>
+      <select id="income-add-group" class="group-select"></select>
+      <input class="add-input-name" id="income-add-group-new" placeholder="New group name (e.g. Rich's Paychecks)" style="display:none; flex-basis:100%;">
       <button class="add-confirm" onclick="confirmAddIncome()">Add</button>
       <button class="add-cancel" onclick="cancelAddIncome()">✕</button>
     </div>
@@ -415,9 +427,7 @@ function render(){
   billsList.innerHTML = '';
   state.bills.forEach(b => billsList.appendChild(renderBillRow(b)));
 
-  const incomeList = document.getElementById('income-list');
-  incomeList.innerHTML = '';
-  state.income.forEach(i => incomeList.appendChild(renderIncomeRow(i)));
+  renderIncomeList();
 
   updateSummary();
 
@@ -443,9 +453,12 @@ function updateSummary(){
   balEl.textContent = fmt(projectedBalance);
   balEl.style.color = projectedBalance >= 0 ? '#4FAE7A' : '#E2555A';
   document.getElementById('progress-fill').style.width = pct + '%';
-  let caption = fmt(currentBalance) + ' cash on hand right now · ' + fmt(receivedTotal) + ' received · ' + fmt(paidTotal) + ' paid';
-  if (adj !== 0) caption += ' · ' + fmt(adj) + ' adjustment applied';
-  document.getElementById('progress-caption').textContent = caption;
+  let captionHtml =
+    `<div class="caption-item"><span class="caption-dot">•</span>${fmt(currentBalance)} cash on hand right now</div>` +
+    `<div class="caption-item"><span class="caption-dot">•</span>${fmt(receivedTotal)} received</div>` +
+    `<div class="caption-item"><span class="caption-dot">•</span>${fmt(paidTotal)} paid</div>`;
+  if (adj !== 0) captionHtml += `<div class="caption-item"><span class="caption-dot">•</span>${fmt(adj)} adjustment applied</div>`;
+  document.getElementById('progress-caption').innerHTML = captionHtml;
 
   const adjLabelEl = document.getElementById('adj-label-input');
   const adjAmountEl = document.getElementById('adj-amount-input');
@@ -587,6 +600,80 @@ function renderBillRow(b){
   return wrapper;
 }
 
+let openIncomeGroups = new Set();
+
+function renderIncomeList(){
+  const incomeList = document.getElementById('income-list');
+  incomeList.innerHTML = '';
+  const grouped = {};
+  const groupOrder = [];
+  const ungrouped = [];
+  state.income.forEach(i => {
+    if (i.group) {
+      if (!grouped[i.group]) { grouped[i.group] = []; groupOrder.push(i.group); }
+      grouped[i.group].push(i);
+    } else {
+      ungrouped.push(i);
+    }
+  });
+  ungrouped.forEach(i => incomeList.appendChild(renderIncomeRow(i)));
+  groupOrder.forEach(name => incomeList.appendChild(renderIncomeGroup(name, grouped[name])));
+}
+
+function renderIncomeGroup(name, items){
+  const wrapper = document.createElement('div');
+  wrapper.className = 'group-wrapper';
+  const isOpen = openIncomeGroups.has(name);
+
+  const header = document.createElement('div');
+  header.className = 'group-header';
+  const subtotal = items.reduce((s,i)=>s+(Number(i.amount)||0),0);
+  header.innerHTML = `
+    <button class="chevron-btn group-chevron">${isOpen ? '▾' : '▸'}</button>
+    <input class="name-input group-name-input" style="flex:1;" value="${escapeAttr(name)}" />
+    <span class="group-subtotal">${fmt(subtotal)}</span>
+  `;
+  wrapper.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'group-body' + (isOpen ? ' open' : '');
+  items.forEach(i => body.appendChild(renderIncomeRow(i)));
+
+  const addToGroupBtn = document.createElement('button');
+  addToGroupBtn.className = 'item-add-btn';
+  addToGroupBtn.textContent = `+ Add to ${name}`;
+  addToGroupBtn.addEventListener('click', () => {
+    state.income.push({ id: uid(), name: '', icon: guessIcon(name, true), amount: 0, received: false, group: name });
+    openIncomeGroups.add(name);
+    saveNow();
+    renderIncomeList();
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('.group-body.open .name-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }, 0);
+  });
+  body.appendChild(addToGroupBtn);
+  wrapper.appendChild(body);
+
+  header.querySelector('.group-chevron').addEventListener('click', () => {
+    const open = body.classList.toggle('open');
+    header.querySelector('.group-chevron').textContent = open ? '▾' : '▸';
+    if (open) openIncomeGroups.add(name); else openIncomeGroups.delete(name);
+  });
+
+  header.querySelector('.group-name-input').addEventListener('blur', (e) => {
+    const newName = e.target.value.trim();
+    if (newName && newName !== name) {
+      state.income.forEach(i => { if (i.group === name) i.group = newName; });
+      if (openIncomeGroups.has(name)) { openIncomeGroups.delete(name); openIncomeGroups.add(newName); }
+      saveNow();
+      renderIncomeList();
+    }
+  });
+
+  return wrapper;
+}
+
 function renderIncomeRow(i){
   const row = document.createElement('div');
   row.className = 'row';
@@ -644,19 +731,35 @@ function confirmAddBill(){
 function showAddIncome(){
   document.getElementById('income-add-card').style.display = 'flex';
   document.getElementById('income-add-toggle').style.display = 'none';
+  populateGroupOptions();
   document.getElementById('income-add-name').focus();
+}
+function populateGroupOptions(){
+  const sel = document.getElementById('income-add-group');
+  const groups = Array.from(new Set(state.income.map(i => i.group).filter(Boolean)));
+  sel.innerHTML = '<option value="">No group</option>' +
+    groups.map(g => `<option value="${escapeAttr(g)}">${escapeAttr(g)}</option>`).join('') +
+    '<option value="__new__">+ New group…</option>';
+  sel.value = '';
+  document.getElementById('income-add-group-new').style.display = 'none';
+  document.getElementById('income-add-group-new').value = '';
 }
 function cancelAddIncome(){
   document.getElementById('income-add-card').style.display = 'none';
   document.getElementById('income-add-toggle').style.display = 'flex';
   document.getElementById('income-add-name').value = '';
   document.getElementById('income-add-amount').value = '';
+  document.getElementById('income-add-group-new').value = '';
+  document.getElementById('income-add-group-new').style.display = 'none';
 }
 function confirmAddIncome(){
   const name = document.getElementById('income-add-name').value.trim();
   if (!name) return;
   const amount = parseFloat(document.getElementById('income-add-amount').value) || 0;
-  state.income.push({id: uid(), name, icon: guessIcon(name, true), amount, received:false});
+  const groupSel = document.getElementById('income-add-group').value;
+  const groupNew = document.getElementById('income-add-group-new').value.trim();
+  const group = groupSel === '__new__' ? (groupNew || null) : (groupSel || null);
+  state.income.push({id: uid(), name, icon: guessIcon(name, true), amount, received:false, group});
   saveNow();
   cancelAddIncome();
   render();
@@ -718,6 +821,9 @@ render();
 
 document.getElementById('adj-label-input').addEventListener('input', e => { state.adjLabel = e.target.value; save(); });
 document.getElementById('adj-amount-input').addEventListener('input', e => { state.adjAmount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
+document.getElementById('income-add-group').addEventListener('change', e => {
+  document.getElementById('income-add-group-new').style.display = e.target.value === '__new__' ? 'block' : 'none';
+});
 
 try {
   if (localStorage.getItem('incomeSectionCollapsed') === '1') {
