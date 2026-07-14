@@ -29,7 +29,17 @@
   .stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .stat-chip { flex: 1; background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 12px; }
   .stat-value { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 19px; margin-top: 2px; }
-  .summary-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 1.5px; color: #7FA8C9; margin-bottom: 4px; }
+  .summary-label-input { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 1.5px; color: #7FA8C9; margin-bottom: 4px; background: transparent; border: none; border-bottom: 1px solid transparent; outline: none; width: 100%; padding: 1px 0; text-transform: uppercase; }
+  .summary-label-input.center { text-align: center; }
+  .summary-label-input:focus { border-bottom-color: #5DA9E9; }
+  .balance-value-row { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
+  .currency-big { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px; color: #EAF2FB; }
+  .balance-value { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 36px; margin-top: 3px; background: transparent; border: none; outline: none; color: #4FAE7A; width: 180px; text-align: center; padding: 0; }
+  .stat-value-row { display: flex; align-items: baseline; gap: 3px; }
+  .currency-sm { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; color: #7FA8C9; }
+  .stat-value { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 19px; margin-top: 2px; background: transparent; border: none; outline: none; width: 90px; padding: 0; }
+  .reset-override-btn { display: none; background: transparent; border: none; color: #5A7DA0; font-size: 13px; cursor: pointer; padding: 0 2px; }
+  .reset-override-btn.visible { display: inline-block; }
   .progress-track { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; }
   .progress-fill { height: 100%; background: linear-gradient(90deg,#5DA9E9,#4FAE7A); border-radius: 4px; transition: width .3s ease; }
   .progress-caption { margin-top: 10px; font-size: 12px; color: #7FA8C9; font-family: 'IBM Plex Mono', monospace; display: flex; flex-direction: column; gap: 4px; }
@@ -116,17 +126,26 @@
 
   <div class="summary-card">
     <div class="balance-hero">
-      <div class="summary-label">BALANCE (PAID SO FAR)</div>
-      <div class="balance-value" id="sum-balance">$0</div>
+      <input id="label-balance" class="summary-label-input center" value="BALANCE">
+      <div class="balance-value-row">
+        <span class="currency-big">$</span><input id="sum-balance" class="balance-value" type="number" inputmode="decimal" placeholder="0">
+        <button class="reset-override-btn" id="reset-balance" title="Back to auto-calculated">↺</button>
+      </div>
     </div>
     <div class="stat-row">
       <div class="stat-chip">
-        <div class="summary-label">INCOME</div>
-        <div class="stat-value" id="sum-income" style="color:#4FAE7A;">$0</div>
+        <input id="label-income" class="summary-label-input" value="INCOME">
+        <div class="stat-value-row">
+          <span class="currency-sm">$</span><input id="sum-income" class="stat-value" type="number" inputmode="decimal" placeholder="0" style="color:#4FAE7A;">
+          <button class="reset-override-btn" id="reset-income" title="Back to auto-calculated">↺</button>
+        </div>
       </div>
       <div class="stat-chip">
-        <div class="summary-label">EXPENSES</div>
-        <div class="stat-value" id="sum-expenses" style="color:#E8A33D;">$0</div>
+        <input id="label-expenses" class="summary-label-input" value="EXPENSES">
+        <div class="stat-value-row">
+          <span class="currency-sm">$</span><input id="sum-expenses" class="stat-value" type="number" inputmode="decimal" placeholder="0" style="color:#E8A33D;">
+          <button class="reset-override-btn" id="reset-expenses" title="Back to auto-calculated">↺</button>
+        </div>
       </div>
     </div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
@@ -332,20 +351,29 @@ function defaultState(){
     rev: 0,
     adjLabel: 'Ghost Funds (unaccounted)',
     adjAmount: 0,
+    dashLabels: { balance: 'BALANCE', income: 'INCOME', expenses: 'EXPENSES' },
+    dashOverrides: { balance: null, income: null, expenses: null },
     bills: DEFAULT_BILLS.map(b => ({...b, id: uid()})),
     income: DEFAULT_INCOME.map(i => ({...i, id: uid()})),
   };
 }
 
 // Paints instantly from whatever this device last saw, before Firebase responds.
+function ensureStateDefaults(s){
+  if (typeof s.adjAmount !== 'number') s.adjAmount = 0;
+  if (typeof s.adjLabel !== 'string') s.adjLabel = 'Ghost Funds (unaccounted)';
+  if (!s.dashLabels) s.dashLabels = { balance: 'BALANCE', income: 'INCOME', expenses: 'EXPENSES' };
+  if (!s.dashOverrides) s.dashOverrides = { balance: null, income: null, expenses: null };
+  return s;
+}
+
 function load(){
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     state = raw ? JSON.parse(raw) : defaultState();
     if (!state || !state.bills || !state.income) state = defaultState();
     if (typeof state.rev !== 'number') state.rev = 0;
-    if (typeof state.adjAmount !== 'number') state.adjAmount = 0;
-    if (typeof state.adjLabel !== 'string') state.adjLabel = 'Ghost Funds (unaccounted)';
+    ensureStateDefaults(state);
   } catch(e){ state = defaultState(); }
   try {
     const rawH = localStorage.getItem(HISTORY_KEY);
@@ -360,7 +388,9 @@ function isInputActive(){
          el.classList.contains('due-input') || el.classList.contains('item-desc-input') ||
          el.id === 'bill-add-name' || el.id === 'bill-add-amount' ||
          el.id === 'income-add-name' || el.id === 'income-add-amount' ||
-         el.id === 'adj-label-input' || el.id === 'adj-amount-input';
+         el.id === 'adj-label-input' || el.id === 'adj-amount-input' ||
+         el.id === 'label-balance' || el.id === 'label-income' || el.id === 'label-expenses' ||
+         el.id === 'sum-balance' || el.id === 'sum-income' || el.id === 'sum-expenses';
 }
 
 // Debounced write — used while typing, so we don't hammer the database every keystroke.
@@ -393,8 +423,7 @@ function applyRemoteState(remote){
   if (remoteRev < localRev) return; // stale echo — a newer local change is already showing, ignore it
   if (isInputActive()) { pendingRemoteState = remote; return; }
   state = remote;
-  if (typeof state.adjAmount !== 'number') state.adjAmount = 0;
-  if (typeof state.adjLabel !== 'string') state.adjLabel = 'Ghost Funds (unaccounted)';
+  ensureStateDefaults(state);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
 }
@@ -441,16 +470,31 @@ function updateSummary(){
   const totalExpenses = state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0);
   const paidTotal = state.bills.filter(b=>b.paid).reduce((s,b)=>s+(Number(b.amount)||0),0);
   const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
-  const receivedTotal = state.income.filter(i=>i.received).reduce((s,i)=>s+(Number(i.amount)||0),0);
+  const receivedTotal = state.income.reduce((s,i) => {
+    if (i.items && i.items.length) return s + i.items.filter(it=>it.received).reduce((s2,it)=>s2+(Number(it.amount)||0),0);
+    return s + (i.received ? (Number(i.amount)||0) : 0);
+  }, 0);
   const adj = Number(state.adjAmount) || 0;
   const actualBalance = receivedTotal - paidTotal + adj;
   const pct = totalExpenses > 0 ? Math.round((paidTotal/totalExpenses)*100) : 0;
 
-  document.getElementById('sum-income').textContent = fmt(totalIncome);
-  document.getElementById('sum-expenses').textContent = fmt(totalExpenses);
+  const ov = state.dashOverrides || {};
+  const incomeVal = ov.income != null ? ov.income : totalIncome;
+  const expensesVal = ov.expenses != null ? ov.expenses : totalExpenses;
+  const balanceVal = ov.balance != null ? ov.balance : actualBalance;
+
+  const incomeEl = document.getElementById('sum-income');
+  const expensesEl = document.getElementById('sum-expenses');
   const balEl = document.getElementById('sum-balance');
-  balEl.textContent = fmt(actualBalance);
-  balEl.style.color = actualBalance >= 0 ? '#4FAE7A' : '#E2555A';
+  if (document.activeElement !== incomeEl) incomeEl.value = incomeVal ? incomeVal : '';
+  if (document.activeElement !== expensesEl) expensesEl.value = expensesVal ? expensesVal : '';
+  if (document.activeElement !== balEl) balEl.value = balanceVal ? balanceVal : (balanceVal === 0 ? '0' : '');
+  balEl.style.color = balanceVal >= 0 ? '#4FAE7A' : '#E2555A';
+
+  document.getElementById('reset-income').classList.toggle('visible', ov.income != null);
+  document.getElementById('reset-expenses').classList.toggle('visible', ov.expenses != null);
+  document.getElementById('reset-balance').classList.toggle('visible', ov.balance != null);
+
   document.getElementById('progress-fill').style.width = pct + '%';
   let captionHtml =
     `<div class="caption-item"><span class="caption-dot">•</span>${fmt(receivedTotal)} of ${fmt(totalIncome)} income received</div>` +
@@ -462,6 +506,13 @@ function updateSummary(){
   const adjAmountEl = document.getElementById('adj-amount-input');
   if (document.activeElement !== adjLabelEl) adjLabelEl.value = state.adjLabel || '';
   if (document.activeElement !== adjAmountEl) adjAmountEl.value = adj ? adj : '';
+
+  const labelBalEl = document.getElementById('label-balance');
+  const labelIncEl = document.getElementById('label-income');
+  const labelExpEl = document.getElementById('label-expenses');
+  if (document.activeElement !== labelBalEl) labelBalEl.value = (state.dashLabels && state.dashLabels.balance) || 'BALANCE';
+  if (document.activeElement !== labelIncEl) labelIncEl.value = (state.dashLabels && state.dashLabels.income) || 'INCOME';
+  if (document.activeElement !== labelExpEl) labelExpEl.value = (state.dashLabels && state.dashLabels.expenses) || 'EXPENSES';
 }
 
 let openItemPanels = new Set();
@@ -708,6 +759,14 @@ function renderIncomeRow(i){
     itemsCountEl.textContent = hasItems ? `🧾 ${i.items.length} entr${i.items.length>1?'ies':'y'} · ${fmt(itemsSum(i))}` : '';
   }
 
+  function refreshReceivedDisplay(){
+    const hasItems = i.items && i.items.length > 0;
+    const on = hasItems ? i.items.every(it => it.received) : !!i.received;
+    stampBtn.classList.toggle('on', on);
+    stampBtn.textContent = on ? '✓' : '';
+    row.querySelector('.icon-wrap').classList.toggle('received', on);
+  }
+
   function renderItemsPanel(){
     itemsPanel.innerHTML = '';
     (i.items || []).forEach(it => {
@@ -716,16 +775,25 @@ function renderIncomeRow(i){
       itRow.innerHTML = `
         <input class="item-desc-input" value="${escapeAttr(it.desc)}" placeholder="e.g. pay date or note" />
         <div class="amount-wrap"><span class="currency">$</span><input class="amount-input item-amount-input" type="number" inputmode="decimal" value="${it.amount ? it.amount : ''}" placeholder="0" style="width:62px;" /></div>
+        <button class="stamp-btn item-stamp-btn ${it.received ? 'on' : ''}" style="width:22px;height:22px;">${it.received ? '✓' : ''}</button>
         <button class="item-remove-btn">✕</button>
       `;
       const descInput = itRow.querySelector('.item-desc-input');
       const amtInput = itRow.querySelector('.item-amount-input');
+      const itemStampBtn = itRow.querySelector('.item-stamp-btn');
       const remBtn = itRow.querySelector('.item-remove-btn');
       descInput.addEventListener('input', e => { it.desc = e.target.value; save(); });
       amtInput.addEventListener('input', e => { it.amount = parseFloat(e.target.value) || 0; save(); refreshAmountDisplay(); updateSummary(); });
+      itemStampBtn.addEventListener('click', () => {
+        it.received = !it.received; saveNow();
+        itemStampBtn.classList.toggle('on', it.received);
+        itemStampBtn.textContent = it.received ? '✓' : '';
+        refreshReceivedDisplay();
+        updateSummary();
+      });
       remBtn.addEventListener('click', () => {
         i.items = i.items.filter(x => x.id !== it.id);
-        saveNow(); refreshAmountDisplay(); updateSummary(); renderItemsPanel();
+        saveNow(); refreshAmountDisplay(); refreshReceivedDisplay(); updateSummary(); renderItemsPanel();
       });
       itemsPanel.appendChild(itRow);
     });
@@ -735,8 +803,8 @@ function renderIncomeRow(i){
     addBtn.textContent = '+ Add entry';
     addBtn.addEventListener('click', () => {
       if (!i.items) i.items = [];
-      i.items.push({ id: uid(), desc: '', amount: 0 });
-      saveNow(); refreshAmountDisplay(); renderItemsPanel();
+      i.items.push({ id: uid(), desc: '', amount: 0, received: false });
+      saveNow(); refreshAmountDisplay(); refreshReceivedDisplay(); renderItemsPanel();
       const inputs = itemsPanel.querySelectorAll('.item-desc-input');
       if (inputs.length) inputs[inputs.length - 1].focus();
     });
@@ -745,7 +813,7 @@ function renderIncomeRow(i){
     if (i.items && i.items.length) {
       const subtotal = document.createElement('div');
       subtotal.className = 'item-subtotal';
-      subtotal.textContent = `Subtotal: ${fmt(itemsSum(i))}`;
+      subtotal.textContent = `Subtotal: ${fmt(itemsSum(i))} · tap each ✓ as it hits the account`;
       itemsPanel.appendChild(subtotal);
     }
   }
@@ -760,15 +828,23 @@ function renderIncomeRow(i){
   nameInput.addEventListener('input', e => { i.name = e.target.value; save(); });
   amountInput.addEventListener('input', e => { if (!amountInput.readOnly) { i.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); } });
   stampBtn.addEventListener('click', () => {
-    i.received = !i.received; saveNow();
-    stampBtn.classList.toggle('on', i.received);
-    stampBtn.textContent = i.received ? '✓' : '';
-    row.querySelector('.icon-wrap').classList.toggle('received', i.received);
+    const hasItems = i.items && i.items.length > 0;
+    if (hasItems) {
+      const allReceived = i.items.every(it => it.received);
+      i.items.forEach(it => { it.received = !allReceived; });
+      saveNow();
+      renderItemsPanel();
+    } else {
+      i.received = !i.received;
+      saveNow();
+    }
+    refreshReceivedDisplay();
     updateSummary();
   });
   removeBtn.addEventListener('click', () => { state.income = state.income.filter(x => x.id !== i.id); saveNow(); render(); });
 
   refreshAmountDisplay();
+  refreshReceivedDisplay();
   if (openItemPanels.has(i.id)) {
     itemsPanel.classList.add('open');
     chevronBtn.textContent = '▾';
@@ -858,12 +934,12 @@ function closeMonth(){
   if (nextMonth > 11) { nextMonth = 0; nextYear += 1; }
 
   const resetBills = state.bills.map(b => ({...b, paid:false, items:[]}));
-  let carryIncome = state.income.filter(i => i.icon !== '🐷').map(i => ({...i, received:false}));
+  let carryIncome = state.income.filter(i => i.icon !== '🐷').map(i => ({...i, received:false, items:[]}));
   if (balance !== 0) {
     carryIncome.unshift({id: uid(), name: 'Savings carried from ' + label, icon:'🐷', amount: balance, received:true});
   }
 
-  state = { year: nextYear, month: nextMonth, rev: state.rev, adjLabel: 'Ghost Funds (unaccounted)', adjAmount: 0, bills: resetBills, income: carryIncome };
+  state = { year: nextYear, month: nextMonth, rev: state.rev, adjLabel: 'Ghost Funds (unaccounted)', adjAmount: 0, dashLabels: state.dashLabels, dashOverrides: { balance: null, income: null, expenses: null }, bills: resetBills, income: carryIncome };
   saveNow();
   render();
 }
@@ -898,6 +974,26 @@ document.getElementById('adj-amount-input').addEventListener('input', e => { sta
 document.getElementById('income-add-group').addEventListener('change', e => {
   document.getElementById('income-add-group-new').style.display = e.target.value === '__new__' ? 'block' : 'none';
 });
+
+document.getElementById('label-balance').addEventListener('input', e => { state.dashLabels.balance = e.target.value; save(); });
+document.getElementById('label-income').addEventListener('input', e => { state.dashLabels.income = e.target.value; save(); });
+document.getElementById('label-expenses').addEventListener('input', e => { state.dashLabels.expenses = e.target.value; save(); });
+
+document.getElementById('sum-balance').addEventListener('input', e => {
+  state.dashOverrides.balance = e.target.value === '' ? null : (parseFloat(e.target.value) || 0);
+  save(); updateSummary();
+});
+document.getElementById('sum-income').addEventListener('input', e => {
+  state.dashOverrides.income = e.target.value === '' ? null : (parseFloat(e.target.value) || 0);
+  save(); updateSummary();
+});
+document.getElementById('sum-expenses').addEventListener('input', e => {
+  state.dashOverrides.expenses = e.target.value === '' ? null : (parseFloat(e.target.value) || 0);
+  save(); updateSummary();
+});
+document.getElementById('reset-balance').addEventListener('click', () => { state.dashOverrides.balance = null; saveNow(); updateSummary(); });
+document.getElementById('reset-income').addEventListener('click', () => { state.dashOverrides.income = null; saveNow(); updateSummary(); });
+document.getElementById('reset-expenses').addEventListener('click', () => { state.dashOverrides.expenses = null; saveNow(); updateSummary(); });
 
 try {
   if (localStorage.getItem('incomeSectionCollapsed') === '1') {
