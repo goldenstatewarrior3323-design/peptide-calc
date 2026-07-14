@@ -116,7 +116,7 @@
 
   <div class="summary-card">
     <div class="balance-hero">
-      <div class="summary-label">BALANCE</div>
+      <div class="summary-label">BALANCE (PAID SO FAR)</div>
       <div class="balance-value" id="sum-balance">$0</div>
     </div>
     <div class="stat-row">
@@ -443,20 +443,18 @@ function updateSummary(){
   const totalIncome = state.income.reduce((s,i)=>s+(Number(i.amount)||0),0);
   const receivedTotal = state.income.filter(i=>i.received).reduce((s,i)=>s+(Number(i.amount)||0),0);
   const adj = Number(state.adjAmount) || 0;
-  const projectedBalance = totalIncome - totalExpenses + adj;
-  const currentBalance = receivedTotal - paidTotal + adj;
+  const actualBalance = receivedTotal - paidTotal + adj;
   const pct = totalExpenses > 0 ? Math.round((paidTotal/totalExpenses)*100) : 0;
 
   document.getElementById('sum-income').textContent = fmt(totalIncome);
   document.getElementById('sum-expenses').textContent = fmt(totalExpenses);
   const balEl = document.getElementById('sum-balance');
-  balEl.textContent = fmt(projectedBalance);
-  balEl.style.color = projectedBalance >= 0 ? '#4FAE7A' : '#E2555A';
+  balEl.textContent = fmt(actualBalance);
+  balEl.style.color = actualBalance >= 0 ? '#4FAE7A' : '#E2555A';
   document.getElementById('progress-fill').style.width = pct + '%';
   let captionHtml =
-    `<div class="caption-item"><span class="caption-dot">•</span>${fmt(currentBalance)} cash on hand right now</div>` +
-    `<div class="caption-item"><span class="caption-dot">•</span>${fmt(receivedTotal)} received</div>` +
-    `<div class="caption-item"><span class="caption-dot">•</span>${fmt(paidTotal)} paid</div>`;
+    `<div class="caption-item"><span class="caption-dot">•</span>${fmt(receivedTotal)} of ${fmt(totalIncome)} income received</div>` +
+    `<div class="caption-item"><span class="caption-dot">•</span>${fmt(paidTotal)} of ${fmt(totalExpenses)} bills paid</div>`;
   if (adj !== 0) captionHtml += `<div class="caption-item"><span class="caption-dot">•</span>${fmt(adj)} adjustment applied</div>`;
   document.getElementById('progress-caption').innerHTML = captionHtml;
 
