@@ -85,6 +85,11 @@
   .stamp-btn.on { background: #4FAE7A; border-color: #4FAE7A; }
   .remove-btn { background: transparent; border: none; cursor: pointer; padding: 2px; color: #7FA8C9; font-size: 14px; flex-shrink: 0; display: none; }
   body.edit-mode .remove-btn { display: inline-flex; align-items: center; justify-content: center; }
+  .move-col { display: none; flex-direction: column; gap: 2px; flex-shrink: 0; }
+  body.edit-mode .move-col { display: flex; }
+  .move-btn { background: rgba(255,255,255,0.06); border: none; color: #7FA8C9; font-size: 9px; line-height: 1; cursor: pointer; padding: 3px; border-radius: 3px; width: 16px; }
+  .move-btn:active { background: rgba(93,169,233,0.3); }
+  .move-btn:disabled { opacity: 0.25; cursor: default; }
   .edit-toggle-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
   .edit-toggle-btn { background: transparent; border: 1px solid rgba(93,169,233,0.3); color: #7FA8C9; font-size: 12px; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 5px; }
   body.edit-mode .edit-toggle-btn { background: rgba(232,163,61,0.15); border-color: #E8A33D; color: #E8A33D; }
@@ -271,7 +276,7 @@ function closeReceiptLightbox(){
 
 function toggleEditMode(){
   const on = document.body.classList.toggle('edit-mode');
-  document.getElementById('edit-mode-toggle').textContent = on ? '✏️ Edit mode: On — tap ✕ to remove' : '✏️ Edit mode: Off';
+  document.getElementById('edit-mode-toggle').textContent = on ? '✏️ Edit mode: On — ✕ removes, ▲▼ reorders' : '✏️ Edit mode: Off';
 }
 
 function toggleIncomeSection(){
@@ -584,6 +589,10 @@ function renderBillRow(b){
   const row = document.createElement('div');
   row.className = 'row';
   row.innerHTML = `
+    <div class="move-col">
+      <button class="move-btn move-up">▲</button>
+      <button class="move-btn move-down">▼</button>
+    </div>
     <button class="chevron-btn">▸</button>
     <div class="icon-wrap ${b.paid ? 'paid' : ''}">${b.icon || '➕'}</div>
     <div class="row-main">
@@ -610,6 +619,20 @@ function renderBillRow(b){
   const removeBtn = row.querySelector('.remove-btn');
   const chevronBtn = row.querySelector('.chevron-btn');
   const itemsCountEl = row.querySelector('.items-count');
+  const moveUpBtn = row.querySelector('.move-up');
+  const moveDownBtn = row.querySelector('.move-down');
+
+  const idx = state.bills.findIndex(x => x.id === b.id);
+  moveUpBtn.disabled = idx <= 0;
+  moveDownBtn.disabled = idx >= state.bills.length - 1;
+  moveUpBtn.addEventListener('click', () => {
+    const i = state.bills.findIndex(x => x.id === b.id);
+    if (i > 0) { [state.bills[i-1], state.bills[i]] = [state.bills[i], state.bills[i-1]]; saveNow(); render(); }
+  });
+  moveDownBtn.addEventListener('click', () => {
+    const i = state.bills.findIndex(x => x.id === b.id);
+    if (i < state.bills.length - 1) { [state.bills[i+1], state.bills[i]] = [state.bills[i], state.bills[i+1]]; saveNow(); render(); }
+  });
 
   function refreshAmountDisplay(){
     const hasItems = b.items && b.items.length > 0;
