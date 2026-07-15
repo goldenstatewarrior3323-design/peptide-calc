@@ -65,6 +65,27 @@
   .group-body { display: none; flex-direction: column; gap: 6px; padding: 8px 0 2px 22px; }
   .group-body.open { display: flex; }
   .group-select { background: #0E2C4E; color: #EAF2FB; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; font-size: 12px; padding: 6px; font-family: 'Inter', sans-serif; }
+  .analysis-block { margin-bottom: 20px; }
+  .analysis-title { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1.5px; color: #5DA9E9; margin-bottom: 8px; }
+  .analysis-subnote { font-size: 11px; color: #5A7DA0; font-family: 'IBM Plex Mono', monospace; margin-top: 6px; }
+  .analysis-empty { font-size: 12px; color: #5A7DA0; font-family: 'IBM Plex Mono', monospace; padding: 6px 0; }
+  .cat-bar-row { margin-bottom: 9px; }
+  .cat-bar-label { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 3px; }
+  .cat-bar-track { height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+  .cat-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg,#5DA9E9,#E8A33D); }
+  .ghost-summary-card { background: rgba(177,140,232,0.08); border: 1px solid rgba(177,140,232,0.25); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: #C9B6EA; line-height: 1.5; }
+  .ghost-summary-card b { color: #EAF2FB; }
+  .budget-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .budget-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .budget-input { width: 56px; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.15); color: #EAF2FB; font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 2px; text-align: right; outline: none; }
+  .budget-delta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; min-width: 64px; text-align: right; flex-shrink: 0; }
+  .reliability-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06); gap: 8px; }
+  .reliability-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reliability-pct { font-family: 'IBM Plex Mono', monospace; flex-shrink: 0; }
+  .trend-chart-wrap { overflow-x: auto; }
+  .trend-legend { display: flex; gap: 14px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; margin-top: 8px; flex-wrap: wrap; }
+  .trend-legend-item { display: flex; align-items: center; gap: 4px; color: #7FA8C9; }
+  .trend-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .list-wrap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
   .row { display: flex; align-items: center; gap: 8px; background: #0E2C4E; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; }
   .icon-wrap { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; background: rgba(93,169,233,0.1); }
@@ -193,6 +214,12 @@
     <button class="add-cancel" onclick="cancelAddBill()">✕</button>
   </div>
   <button class="add-row-btn" id="bill-add-toggle" onclick="showAddBill()">+ Add bill</button>
+
+  <div class="section-header" id="analysis-section-header" onclick="toggleAnalysisSection()">
+    <span class="section-chevron" id="analysis-section-chevron">▸</span>
+    <span>📊 ANALYSIS</span>
+  </div>
+  <div id="analysis-section-body" style="display:none;"></div>
 
   <button class="close-month-btn" onclick="closeMonth()">↺ Close month &amp; start new month</button>
   <div class="close-month-hint">Archives this month, resets paid/received stamps, and carries leftover balance into next month as savings income.</div>
@@ -415,7 +442,7 @@ function defaultState(){
     adjAmount: 0,
     dashLabels: { balance: 'BALANCE', income: 'INCOME', expenses: 'EXPENSES' },
     dashOverrides: { balance: null, income: null, expenses: null },
-    bills: DEFAULT_BILLS.map(b => ({...b, id: uid()})),
+    bills: DEFAULT_BILLS.map(b => ({...b, id: uid(), budget: null, paidAt: null})),
     income: DEFAULT_INCOME.map(i => ({...i, id: uid()})),
   };
 }
@@ -524,6 +551,9 @@ function render(){
 
   document.getElementById('history-count').textContent = history.length;
   renderHistory();
+
+  const analysisBody = document.getElementById('analysis-section-body');
+  if (analysisBody && analysisBody.style.display !== 'none') renderAnalysis();
 }
 
 // Lightweight refresh of just the totals card — safe to call on every keystroke
@@ -532,10 +562,7 @@ function updateSummary(){
   const totalExpenses = round2(state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0));
   const paidTotal = round2(state.bills.filter(b=>b.paid).reduce((s,b)=>s+(Number(b.amount)||0),0));
   const totalIncome = round2(state.income.reduce((s,i)=>s+(Number(i.amount)||0),0));
-  const receivedTotal = round2(state.income.reduce((s,i) => {
-    if (i.items && i.items.length) return s + i.items.filter(it=>it.received).reduce((s2,it)=>s2+(Number(it.amount)||0),0);
-    return s + (i.received ? (Number(i.amount)||0) : 0);
-  }, 0));
+  const receivedTotal = round2(state.income.reduce((s,i) => s + incomeReceivedAmount(i), 0));
   const adj = round2(state.adjAmount);
   const actualBalance = round2(receivedTotal - paidTotal + adj);
   const pct = totalExpenses > 0 ? Math.round((paidTotal/totalExpenses)*100) : 0;
@@ -581,6 +608,10 @@ let openItemPanels = new Set();
 
 function itemsSum(b){
   return round2((b.items || []).reduce((s, x) => s + (Number(x.amount) || 0), 0));
+}
+function incomeReceivedAmount(i){
+  if (i.items && i.items.length) return round2(i.items.filter(it=>it.received).reduce((s,it)=>s+(Number(it.amount)||0),0));
+  return i.received ? round2(Number(i.amount)||0) : 0;
 }
 
 function renderBillRow(b){
@@ -725,7 +756,9 @@ function renderBillRow(b){
   dueInput.addEventListener('input', e => { b.dueDay = parseInt(e.target.value) || 0; save(); });
   amountInput.addEventListener('input', e => { if (!amountInput.readOnly) { b.amount = parseFloat(e.target.value) || 0; save(); updateSummary(); } });
   stampBtn.addEventListener('click', () => {
-    b.paid = !b.paid; saveNow();
+    b.paid = !b.paid;
+    b.paidAt = b.paid ? new Date().toISOString() : null;
+    saveNow();
     stampBtn.classList.toggle('on', b.paid);
     stampBtn.textContent = b.paid ? '✓' : '';
     row.querySelector('.icon-wrap').classList.toggle('paid', b.paid);
@@ -965,7 +998,7 @@ function confirmAddBill(){
   const name = document.getElementById('bill-add-name').value.trim();
   if (!name) return;
   const amount = parseFloat(document.getElementById('bill-add-amount').value) || 0;
-  state.bills.push({id: uid(), name, icon: guessIcon(name, false), amount, dueDay:0, paid:false});
+  state.bills.push({id: uid(), name, icon: guessIcon(name, false), amount, dueDay:0, paid:false, budget:null, paidAt:null});
   saveNow();
   cancelAddBill();
   render();
@@ -1015,9 +1048,19 @@ function closeMonth(){
   const balance = round2(totalIncome - totalExpenses + adj);
   const label = monthLabel(state.year, state.month);
 
+  const billsSnapshot = state.bills.map(b => ({
+    name: b.name, amount: round2(b.amount), paid: !!b.paid, dueDay: b.dueDay || 0,
+    paidAt: b.paidAt || null, budget: (b.budget != null ? round2(b.budget) : null),
+  }));
+  const incomeSnapshot = state.income.map(i => ({
+    name: i.name, group: i.group || null, expected: round2(i.amount),
+    received: round2(incomeReceivedAmount(i)),
+  }));
+
   history.unshift({
     key: state.year + '-' + String(state.month+1).padStart(2,'0'),
-    label, income: totalIncome, expenses: totalExpenses, balance,
+    label, income: totalIncome, expenses: totalExpenses, balance, adj,
+    bills: billsSnapshot, incomeItems: incomeSnapshot,
     closedAt: new Date().toISOString(),
   });
   history = history.slice(0, 24);
@@ -1026,7 +1069,7 @@ function closeMonth(){
   let nextMonth = state.month + 1, nextYear = state.year;
   if (nextMonth > 11) { nextMonth = 0; nextYear += 1; }
 
-  const resetBills = state.bills.map(b => ({...b, paid:false, items:[]}));
+  const resetBills = state.bills.map(b => ({...b, paid:false, paidAt:null, items:[]}));
   let carryIncome = state.income.filter(i => i.icon !== '🐷').map(i => ({...i, received:false, items:[]}));
   if (balance !== 0) {
     carryIncome.unshift({id: uid(), name: 'Savings carried from ' + label, icon:'🐷', amount: balance, received:true});
@@ -1035,6 +1078,207 @@ function closeMonth(){
   state = { year: nextYear, month: nextMonth, rev: state.rev, adjLabel: 'Ghost Funds (unaccounted)', adjAmount: 0, dashLabels: state.dashLabels, dashOverrides: { balance: null, income: null, expenses: null }, bills: resetBills, income: carryIncome };
   saveNow();
   render();
+}
+
+function toggleAnalysisSection(){
+  const body = document.getElementById('analysis-section-body');
+  const chevron = document.getElementById('analysis-section-chevron');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  chevron.textContent = open ? '▸' : '▾';
+  if (!open) renderAnalysis();
+}
+
+function buildTrendSVG(points){
+  const wrap = document.createElement('div');
+  wrap.className = 'trend-chart-wrap';
+
+  const w = Math.max(320, points.length * 70);
+  const h = 160;
+  const padL = 12, padR = 12, padT = 12, padB = 22;
+  const allVals = points.flatMap(p => [p.income, p.expenses, p.balance]);
+  const maxV = Math.max(...allVals, 0);
+  const minV = Math.min(...allVals, 0);
+  const range = (maxV - minV) || 1;
+  const xStep = points.length > 1 ? (w - padL - padR) / (points.length - 1) : 0;
+  const yFor = (v) => padT + (1 - (v - minV) / range) * (h - padT - padB);
+  const xFor = (idx) => padL + idx * xStep;
+  const pathFor = (key) => points.map((p,idx) => `${idx===0?'M':'L'} ${xFor(idx).toFixed(1)} ${yFor(p[key]).toFixed(1)}`).join(' ');
+  const zeroY = yFor(0);
+
+  let svg = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;">`;
+  svg += `<line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${w-padR}" y2="${zeroY.toFixed(1)}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`;
+  svg += `<path d="${pathFor('income')}" fill="none" stroke="#4FAE7A" stroke-width="2"/>`;
+  svg += `<path d="${pathFor('expenses')}" fill="none" stroke="#E8A33D" stroke-width="2"/>`;
+  svg += `<path d="${pathFor('balance')}" fill="none" stroke="#5DA9E9" stroke-width="2.5"/>`;
+  points.forEach((p, idx) => {
+    const x = xFor(idx);
+    svg += `<circle cx="${x.toFixed(1)}" cy="${yFor(p.balance).toFixed(1)}" r="3" fill="#5DA9E9" ${p.open?'opacity="0.5"':''}/>`;
+    svg += `<text x="${x.toFixed(1)}" y="${h-6}" font-size="9" fill="#5A7DA0" text-anchor="middle" font-family="'IBM Plex Mono',monospace">${escapeAttr((p.label||'').split(' ')[0].slice(0,3))}</text>`;
+  });
+  svg += `</svg>`;
+  wrap.innerHTML = svg;
+
+  const legend = document.createElement('div');
+  legend.className = 'trend-legend';
+  legend.innerHTML =
+    `<span class="trend-legend-item"><span class="trend-legend-dot" style="background:#4FAE7A"></span>Income</span>` +
+    `<span class="trend-legend-item"><span class="trend-legend-dot" style="background:#E8A33D"></span>Expenses</span>` +
+    `<span class="trend-legend-item"><span class="trend-legend-dot" style="background:#5DA9E9"></span>Balance</span>`;
+  wrap.appendChild(legend);
+  return wrap;
+}
+
+function renderAnalysis(){
+  const body = document.getElementById('analysis-section-body');
+  body.innerHTML = '';
+
+  // 1. Category breakdown — this month
+  const catBlock = document.createElement('div');
+  catBlock.className = 'analysis-block';
+  catBlock.innerHTML = '<div class="analysis-title">CATEGORY BREAKDOWN — THIS MONTH</div>';
+  const catsWithAmount = state.bills.filter(b => (Number(b.amount)||0) > 0).slice().sort((a,b)=>b.amount-a.amount);
+  const totalCat = catsWithAmount.reduce((s,b)=>s+(Number(b.amount)||0),0);
+  if (!catsWithAmount.length) {
+    catBlock.innerHTML += '<div class="analysis-empty">No bill amounts entered yet this month.</div>';
+  } else {
+    catsWithAmount.forEach(b => {
+      const pct = totalCat > 0 ? Math.round((b.amount/totalCat)*100) : 0;
+      const row = document.createElement('div');
+      row.className = 'cat-bar-row';
+      row.innerHTML = `<div class="cat-bar-label"><span>${b.icon||''} ${escapeAttr(b.name)}</span><span>${fmt(b.amount)} · ${pct}%</span></div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:${pct}%"></div></div>`;
+      catBlock.appendChild(row);
+    });
+  }
+  body.appendChild(catBlock);
+
+  // 2. Trend over time
+  const trendBlock = document.createElement('div');
+  trendBlock.className = 'analysis-block';
+  trendBlock.innerHTML = '<div class="analysis-title">TREND — INCOME vs EXPENSES vs BALANCE</div>';
+  const trendPoints = history.slice().reverse().map(h => ({label: h.label, income: h.income, expenses: h.expenses, balance: h.balance}));
+  const liveIncome = round2(state.income.reduce((s,i)=>s+(Number(i.amount)||0),0));
+  const liveExpenses = round2(state.bills.reduce((s,b)=>s+(Number(b.amount)||0),0));
+  const liveBalance = round2(liveIncome - liveExpenses + (Number(state.adjAmount)||0));
+  trendPoints.push({label: monthLabel(state.year,state.month) + ' (open)', income: liveIncome, expenses: liveExpenses, balance: liveBalance, open:true});
+  if (trendPoints.length < 2) {
+    trendBlock.innerHTML += '<div class="analysis-empty">Close out at least one more month to see a trend line.</div>';
+  } else {
+    trendBlock.appendChild(buildTrendSVG(trendPoints));
+  }
+  body.appendChild(trendBlock);
+
+  // 3. Ghost Funds accountability
+  const ghostBlock = document.createElement('div');
+  ghostBlock.className = 'analysis-block';
+  ghostBlock.innerHTML = '<div class="analysis-title">👻 GHOST FUNDS ACCOUNTABILITY</div>';
+  const ghostMonths = history.filter(h => (h.adj||0) !== 0);
+  const ghostTotal = round2(ghostMonths.reduce((s,h)=>s+(h.adj||0),0));
+  const currentAdj = Number(state.adjAmount)||0;
+  if (ghostMonths.length === 0 && currentAdj === 0) {
+    ghostBlock.innerHTML += '<div class="analysis-empty">No unaccounted adjustments logged in your closed months yet.</div>';
+  } else {
+    let ghostHtml = `<div class="ghost-summary-card">Needed in <b>${ghostMonths.length} of your last ${history.length}</b> closed month${history.length===1?'':'s'}, totaling <b>${fmt(ghostTotal)}</b>.`;
+    if (currentAdj !== 0) ghostHtml += ` This open month is currently carrying <b>${fmt(currentAdj)}</b> unaccounted too.`;
+    ghostHtml += ghostMonths.length >= 3 ? ' That\'s a recurring pattern — worth digging into where it\'s actually coming from.' : '';
+    ghostHtml += '</div>';
+    ghostBlock.innerHTML += ghostHtml;
+  }
+  body.appendChild(ghostBlock);
+
+  // 4. Category budgets
+  const budgetBlock = document.createElement('div');
+  budgetBlock.className = 'analysis-block';
+  budgetBlock.innerHTML = '<div class="analysis-title">🎯 CATEGORY BUDGETS</div>';
+  if (!state.bills.length) {
+    budgetBlock.innerHTML += '<div class="analysis-empty">Add bills to set budgets for them.</div>';
+  } else {
+    state.bills.forEach(b => {
+      const row = document.createElement('div');
+      row.className = 'budget-row';
+      const hasBudget = b.budget != null;
+      const delta = hasBudget ? round2(b.budget - (Number(b.amount)||0)) : null;
+      const deltaColor = delta == null ? '#5A7DA0' : (delta >= 0 ? '#4FAE7A' : '#E2555A');
+      const deltaText = delta == null ? 'no target' : (delta >= 0 ? 'under ' + fmt(delta) : 'over ' + fmt(Math.abs(delta)));
+      row.innerHTML = `<span class="budget-name">${b.icon||''} ${escapeAttr(b.name)}</span><div class="amount-wrap"><span class="currency">$</span><input class="budget-input" type="number" inputmode="decimal" value="${hasBudget?b.budget:''}" placeholder="target"></div><span class="budget-delta" style="color:${deltaColor}">${deltaText}</span>`;
+      const input = row.querySelector('.budget-input');
+      input.addEventListener('input', e => {
+        b.budget = e.target.value === '' ? null : (parseFloat(e.target.value) || 0);
+        save();
+        const d = b.budget != null ? round2(b.budget - (Number(b.amount)||0)) : null;
+        const deltaEl = row.querySelector('.budget-delta');
+        deltaEl.style.color = d == null ? '#5A7DA0' : (d >= 0 ? '#4FAE7A' : '#E2555A');
+        deltaEl.textContent = d == null ? 'no target' : (d >= 0 ? 'under ' + fmt(d) : 'over ' + fmt(Math.abs(d)));
+      });
+      budgetBlock.appendChild(row);
+    });
+  }
+  body.appendChild(budgetBlock);
+
+  // 5. Bill punctuality (tracked forward from now — needs a paid date + due day recorded)
+  const punctBlock = document.createElement('div');
+  punctBlock.className = 'analysis-block';
+  punctBlock.innerHTML = '<div class="analysis-title">⏱️ BILL PUNCTUALITY</div>';
+  const punctStats = {};
+  history.forEach(h => {
+    (h.bills||[]).forEach(b => {
+      if (!b.paid || !b.paidAt || !b.dueDay) return;
+      const paidDay = new Date(b.paidAt).getDate();
+      const onTime = paidDay <= b.dueDay;
+      if (!punctStats[b.name]) punctStats[b.name] = {onTime:0, late:0};
+      punctStats[b.name][onTime ? 'onTime' : 'late']++;
+    });
+  });
+  const punctNames = Object.keys(punctStats);
+  if (!punctNames.length) {
+    punctBlock.innerHTML += '<div class="analysis-empty">Starts tracking once you close a month with due-day bills marked paid. Nothing yet — this can\'t backfill past months.</div>';
+  } else {
+    punctNames.forEach(name => {
+      const s = punctStats[name];
+      const total = s.onTime + s.late;
+      const pct = Math.round((s.onTime/total)*100);
+      const row = document.createElement('div');
+      row.className = 'reliability-row';
+      row.innerHTML = `<span class="reliability-name">${escapeAttr(name)}</span><span class="reliability-pct" style="color:${pct>=80?'#4FAE7A':pct>=50?'#E8A33D':'#E2555A'}">${s.onTime}/${total} on-time (${pct}%)</span>`;
+      punctBlock.appendChild(row);
+    });
+  }
+  body.appendChild(punctBlock);
+
+  // 6. Income reliability
+  const relBlock = document.createElement('div');
+  relBlock.className = 'analysis-block';
+  relBlock.innerHTML = '<div class="analysis-title">💵 INCOME RELIABILITY</div>';
+  const relStats = {};
+  history.forEach(h => {
+    (h.incomeItems||[]).forEach(i => {
+      if (!i.expected) return;
+      if (!relStats[i.name]) relStats[i.name] = {expected:0, received:0};
+      relStats[i.name].expected += i.expected;
+      relStats[i.name].received += i.received;
+    });
+  });
+  const relNames = Object.keys(relStats);
+  if (!relNames.length) {
+    relBlock.innerHTML += '<div class="analysis-empty">Starts tracking once you close a month. Nothing yet.</div>';
+  } else {
+    relNames.forEach(name => {
+      const s = relStats[name];
+      const pct = s.expected > 0 ? Math.round((s.received/s.expected)*100) : 0;
+      const row = document.createElement('div');
+      row.className = 'reliability-row';
+      row.innerHTML = `<span class="reliability-name">${escapeAttr(name)}</span><span class="reliability-pct" style="color:${pct>=95?'#4FAE7A':pct>=75?'#E8A33D':'#E2555A'}">${fmt(s.received)} of ${fmt(s.expected)} (${pct}%)</span>`;
+      relBlock.appendChild(row);
+    });
+    const totalExp = relNames.reduce((s,n)=>s+relStats[n].expected,0);
+    const totalRec = relNames.reduce((s,n)=>s+relStats[n].received,0);
+    const overallPct = totalExp > 0 ? Math.round((totalRec/totalExp)*100) : 0;
+    const note = document.createElement('div');
+    note.className = 'analysis-subnote';
+    note.textContent = `Overall: ${overallPct}% of expected income actually received, across closed months.`;
+    relBlock.appendChild(note);
+  }
+  body.appendChild(relBlock);
 }
 
 function toggleHistory(){
