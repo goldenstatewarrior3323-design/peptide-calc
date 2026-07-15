@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    // Runs before first paint so there's no flash of the wrong theme on load.
+    (function(){
+      const saved = localStorage.getItem('theme');
+      const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      if(theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    })();
+  </script>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <meta name="theme-color" content="#ffffff"/>
@@ -19,8 +27,17 @@
       --yellow: #d97706; --yellow-light: #fffbeb;
       --red: #dc2626; --red-light: #fef2f2;
       --purple: #7c3aed; --teal: #0d9488; --orange: #ea580c;
+      --accent: var(--green);
       --safe-top: env(safe-area-inset-top,0px);
       --safe-bottom: env(safe-area-inset-bottom,0px);
+    }
+    [data-theme="dark"] {
+      --bg: #14171c; --white: #1e2229; --border: #2d323b;
+      --text: #e8eaed; --muted: #8b93a1; --blue: #5b9bff;
+      --blue-light: #1a2a42; --green: #34d399; --green-light: #14332a;
+      --yellow: #fbbf24; --yellow-light: #3a2e0f;
+      --red: #f87171; --red-light: #3a1c1c;
+      --purple: #a78bfa; --teal: #2dd4bf; --orange: #fb923c;
     }
     html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
     body{padding-top:var(--safe-top);}
@@ -85,7 +102,7 @@
     .meal-entry{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:1px solid var(--border);}
     .meal-entry-name{font-size:12px;color:var(--muted);flex:1;}
     .meal-entry-cals{font-size:12px;font-weight:600;color:var(--text);}
-    .meal-entry-del{background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer;padding:0 0 0 8px;}
+    .meal-entry-del{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 0 0 8px;}
     /* EXERCISE CARD */
     .exercise-card{background:var(--white);border-radius:12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .exercise-card-header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;}
@@ -93,7 +110,7 @@
     .exercise-entry{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:1px solid var(--border);}
     .exercise-name{font-size:12px;color:var(--muted);flex:1;}
     .exercise-cals{font-size:12px;font-weight:600;color:var(--green);}
-    .exercise-del{background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer;padding:0 0 0 8px;}
+    .exercise-del{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 0 0 8px;}
     /* ADD PAGE */
     .input-group{background:var(--white);border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .input-label{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;}
@@ -188,6 +205,7 @@
     <button onclick="exportDay()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Export today's data">⬇️</button>
     <button onclick="openCoach()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Coach">🧠</button>
     <button onclick="openGapFiller()" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Close the Gap">🎯</button>
+    <button onclick="toggleTheme()" id="theme-toggle-btn" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Toggle dark/light theme">🌙</button>
     <button onclick="showPage('settings')" style="background:none;border:none;font-size:19px;cursor:pointer;padding:2px 4px;line-height:1;" title="Settings">⚙️</button>
   </div>
 </div>
@@ -327,9 +345,7 @@
   </div>
 
   <button class="scan-btn" onclick="startScanner()">📷 Scan Barcode</button>
-  <button class="scan-btn" onclick="document.getElementById('label-photo-camera-input').click()" style="background:var(--blue-light);color:var(--blue);border-color:var(--blue);">📸 Take Photo of Label</button>
-  <button class="scan-btn" onclick="document.getElementById('label-photo-input').click()" style="background:var(--blue-light);color:var(--blue);border-color:var(--blue);">🏷️ Upload Label Photo</button>
-  <input type="file" id="label-photo-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="onLabelPhotoSelected(event)"/>
+  <button class="scan-btn" onclick="document.getElementById('label-photo-input').click()" style="background:var(--blue-light);color:var(--blue);border-color:var(--blue);">🏷️ Photo of Label</button>
   <input type="file" id="label-photo-input" accept="image/*" style="display:none;" onchange="onLabelPhotoSelected(event)"/>
   <div id="label-photo-status" style="display:none;font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 10px;"></div>
 
@@ -2049,7 +2065,7 @@ function renderSuppModalChecklist() {
       <button onclick="openFoodEditModal('supplement',${i})" style="background:none;border:none;color:var(--green);font-size:15px;cursor:pointer;padding:4px;" title="Edit nutrients">📝</button>
       <button onclick="document.getElementById('supp-photo-input-${i}').click()" style="background:none;border:none;color:var(--blue);font-size:15px;cursor:pointer;padding:4px;" title="Photo of Supplement Facts">📷</button>
       <input type="file" id="supp-photo-input-${i}" accept="image/*" capture="environment" style="display:none;" onchange="onSuppPhotoSelected(event,${i})"/>
-      <button onclick="deleteSupp(${i})" style="background:none;border:none;color:#d1d5db;font-size:16px;cursor:pointer;">✕</button>
+      <button onclick="deleteSupp(${i})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;">✕</button>
     </div>`).join('');
 }
 
@@ -3494,7 +3510,7 @@ function renderMeatRefs(){
         <div style="display:flex;align-items:center;gap:4px;">
           <button onclick="openFoodEditModal('meatref','${r.id}')" style="background:none;border:none;color:var(--green);font-size:14px;cursor:pointer;padding:6px;" title="Edit stats directly">✏️</button>
           <button onclick="editMeatRefQuery('${r.id}')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:6px;" title="Edit search term">🔎</button>
-          <button onclick="deleteMeatRef('${r.id}')" style="background:none;border:none;color:#d1d5db;font-size:15px;cursor:pointer;padding:6px;" title="Delete">✕</button>
+          <button onclick="deleteMeatRef('${r.id}')" style="background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:6px;" title="Delete">✕</button>
           ${r.verified
             ? `<button class="log-btn" onclick="quickAddMeat('${r.id}')">Quick Add</button>`
             : `<button class="log-btn" style="background:var(--green-light);color:var(--green);" onclick="verifyMeatRef('${r.id}')">Verify</button>`}
@@ -3521,7 +3537,7 @@ function renderSaved(){
         </div>
         <div style="display:flex;align-items:center;gap:4px;">
           <button onclick="openFoodEditModal('saved',${i})" style="background:none;border:none;color:var(--green);font-size:16px;cursor:pointer;padding:6px;" title="Edit name & nutrients">📝</button>
-          <button onclick="deleteSavedMeal(${i})" style="background:none;border:none;color:#d1d5db;font-size:15px;cursor:pointer;padding:6px;" title="Delete">✕</button>
+          <button onclick="deleteSavedMeal(${i})" style="background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:6px;" title="Delete">✕</button>
           <button class="log-btn" onclick="logSaved(${i})">Log</button>
         </div>
       </div>
@@ -4111,7 +4127,27 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove('show'),2500);
 }
 
+// ── THEME ─────────────────────────────────────────────────────────────────────
+function getTheme(){
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+function applyThemeIcon(){
+  const btn = document.getElementById('theme-toggle-btn');
+  if(!btn) return;
+  const isDark = getTheme() === 'dark';
+  btn.textContent = isDark ? '☀️' : '🌙'; // shows what tapping switches TO, not the current state
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', isDark ? '#14171c' : '#ffffff');
+}
+function toggleTheme(){
+  const next = getTheme() === 'dark' ? 'light' : 'dark';
+  if(next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('theme', next);
+  applyThemeIcon();
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
+applyThemeIcon();
 renderToday();
 if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script>
