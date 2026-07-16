@@ -1872,10 +1872,25 @@ function renderToday() {
   // Exercise
   const exLabel = document.getElementById('exercise-total-label');
   const exEntries = document.getElementById('exercise-entries');
-  if(exerciseEntries.length){
-    exLabel.textContent = exerciseCals.toLocaleString()+' cal burned';
-    exLabel.style.color = 'var(--green)';
-    exEntries.innerHTML = exerciseEntries.map((e,i)=>{
+  exLabel.textContent = exerciseEntries.length ? exerciseCals.toLocaleString()+' cal burned' : 'Nothing logged';
+  exLabel.style.color = exerciseEntries.length ? 'var(--green)' : '';
+
+  // Pinned Daily Walking row — always present so daily walking calories (e.g. from a watch)
+  // can be logged in one tap without going through the full exercise modal each time. Reuses
+  // the same real entry + edit/delete functions as everything else — no parallel data path.
+  const walkingIdx = exerciseEntries.findIndex(e => e.name === 'Daily Walking');
+  const walkingEntry = walkingIdx !== -1 ? exerciseEntries[walkingIdx] : null;
+  const pinnedRow = `<div class="exercise-entry" style="${walkingEntry?'':'opacity:0.6;'}">
+    <div class="exercise-name" onclick="quickAddDailyWalking()" style="cursor:pointer;">📌 🚶 Daily Walking${walkingEntry?'':' — tap to log'}</div>
+    ${walkingEntry ? `<div class="exercise-cals">+${walkingEntry.calories} cal</div>
+      <button class="exercise-del" onclick="editExercise(${walkingIdx})" style="color:var(--blue);" title="Edit">✏️</button>
+      <button class="exercise-del" onclick="deleteExercise(${walkingIdx})">✕</button>` : ''}
+  </div>`;
+
+  const otherEntries = exerciseEntries.map((e,i)=>({e,i})).filter(x => x.e.name !== 'Daily Walking');
+
+  if(otherEntries.length){
+    exEntries.innerHTML = pinnedRow + otherEntries.map(({e,i})=>{
       const routine = findRoutineForEntry(e.name);
       const isExpanded = expandedExerciseIds.has(i);
       const summaryRow = `<div class="exercise-entry">
@@ -1920,9 +1935,7 @@ function renderToday() {
       </div>`;
     }).join('');
   } else {
-    exLabel.textContent = 'Nothing logged';
-    exLabel.style.color = '';
-    exEntries.innerHTML = '';
+    exEntries.innerHTML = pinnedRow;
   }
 
   // Hide log controls on past days
@@ -2186,6 +2199,27 @@ function saveExercise(){
 function deleteExercise(idx){
   const arr=getExercise(selectedDateKey); arr.splice(idx,1); saveExercise2(arr, selectedDateKey);
   renderToday();
+}
+
+// Pinned quick-add for the permanent "Daily Walking" row — one prompt, no modal, no dropdown.
+// Updates in place if already logged today (e.g. re-checking a watch's running total),
+// otherwise creates it fresh. Never creates a second duplicate entry.
+function quickAddDailyWalking(){
+  const arr = getExercise(selectedDateKey);
+  const idx = arr.findIndex(e => e.name === 'Daily Walking');
+  const current = idx !== -1 ? arr[idx].calories : '';
+  const val = prompt(idx !== -1 ? 'Update calories burned walking today:' : 'Calories burned walking today?', current);
+  if(val === null) return;
+  const calories = parseInt(val);
+  if(isNaN(calories) || calories < 0){ showToast('Enter a valid calorie amount'); return; }
+  if(idx !== -1){
+    arr[idx].calories = calories;
+  } else {
+    arr.push({ name:'Daily Walking', duration:0, calories, time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) });
+  }
+  saveExercise2(arr, selectedDateKey);
+  renderToday();
+  showToast('Daily Walking updated');
 }
 
 // ── ROUTINES ──────────────────────────────────────────────────────────────────
