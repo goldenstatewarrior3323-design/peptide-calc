@@ -548,6 +548,26 @@
     <input class="field" type="number" id="set-sodium"/>
   </div>
 
+  <div class="weight-card">
+    <div class="card-title">Micronutrient Goals</div>
+    <div class="input-label">Potassium (mg)</div>
+    <input class="field" type="number" id="set-potassium" style="margin-bottom:10px;"/>
+    <div class="input-label">Magnesium (mg)</div>
+    <input class="field" type="number" id="set-magnesium" style="margin-bottom:10px;"/>
+    <div class="input-label">Calcium (mg)</div>
+    <input class="field" type="number" id="set-calcium" style="margin-bottom:10px;"/>
+    <div class="input-label">Iron (mg)</div>
+    <input class="field" type="number" id="set-iron" step="0.1" style="margin-bottom:10px;"/>
+    <div class="input-label">Vitamin C (mg)</div>
+    <input class="field" type="number" id="set-vitaminc" style="margin-bottom:10px;"/>
+    <div class="input-label">Cholesterol (mg ceiling)</div>
+    <input class="field" type="number" id="set-cholesterol" style="margin-bottom:10px;"/>
+    <div class="input-label">Saturated Fat (g ceiling)</div>
+    <input class="field" type="number" id="set-satfat" style="margin-bottom:10px;"/>
+    <div class="input-label">Sugar (g ceiling)</div>
+    <input class="field" type="number" id="set-sugar"/>
+  </div>
+
   <div class="weight-card" id="dose-card">
     <div class="card-title">Tirzepatide Dose</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Manual entry — logged with today's date, kept as history so Coach knows how recently a dose changed.</div>
@@ -816,7 +836,7 @@ const PERSON_PROFILES = {
   rich: {
     label: 'Rich',
     proteinFloor: 200, // non-negotiable — never adjustable via Settings or auto-calc
-    macroDefaults: { fat:58, carbs:96, fiber:38, sodium:2300, potassium:3500, cholesterol:300 },
+    macroDefaults: { fat:58, carbs:96, fiber:38, sodium:2300, potassium:3500, cholesterol:300, magnesium:400, calcium:1000, iron:8, vitaminC:90, satfat:20, sugar:50 },
     calDefault: 1722,
     doseUnit: 'mg', doseDefault: 4.32,
     protocolContext: `Rich Mendez, 41, 5'8", tirzepatide-based weight loss protocol, clinically overseen (RN wife).
@@ -832,7 +852,7 @@ Coaching style: direct, data-driven, mentor-style. No blind encouragement. Sales
   claudia: {
     label: 'Claudia',
     proteinFloor: 125, // non-negotiable midpoint of 120-130g "muscle shield" range
-    macroDefaults: { fat:50, carbs:110, fiber:25, sodium:2300, potassium:3500, cholesterol:300 },
+    macroDefaults: { fat:50, carbs:110, fiber:25, sodium:2300, potassium:3500, cholesterol:300, magnesium:400, calcium:1000, iron:8, vitaminC:90, satfat:20, sugar:50 }, // generic defaults — these are now editable in Settings; adjust to her actual clinical targets rather than trusting this default
     calDefault: 1450,
     doseUnit: 'mg', doseDefault: 4.32,
     protocolContext: `Claudia Mendez, RN, female, 5'0", tirzepatide-adjusted protocol, 181→140lb goal, validated against her own nutritionist (Britton Protocol).
@@ -843,7 +863,7 @@ Coaching style: clinical, precise, respects her own professional nutrition liter
   dom: {
     label: 'Dom',
     proteinFloor: 225, // non-negotiable, "always first, never skipped"
-    macroDefaults: { fat:100, carbs:90, fiber:30, sodium:2300, potassium:3500, cholesterol:300 }, // fat/carbs midpoints of his ranges
+    macroDefaults: { fat:100, carbs:90, fiber:30, sodium:2300, potassium:3500, cholesterol:300, magnesium:400, calcium:1000, iron:8, vitaminC:90, satfat:20, sugar:50 }, // fat/carbs midpoints of his ranges
     calDefault: 2625, // midpoint default; hunger-day logic nudges from here, not a low floor
     doseUnit: 'mg', doseDefault: 3.41,
     protocolContext: `Dom Mendez, 19, male, 6'0", 448.2lb start, tirzepatide protocol.
@@ -855,7 +875,7 @@ Coaching style: direct but age-appropriate for 19yo — call out under-eating on
   noah: {
     label: 'Noah',
     proteinFloor: 125, // non-negotiable — muscle-building floor for a growing 15yo athlete
-    macroDefaults: { fat:65, carbs:350, fiber:25, sodium:2300, potassium:3500, cholesterol:300 },
+    macroDefaults: { fat:65, carbs:350, fiber:25, sodium:2300, potassium:3500, cholesterol:300, magnesium:400, calcium:1300, iron:11, vitaminC:90, satfat:20, sugar:50 }, // calcium 1300/iron 11 per his own documented protocol notes below (teen bone growth); rest are generic defaults
     calDefault: 2600, // surplus for muscle building, not a deficit
     doseUnit: null, doseDefault: null, // no peptide protocol — dose tracking does not apply to Noah
     protocolContext: `Noah, 15, male, 5'6", ~119lbs, high school wrestler in muscle-building off-season phase. NOT on any peptide protocol — this is nutrition-only, no medication involved.
@@ -1532,15 +1552,15 @@ function renderNutrientDetail(t, mt){
   const html = `<div class="weight-card" style="padding:12px;">
     ${nutrientRow('Sodium', Math.round(t.sodium), mt.sodium, 'mg', true, 'sodium_mg')}
     ${nutrientRow('Potassium', Math.round(t.potassium), mt.potassium, 'mg', false, 'potassium_mg')}
-    ${nutrientRow('Magnesium', Math.round(t.magnesium), 400, 'mg', false, 'magnesium_mg')}
+    ${nutrientRow('Magnesium', Math.round(t.magnesium), mt.magnesium, 'mg', false, 'magnesium_mg')}
     ${nutrientRow('Cholesterol', Math.round(t.cholesterol), mt.cholesterol, 'mg', true, 'cholesterol_mg')}
-    ${nutrientRow('Saturated Fat', Math.round(t.satfat), 20, 'g', true, 'fat_saturated_g')}
+    ${nutrientRow('Saturated Fat', Math.round(t.satfat), mt.satfat, 'g', true, 'fat_saturated_g')}
     ${nutrientRow('Trans Fat', Math.round(t.transfat*10)/10, 0, 'g', true, 'fat_trans_g')}
     ${nutrientRow('Omega-3', Math.round(t.omega3), 2600, 'mg', false, 'omega3_mg')}
-    ${nutrientRow('Sugar', Math.round(t.sugar), 50, 'g', true, 'sugar_g')}
-    ${nutrientRow('Calcium', Math.round(t.calcium), 1000, 'mg', false, 'calcium_mg')}
-    ${nutrientRow('Iron', Math.round(t.iron*10)/10, 8, 'mg', false, 'iron_mg')}
-    ${nutrientRow('Vitamin C', Math.round(t.vitc), 90, 'mg', false, 'vitamin_c_mg')}
+    ${nutrientRow('Sugar', Math.round(t.sugar), mt.sugar, 'g', true, 'sugar_g')}
+    ${nutrientRow('Calcium', Math.round(t.calcium), mt.calcium, 'mg', false, 'calcium_mg')}
+    ${nutrientRow('Iron', Math.round(t.iron*10)/10, mt.iron, 'mg', false, 'iron_mg')}
+    ${nutrientRow('Vitamin C', Math.round(t.vitc), mt.vitaminC, 'mg', false, 'vitamin_c_mg')}
     <div style="font-size:11px;color:var(--muted);padding-top:6px;">Total Carbs (before fiber): ${Math.round(t.carbsTotal)}g</div>
   </div>`;
   document.getElementById('nutrient-detail').innerHTML = html;
@@ -1639,6 +1659,14 @@ function renderSettings(){
   document.getElementById('set-carbs').value = mo.carbs ?? profile.macroDefaults.carbs;
   document.getElementById('set-fiber').value = mo.fiber ?? profile.macroDefaults.fiber;
   document.getElementById('set-sodium').value = mo.sodium ?? profile.macroDefaults.sodium;
+  document.getElementById('set-potassium').value = mo.potassium ?? profile.macroDefaults.potassium;
+  document.getElementById('set-magnesium').value = mo.magnesium ?? profile.macroDefaults.magnesium;
+  document.getElementById('set-calcium').value = mo.calcium ?? profile.macroDefaults.calcium;
+  document.getElementById('set-iron').value = mo.iron ?? profile.macroDefaults.iron;
+  document.getElementById('set-vitaminc').value = mo.vitaminC ?? profile.macroDefaults.vitaminC;
+  document.getElementById('set-cholesterol').value = mo.cholesterol ?? profile.macroDefaults.cholesterol;
+  document.getElementById('set-satfat').value = mo.satfat ?? profile.macroDefaults.satfat;
+  document.getElementById('set-sugar').value = mo.sugar ?? profile.macroDefaults.sugar;
 
   const doseCard = document.getElementById('dose-card');
   if (profile.doseUnit === null) {
@@ -1685,7 +1713,10 @@ function saveGoalSettings(){
   saveMacroOverride({
     fat: num('set-fat'), carbs: num('set-carbs'),
     fiber: num('set-fiber'), sodium: num('set-sodium'),
-    potassium: PERSON_PROFILES[p].macroDefaults.potassium, cholesterol: PERSON_PROFILES[p].macroDefaults.cholesterol
+    potassium: num('set-potassium'), cholesterol: num('set-cholesterol'),
+    magnesium: num('set-magnesium'), calcium: num('set-calcium'),
+    iron: num('set-iron'), vitaminC: num('set-vitaminc'),
+    satfat: num('set-satfat'), sugar: num('set-sugar'),
   }, p);
   document.getElementById('settings-status').textContent = 'Saved ✓';
   setTimeout(()=>{ const el=document.getElementById('settings-status'); if(el) el.textContent=''; }, 2000);
@@ -4207,15 +4238,15 @@ function renderWeek(){
     {label:'Protein',     avg:avgProt,      goal:wmt.protein,  unit:'g',  invert:false},
     {label:'Net Carbs',   avg:avgCarbs,     goal:wmt.carbs,    unit:'g',  invert:false},
     {label:'Fiber',       avg:avgFiber,     goal:wmt.fiber,    unit:'g',  invert:false},
-    {label:'Sugar',       avg:avgSugar,     goal:50,   unit:'g',  invert:true},
+    {label:'Sugar',       avg:avgSugar,     goal:wmt.sugar,   unit:'g',  invert:true},
     {label:'Fat',         avg:avgFat,       goal:wmt.fat,      unit:'g',  invert:true},
-    {label:'Saturated Fat',avg:avgSatfat,   goal:20,   unit:'g',  invert:true},
+    {label:'Saturated Fat',avg:avgSatfat,   goal:wmt.satfat,   unit:'g',  invert:true},
     {label:'Cholesterol', avg:avgCholesterol,goal:wmt.cholesterol, unit:'mg', invert:true},
     {label:'Sodium',      avg:avgSodium,    goal:wmt.sodium,   unit:'mg', invert:true},
     {label:'Potassium',   avg:avgPotassium, goal:wmt.potassium,unit:'mg', invert:false},
-    {label:'Vitamin C',   avg:avgVitC,      goal:90,   unit:'mg', invert:false},
-    {label:'Calcium',     avg:avgCalcium,   goal:1000, unit:'mg', invert:false},
-    {label:'Iron',        avg:avgIron,      goal:18,   unit:'mg', invert:false},
+    {label:'Vitamin C',   avg:avgVitC,      goal:wmt.vitaminC,   unit:'mg', invert:false},
+    {label:'Calcium',     avg:avgCalcium,   goal:wmt.calcium, unit:'mg', invert:false},
+    {label:'Iron',        avg:avgIron,      goal:wmt.iron,   unit:'mg', invert:false},
   ];
 
   document.getElementById('week-nutrient-rows').innerHTML = NUTR.map(n=>{
