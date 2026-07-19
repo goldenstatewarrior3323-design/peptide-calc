@@ -30,8 +30,6 @@
       --accent: var(--green);
       --safe-top: env(safe-area-inset-top,0px);
       --safe-bottom: env(safe-area-inset-bottom,0px);
-      --card-radius: 18px;
-      --card-shadow: 0 2px 14px rgba(0,0,0,0.07);
     }
     [data-theme="dark"] {
       --bg: #14171c; --white: #1e2229; --border: #2d323b;
@@ -62,26 +60,25 @@
     .add-circle{background:var(--blue);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;color:white;margin-top:-18px;box-shadow:0 2px 8px #2563eb44;border:none;cursor:pointer;}
     .add-label{font-size:10px;font-weight:600;color:var(--muted);margin-top:3px;}
     .page{display:none;padding:12px 12px 100px;max-width:480px;margin:0 auto;}
-    .page.active{animation:pageIn 0.22s ease;}
-    @keyframes pageIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
-    .log-btn,.nav-btn,.add-circle,button{transition:transform 0.1s ease, opacity 0.1s ease;}
-    .log-btn:active,.add-circle:active{transform:scale(0.95);}
     .page.active{display:block;}
-    .card{background:var(--white);border-radius:var(--card-radius);margin-bottom:10px;overflow:hidden;box-shadow:var(--card-shadow);}
+    .card{background:var(--white);border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .card-body{padding:14px;}
     .card-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;}
     /* CALORIES */
-    .cal-card{background:var(--white);border-radius:var(--card-radius);margin-bottom:10px;padding:14px;box-shadow:var(--card-shadow);}
+    .cal-card{background:var(--white);border-radius:12px;margin-bottom:10px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
     .cal-label{font-size:13px;font-weight:700;}
     .cal-budget-row{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted);margin-bottom:8px;}
     .cal-budget-item{display:flex;flex-direction:column;align-items:center;}
-    .cal-budget-val{font-size:15px;font-weight:700;color:var(--text);}
+    .cal-budget-val{font-size:16px;font-weight:800;color:var(--text);}
     .cal-budget-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
     .cal-divider{font-size:18px;color:var(--border);margin:0 2px;align-self:center;}
-    .cal-remaining-big{font-size:32px;font-weight:900;letter-spacing:-1.2px;}
+    .cal-remaining-big{font-size:26px;font-weight:900;letter-spacing:-1px;}
+    .cal-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px;}
+    .cal-fill{height:100%;background:var(--blue);border-radius:4px;transition:width 0.4s;}
+    .cal-fill.over{background:var(--red);}
     /* MACROS */
-    .macros-card{background:var(--white);border-radius:var(--card-radius);margin-bottom:10px;padding:14px;box-shadow:var(--card-shadow);}
+    .macros-card{background:var(--white);border-radius:12px;margin-bottom:10px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .macros-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
     .macro-item{flex:1;}
     .macro-vals{font-size:15px;font-weight:800;color:var(--text);}
@@ -95,9 +92,9 @@
     .fiber-val{font-size:12px;font-weight:800;color:var(--text);white-space:nowrap;}
     /* DIARY */
     .section-title{font-size:18px;font-weight:800;color:var(--text);padding:8px 2px 6px;display:flex;justify-content:space-between;align-items:center;}
-    .meal-card{background:var(--white);border-radius:var(--card-radius);margin-bottom:10px;box-shadow:var(--card-shadow);}
+    .meal-card{background:var(--white);border-radius:12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .meal-card-header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 8px;}
-    .meal-card-icon{font-size:16px;margin-right:10px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .meal-card-icon{font-size:20px;margin-right:10px;}
     .meal-card-name{font-size:15px;font-weight:700;color:var(--text);}
     .meal-card-cals{font-size:12px;color:var(--muted);margin-top:1px;}
     .log-btn{background:var(--blue-light);color:var(--blue);border:none;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;}
@@ -107,7 +104,7 @@
     .meal-entry-cals{font-size:12px;font-weight:600;color:var(--text);}
     .meal-entry-del{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 0 0 8px;}
     /* EXERCISE CARD */
-    .exercise-card{background:var(--white);border-radius:var(--card-radius);margin-bottom:10px;box-shadow:var(--card-shadow);}
+    .exercise-card{background:var(--white);border-radius:12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .exercise-card-header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;}
     .exercise-entries{padding:0 14px 10px;}
     .exercise-entry{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:1px solid var(--border);}
@@ -115,7 +112,7 @@
     .exercise-cals{font-size:12px;font-weight:600;color:var(--green);}
     .exercise-del{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 0 0 8px;}
     /* ADD PAGE */
-    .input-group{background:var(--white);border-radius:var(--card-radius);padding:14px;margin-bottom:10px;box-shadow:var(--card-shadow);}
+    .input-group{background:var(--white);border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .input-label{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;}
     .field{width:100%;padding:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;font-size:15px;color:var(--text);outline:none;font-family:inherit;}
     .field:focus{border-color:var(--blue);}
@@ -129,7 +126,7 @@
     .save-btn{width:100%;padding:14px;background:var(--green);color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px;}
     .clear-btn{width:100%;padding:12px;background:transparent;color:var(--muted);border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;}
     /* RESULT */
-    .result-card{background:var(--white);border-radius:var(--card-radius);padding:14px;margin-top:12px;box-shadow:var(--card-shadow);}
+    .result-card{background:var(--white);border-radius:12px;padding:14px;margin-top:12px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .result-name{font-size:17px;font-weight:800;margin-bottom:4px;}
     .result-notes{font-size:12px;color:var(--muted);margin-bottom:12px;}
     .result-cals{font-size:32px;font-weight:900;color:var(--blue);letter-spacing:-1px;margin-bottom:2px;}
@@ -152,7 +149,7 @@
     .scanner-close{margin-top:20px;background:white;color:black;border:none;border-radius:20px;padding:10px 24px;font-size:15px;font-weight:700;cursor:pointer;}
     .scanner-status{color:white;font-size:14px;margin-top:12px;text-align:center;}
     /* WEIGHT */
-    .weight-card{background:var(--white);border-radius:var(--card-radius);padding:14px;margin-bottom:10px;box-shadow:var(--card-shadow);}
+    .weight-card{background:var(--white);border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
     .weight-big{font-size:36px;font-weight:900;color:var(--text);letter-spacing:-1.5px;}
     .weight-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0;}
     .wstat{background:var(--bg);border-radius:8px;padding:10px;text-align:center;}
@@ -179,7 +176,7 @@
     .flag-yellow{background:var(--yellow-light);color:var(--yellow);}
     .flag-red{background:var(--red-light);color:var(--red);}
     /* WATER */
-    .water-card{background:var(--white);border-radius:var(--card-radius);padding:14px;margin-bottom:10px;box-shadow:var(--card-shadow);display:flex;align-items:center;justify-content:space-between;gap:8px;}
+    .water-card{background:var(--white);border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.07);display:flex;align-items:center;justify-content:space-between;gap:8px;}
     .water-btns{display:flex;align-items:center;gap:6px;flex-shrink:0;}
     .water-btn{background:var(--blue-light);color:var(--blue);border:none;border-radius:20px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;}
     .water-btn.minus{background:var(--red-light);color:var(--red);}
@@ -233,11 +230,9 @@
       <div class="cal-label">Calories</div>
       <div style="font-size:11px;color:var(--muted);" id="cal-formula-label"></div>
     </div>
-    <div style="display:flex;justify-content:center;margin:4px 0 10px;">
-      <div id="cal-ring-container"></div>
-    </div>
     <div class="cal-budget-row" id="cal-budget-row"></div>
-    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:8px;">
+    <div class="cal-bar"><div class="cal-fill" id="cal-fill" style="width:0%"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px;">
       <span id="cal-eaten-label">0 eaten</span>
       <span id="cal-exercise-label" style="color:var(--green);"></span>
       <span id="cal-remaining-label">— remaining</span>
@@ -254,10 +249,7 @@
       <div class="macro-item" onclick="showNutrientBreakdown('fat_total_g','Fat','g')" style="text-align:center;cursor:pointer;">
         <div class="macro-vals"><span id="fat-eaten">0</span>g</div>
         <div class="macro-target" id="fat-target-label">Fat / 58</div>
-        <div class="macro-bar" style="position:relative;">
-          <div id="fat-range-band" style="position:absolute;top:0;height:100%;display:none;background:rgba(124,58,237,0.18);"></div>
-          <div class="macro-fill" id="fat-fill" style="width:0%;background:#7c3aed;position:relative;"></div>
-        </div>
+        <div class="macro-bar"><div class="macro-fill" id="fat-fill" style="width:0%;background:#7c3aed;"></div></div>
       </div>
       <div class="macro-item" onclick="showNutrientBreakdown('protein_g','Protein','g')" style="text-align:right;cursor:pointer;">
         <div class="macro-vals"><span id="prot-eaten">0</span>g</div>
@@ -287,14 +279,6 @@
     </div>
   </div>
 
-  <div class="weight-card" onclick="showPage('week')" style="cursor:pointer;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div class="card-title" style="margin-bottom:0;">Calories — Last 7 Days</div>
-      <div id="sparkline-avg-badge" style="font-size:10px;font-weight:700;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:3px 8px;"></div>
-    </div>
-    <div id="today-sparkline"></div>
-  </div>
-
   <div class="section-title">Diary</div>
   <div id="diary-cards"></div>
 
@@ -309,7 +293,7 @@
         </div>
       </div>
       <div style="display:flex;gap:6px;">
-        <button class="log-btn" id="exercise-routine-btn" onclick="showRoutineModal()" style="background:transparent;color:var(--blue);border:1.5px solid var(--blue);">Routines</button>
+        <button class="log-btn" id="exercise-routine-btn" onclick="showRoutineModal()" style="background:var(--blue-light);color:var(--blue);">Routines</button>
         <button class="log-btn" id="exercise-log-btn" onclick="showExerciseModal()">Log</button>
       </div>
     </div>
@@ -946,7 +930,6 @@ function getMacroT(person){
 // All existing "MACRO_T.x" references below are replaced with getMacroT().x via the edits in this file.
 const MEAL_TYPES = ['Breakfast','Lunch','Dinner','Snacks'];
 const MEAL_ICONS = { Breakfast:'🌅', Lunch:'☀️', Dinner:'🌙', Snacks:'🍎' };
-const MEAL_ICON_BG = { Breakfast:'var(--yellow-light)', Lunch:'var(--blue-light)', Dinner:'var(--green-light)', Snacks:'var(--red-light)' };
 
 let currentMealType = 'Breakfast';
 let currentAnalysis = null;
@@ -1819,9 +1802,9 @@ let selectedDateKey = todayKey();
 
 let dayStripOffset = 0; // 0 = calendar week (Sun-Sat) containing today
 
-function dayStripPrev(){ dayStripOffset -= 1; renderWeekRow(); }
-function dayStripNext(){ if(dayStripOffset < 0) dayStripOffset += 1; renderWeekRow(); }
-function dayStripToday(){ dayStripOffset = 0; renderWeekRow(); }
+function dayStripPrev(){ dayStripOffset -= 1; renderWeekRow(); renderWeek(); }
+function dayStripNext(){ if(dayStripOffset < 0) dayStripOffset += 1; renderWeekRow(); renderWeek(); }
+function dayStripToday(){ dayStripOffset = 0; renderWeekRow(); renderWeek(); }
 
 // ── WEEK CIRCLES ─────────────────────────────────────────────────────────────
 function renderWeekRow() {
@@ -1871,75 +1854,6 @@ function selectDay(key) {
 }
 
 // ── TODAY ─────────────────────────────────────────────────────────────────────
-// Reusable ring/donut gauge — SVG circle with a stroke-dasharray fill, matching the
-// circular-progress pattern used by MFP/Samsung Health for hero metrics instead of a flat bar.
-function buildRingGauge(pct, colorVar, size, centerHTML, trackVar){
-  const clamped = Math.max(0, Math.min(100, pct));
-  const stroke = Math.round(size * 0.09);
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const offset = c * (1 - clamped/100);
-  return `<div style="position:relative;width:${size}px;height:${size}px;">
-    <svg width="${size}" height="${size}" style="transform:rotate(-90deg);">
-      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${trackVar||'var(--border)'}" stroke-width="${stroke}"/>
-      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${colorVar}" stroke-width="${stroke}" stroke-linecap="round"
-        stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" style="transition:stroke-dashoffset 0.5s ease, stroke 0.3s ease;"/>
-    </svg>
-    <div style="position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-      ${centerHTML}
-    </div>
-  </div>`;
-}
-
-// 7-day trend sparkline for the Today page — a lightweight always-visible history view,
-// since previously the only way to see any trend at all was to leave the page entirely.
-function renderTodaySparkline(){
-  const el = document.getElementById('today-sparkline');
-  const badge = document.getElementById('sparkline-avg-badge');
-  if(!el) return;
-  const log = getLog();
-  const supps = getSupps();
-  const target = getCalTarget(selectedDateKey);
-  const days = [];
-  for(let i=6;i>=0;i--){
-    const d = new Date(); d.setDate(d.getDate()-i);
-    const key = toDateKey(d);
-    const dayLog = log[key];
-    let cal = 0;
-    if(dayLog){
-      MEAL_TYPES.forEach(mt => (dayLog[mt]||[]).forEach(item => { cal += item.calories||0; }));
-      const suppLog = getSuppLog(key);
-      supps.forEach(s => { if(suppLog[s.id]) cal += s.calories||0; });
-    }
-    days.push({ key, cal: Math.round(cal), label: d.toLocaleDateString('en-US',{weekday:'narrow'}), isToday: key===todayKey(), hasData: !!dayLog });
-  }
-  const loggedDays = days.filter(d=>d.hasData);
-  const avg = loggedDays.length ? Math.round(loggedDays.reduce((s,d)=>s+d.cal,0)/loggedDays.length) : 0;
-  badge.textContent = loggedDays.length ? 'Avg '+avg.toLocaleString() : 'No data yet';
-
-  const W=300, H=64, ML=4, MR=4, MT=8, MB=16;
-  const plotW=W-ML-MR, plotH=H-MT-MB;
-  const maxVal = Math.max(target, ...days.map(d=>d.cal), 1) * 1.1;
-  const xScale = i => ML + (i/(days.length-1))*plotW;
-  const yScale = v => MT + (1-(v/maxVal))*plotH;
-  const targetY = yScale(target);
-
-  const linePath = days.map((d,i)=>`${i===0?'M':'L'}${xScale(i).toFixed(1)},${yScale(d.cal).toFixed(1)}`).join(' ');
-  const dots = days.map((d,i) => {
-    const cx = xScale(i), cy = yScale(d.cal);
-    const color = d.isToday ? 'var(--blue)' : (d.hasData ? 'var(--accent)' : 'var(--border)');
-    return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${d.isToday?4:2.5}" fill="${color}"/>`;
-  }).join('');
-  const labels = days.map((d,i) => `<text x="${xScale(i).toFixed(1)}" y="${H-3}" font-size="9" fill="${d.isToday?'var(--blue)':'var(--muted)'}" font-weight="${d.isToday?'700':'400'}" text-anchor="middle">${d.label}</text>`).join('');
-
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
-    <line x1="${ML}" y1="${targetY.toFixed(1)}" x2="${W-MR}" y2="${targetY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,2"/>
-    <path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    ${dots}
-    ${labels}
-  </svg>`;
-}
-
 function renderToday() {
   renderWeekRow();
   const log = getLog();
@@ -2003,12 +1917,9 @@ function renderToday() {
     <div class="cal-budget-item"><div class="cal-remaining-big" style="color:${remaining<0?'var(--red)':remaining<200?'var(--green)':'var(--text)'}">${remaining.toLocaleString()}</div><div class="cal-budget-lbl">Remaining</div></div>`;
 
   const calPct = Math.min((t.cal/calTarget)*100,100);
-  const isOver = t.cal>calTarget;
-  document.getElementById('cal-ring-container').innerHTML = buildRingGauge(
-    calPct, isOver?'var(--red)':'var(--blue)', 108,
-    `<div style="font-size:20px;font-weight:900;letter-spacing:-0.5px;color:${isOver?'var(--red)':'var(--text)'};">${Math.round(t.cal).toLocaleString()}</div>
-     <div style="font-size:9px;color:var(--muted);font-weight:600;">of ${calTarget.toLocaleString()}</div>`
-  );
+  const fillEl = document.getElementById('cal-fill');
+  fillEl.style.width = calPct+'%';
+  fillEl.className = 'cal-fill'+(t.cal>calTarget?' over':'');
   document.getElementById('cal-eaten-label').textContent = Math.round(t.cal).toLocaleString()+' eaten';
   document.getElementById('cal-exercise-label').textContent = exerciseCals > 0 ? exerciseCals+' burned' : '';
   document.getElementById('cal-remaining-label').textContent = remaining.toLocaleString()+' remaining';
@@ -2019,26 +1930,12 @@ function renderToday() {
   document.getElementById('fat-eaten').textContent = Math.round(t.fat);
   document.getElementById('prot-eaten').textContent = Math.round(t.protein);
   document.getElementById('nc-fill').style.width = Math.min((t.carbs/mt.carbs)*100,100)+'%';
+  document.getElementById('fat-fill').style.width = Math.min((t.fat/mt.fat)*100,100)+'%';
   document.getElementById('prot-fill').style.width = Math.min((t.protein/mt.protein)*100,100)+'%';
   document.getElementById('fiber-fill').style.width = Math.min((t.fiber/mt.fiber)*100,100)+'%';
-
-  // Fat: range-aware bar when a max is defined (Rich only) — rescales so the acceptable
-  // 58-65g zone shows as a visible band on the bar itself, not just text next to it.
-  const fatBand = document.getElementById('fat-range-band');
-  if(mt.fatMax){
-    const scaleMax = mt.fatMax * 1.15; // headroom past the top of the range so the band isn't flush against the edge
-    document.getElementById('fat-fill').style.width = Math.min((t.fat/scaleMax)*100,100)+'%';
-    fatBand.style.display = '';
-    fatBand.style.left = (mt.fat/scaleMax*100)+'%';
-    fatBand.style.width = ((mt.fatMax-mt.fat)/scaleMax*100)+'%';
-  } else {
-    document.getElementById('fat-fill').style.width = Math.min((t.fat/mt.fat)*100,100)+'%';
-    fatBand.style.display = 'none';
-  }
-
   // Keep the "/ N" target labels in the macro row honest — update them from live targets, not the stale hardcoded copy in HTML
   document.getElementById('nc-target-label').textContent = 'Net Carbs / '+mt.carbs;
-  document.getElementById('fat-target-label').textContent = 'Fat / '+(mt.fatMax ? mt.fat+'-'+mt.fatMax : mt.fat);
+  document.getElementById('fat-target-label').textContent = 'Fat / '+mt.fat;
   document.getElementById('prot-target-label').textContent = 'Protein / '+mt.protein;
   document.querySelector('.fiber-val').innerHTML = '<span id="fiber-eaten">'+Math.round(t.fiber)+'</span>g / '+mt.fiber+'g';
 
@@ -2055,7 +1952,6 @@ function renderToday() {
   if(t.cholesterol>mt.cholesterol) flags.push(['red','⚠️ Cholesterol over']);
   document.getElementById('macro-flags').innerHTML = flags.map(([c,txt])=>`<div class="flag flag-${c}">${txt}</div>`).join('');
   renderNutrientDetail(t, mt);
-  renderTodaySparkline();
 
   // Diary
   document.getElementById('diary-cards').innerHTML = MEAL_TYPES.map(mt=>{
@@ -2067,7 +1963,7 @@ function renderToday() {
     return `<div class="meal-card">
       <div class="meal-card-header">
         <div style="display:flex;align-items:center;">
-          <div class="meal-card-icon" style="background:${MEAL_ICON_BG[mt]};">${MEAL_ICONS[mt]}</div>
+          <div class="meal-card-icon">${MEAL_ICONS[mt]}</div>
           <div>
             <div class="meal-card-name">${mt}</div>
             ${entries.length?`<div class="meal-card-cals">${Math.round(mC)} cal · NC ${Math.round(mNC)}g F ${Math.round(mF)}g P ${Math.round(mP)}g</div>`:'<div class="meal-card-cals">Nothing logged</div>'}
@@ -4218,15 +4114,16 @@ function renderWeightChart(weights, person, goal, startWeight, latest){
 }
 
 // ── WEEK ──────────────────────────────────────────────────────────────────────
-let weekOffset = 0; // 0 = calendar week (Sun-Sat) containing today; -1 = previous calendar week; etc.
-
-function weekPrev(){ weekOffset -= 1; renderWeek(); }
-function weekNext(){ if(weekOffset < 0) weekOffset += 1; renderWeek(); }
-function weekToday(){ weekOffset = 0; renderWeek(); }
+// Weekly Stats deliberately shares dayStripOffset (defined above, near the top day-strip)
+// instead of tracking its own separate week — previously these were two independent
+// variables that could silently drift apart, showing two different weeks on screen at once.
+function weekPrev(){ dayStripPrev(); }
+function weekNext(){ dayStripNext(); }
+function weekToday(){ dayStripToday(); }
 
 function renderWeek(){
   const log=getLog();
-  const { sunday, saturday } = getWeekBounds(weekOffset);
+  const { sunday, saturday } = getWeekBounds(dayStripOffset);
   const calBase=getCalBase();
   const days=[];
   for(let i=0;i<=6;i++){
@@ -4264,13 +4161,13 @@ function renderWeek(){
 
   // nav label + controls
   const fmt=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  document.getElementById('week-range-label').textContent = weekOffset===0
+  document.getElementById('week-range-label').textContent = dayStripOffset===0
     ? `This Week (${fmt(sunday)} – ${fmt(saturday)})`
     : `${fmt(sunday)} – ${fmt(saturday)}`;
-  document.getElementById('week-today-link').style.display = weekOffset===0 ? 'none' : '';
-  document.getElementById('week-next-btn').style.opacity = weekOffset===0 ? '0.35' : '1';
-  document.getElementById('week-next-btn').style.cursor = weekOffset===0 ? 'default' : 'pointer';
-  document.getElementById('week-next-btn').disabled = weekOffset===0;
+  document.getElementById('week-today-link').style.display = dayStripOffset===0 ? 'none' : '';
+  document.getElementById('week-next-btn').style.opacity = dayStripOffset===0 ? '0.35' : '1';
+  document.getElementById('week-next-btn').style.cursor = dayStripOffset===0 ? 'default' : 'pointer';
+  document.getElementById('week-next-btn').disabled = dayStripOffset===0;
 
   const maxCal=Math.max(...days.map(d=>Math.max(d.cal,d.calTarget)),100);
   document.getElementById('week-cal-chart').innerHTML=days.map(d=>`
