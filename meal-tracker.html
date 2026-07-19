@@ -836,15 +836,15 @@ const PERSON_PROFILES = {
   rich: {
     label: 'Rich',
     proteinFloor: 200, // non-negotiable — never adjustable via Settings or auto-calc
-    macroDefaults: { fat:58, carbs:96, fiber:38, sodium:2300, potassium:3500, cholesterol:300, magnesium:400, calcium:1000, iron:8, vitaminC:90, satfat:20, sugar:50 },
+    macroDefaults: { fat:58, fatMax:65, carbs:96, fiber:38, sodium:2300, potassium:3500, cholesterol:300, magnesium:400, calcium:1000, iron:8, vitaminC:90, satfat:20, sugar:50 },
     calDefault: 1722,
     doseUnit: 'mg', doseDefault: 4.32,
     protocolContext: `Rich Mendez, 41, 5'8", tirzepatide-based weight loss protocol, clinically overseen (RN wife).
-Non-negotiable macro floors/ceilings: Protein 200g floor (self-set, HARD — never move this regardless of any other adjustment), Fat ~58-65g, Net Carbs 96-140g, Fiber 38g, Sodium 2,300mg ceiling, Calories ~1,706-1,800 floor (food intake floor, NOT net-of-exercise — do not eat back exercise calories).
+Non-negotiable macro floors/ceilings: Protein 200g floor (self-set, HARD — never move this regardless of any other adjustment), Fat 58-65g RANGE (landing anywhere inside this range counts as fully on-target — do not flag or push toward the top of the range as if it were a stricter goal), Net Carbs 96-140g, Fiber 38g, Sodium 2,300mg ceiling, Calories ~1,706-1,800 floor (food intake floor, NOT net-of-exercise — do not eat back exercise calories).
 Known patterns to interpret data against, not just raw numbers:
-- Sodium logging chronically underrepresents actual intake (heavy salter) — treat logged sodium as a floor, not the true number.
+- Sodium logging is accurate as of July 2026 — he switched to salting post-cook specifically for tracking precision. Treat logged sodium as the real number, not an underestimate; do not flag it as "likely higher than logged."
 - Iron is tracked as a WEEKLY aggregate (ferritin storage mechanism), not a strict daily target.
-- Fat is a chronic structural gap (13-21g under goal most days) — known, ongoing issue.
+- Fat is evaluated as a RANGE (58-65g), not a single fixed target — any day inside that range is a clean hit, not a partial miss. Only flag fat if it falls below 58g.
 - Sleep (~5.5 hrs average) is the single largest identified obstacle to fat loss/cortisol in the whole stack.
 - Protein under 200g is the single most important daily miss to call out directly — his own hard floor, not a soft target.
 Coaching style: direct, data-driven, mentor-style. No blind encouragement. Sales-pipeline framing (leading vs lagging indicators) resonates.`
@@ -4239,7 +4239,7 @@ function renderWeek(){
     {label:'Net Carbs',   avg:avgCarbs,     goal:wmt.carbs,    unit:'g',  invert:false},
     {label:'Fiber',       avg:avgFiber,     goal:wmt.fiber,    unit:'g',  invert:false},
     {label:'Sugar',       avg:avgSugar,     goal:wmt.sugar,   unit:'g',  invert:true},
-    {label:'Fat',         avg:avgFat,       goal:wmt.fat,      unit:'g',  invert:true},
+    {label:'Fat',         avg:avgFat,       goal:wmt.fat,      unit:'g',  invert:false, goalMax:wmt.fatMax},
     {label:'Saturated Fat',avg:avgSatfat,   goal:wmt.satfat,   unit:'g',  invert:true},
     {label:'Cholesterol', avg:avgCholesterol,goal:wmt.cholesterol, unit:'mg', invert:true},
     {label:'Sodium',      avg:avgSodium,    goal:wmt.sodium,   unit:'mg', invert:true},
@@ -4255,11 +4255,12 @@ function renderWeek(){
     const pct = Math.min((n.avg/n.goal)*100,100);
     const barColor = n.invert ? (n.avg>n.goal?'var(--red)':'var(--blue)') : (n.avg>=n.goal?'var(--green)':'var(--blue)');
     const leftColor = over ? 'var(--red)' : left<=0 ? 'var(--green)' : 'var(--muted)';
+    const goalLabel = n.goalMax ? `${n.goal}-${n.goalMax}` : n.goal;
     return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="display:grid;grid-template-columns:1fr auto auto auto;align-items:center;margin-bottom:5px;">
         <div style="font-size:13px;font-weight:600;">${n.label}</div>
         <div style="font-size:13px;text-align:right;min-width:40px;">${n.avg}</div>
-        <div style="font-size:13px;color:var(--muted);text-align:right;padding:0 8px;min-width:44px;">${n.goal}</div>
+        <div style="font-size:13px;color:var(--muted);text-align:right;padding:0 8px;min-width:44px;">${goalLabel}</div>
         <div style="font-size:12px;font-weight:700;text-align:right;min-width:52px;color:${leftColor}">${left>0?left:Math.abs(left)} ${n.unit}${left<=0?' over':''}</div>
       </div>
       <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;">
