@@ -68,6 +68,17 @@
   .stampbar{
     display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px;
   }
+  .med-alert{
+    background:var(--brick);color:#fff;border-radius:4px;
+    padding:12px 14px;font-size:13px;line-height:1.4;margin-bottom:14px;
+  }
+  .med-alert strong{font-weight:600;}
+  .stamp.due{
+    border-color:var(--brick);
+    box-shadow:0 0 0 2px var(--brick) inset;
+  }
+  .stamp.due .num{color:var(--brick) !important;}
+  .stamp.due::before{background:var(--brick) !important;}
   .stamp{
     background:var(--card);border:1.5px solid var(--ink);border-radius:2px;
     padding:14px 12px;position:relative;overflow:hidden;
@@ -227,6 +238,10 @@
     <h1>Ewok</h1>
     <div class="subtitle">Flea &amp; skin field log — chicken-free diet</div>
   </header>
+
+  <div id="medAlert" class="med-alert" style="display:none;">
+    ⚠ <strong>Ewok is due for his next dose.</strong> <span id="medAlertDays"></span> since it was last logged.
+  </div>
 
   <div class="stampbar">
     <div class="stamp flea">
@@ -563,6 +578,18 @@ function render(){
   document.getElementById('groomDays').textContent = groomD === null ? '—' : groomD;
   document.getElementById('medDays').textContent = medD === null ? '—' : medD;
   document.getElementById('vetDays').textContent = vetD === null ? '—' : vetD;
+
+  const medStamp = document.getElementById('medDays').closest('.stamp');
+  const alertBox = document.getElementById('medAlert');
+  const MED_DUE_DAYS = 30;
+  if(medD !== null && medD >= MED_DUE_DAYS){
+    medStamp.classList.add('due');
+    alertBox.style.display = 'block';
+    document.getElementById('medAlertDays').textContent = `${medD} days`;
+  } else {
+    medStamp.classList.remove('due');
+    alertBox.style.display = 'none';
+  }
 
   const hist = document.getElementById('history');
   if(entries.length === 0){
