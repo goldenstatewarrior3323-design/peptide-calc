@@ -238,9 +238,9 @@
       <div class="num" id="bathDays">—</div>
       <div class="label">Days since bath</div>
     </div>
-    <div class="stamp supp" style="--dotcolor:var(--slate);--numcolor:var(--slate);">
-      <div class="num" id="suppDays">—</div>
-      <div class="label">Days since supplement logged</div>
+    <div class="stamp groom" style="--dotcolor:var(--ink-soft);--numcolor:var(--ink-soft);">
+      <div class="num" id="groomDays">—</div>
+      <div class="label">Days since grooming</div>
     </div>
     <div class="stamp med" style="--dotcolor:var(--brick);--numcolor:var(--brick);">
       <div class="num" id="medDays">—</div>
@@ -259,8 +259,7 @@
   <div class="actions">
     <button class="logbtn warn" onclick="openForm('flea')">🪲 Flea sighting/bite</button>
     <button class="logbtn warn" onclick="openForm('skin')">🩹 Skin flare</button>
-    <button class="logbtn primary" onclick="openForm('food')">🍖 Food/meal</button>
-    <button class="logbtn" style="background:var(--slate);color:#fff;border-color:var(--slate);" onclick="openForm('supp')">💊 Supplement</button>
+    <button class="logbtn primary" onclick="openForm('food')">🍖 Food/meal (+ supplements)</button>
     <button class="logbtn" style="background:var(--plum);color:#fff;border-color:var(--plum);" onclick="openForm('bath')">🛁 Bath / shampoo</button>
     <button class="logbtn" style="background:var(--brick);color:#fff;border-color:var(--brick);" onclick="openForm('med')">💉 Medication</button>
     <button class="logbtn" style="background:var(--navy);color:#fff;border-color:var(--navy);" onclick="openForm('vet')">🏥 Vet visit</button>
@@ -451,7 +450,7 @@ function renderSchedule(){
 const TYPE_META = {
   flea:  {label:'Flea',  tag:'flea',  title:'Log flea sighting or bite',     sev:true,  product:false, noteLabel:'Notes'},
   skin:  {label:'Skin',  tag:'skin',  title:'Log skin flare / hot spot',     sev:true,  product:false, noteLabel:'Notes'},
-  food:  {label:'Food',  tag:'food',  title:'Log a meal',                    sev:false, product:false, noteLabel:'What was given'},
+  food:  {label:'Food',  tag:'food',  title:'Log a meal',                    sev:false, product:false, noteLabel:'What was given (food + any supplements)'},
   supp:  {label:'Supp',  tag:'supp',  title:'Log a supplement',              sev:false, product:true,  productLabel:'Supplement', noteLabel:'Dose / notes'},
   bath:  {label:'Bath',  tag:'bath',  title:'Log a bath',                    sev:false, product:true,  productLabel:'Shampoo used', noteLabel:'Contact time / notes'},
   med:   {label:'Med',   tag:'med',   title:'Log a medication dose',         sev:false, product:true,  productLabel:'Medication', noteLabel:'Dose / notes'},
@@ -552,13 +551,13 @@ function render(){
   const fleaD = daysSince('flea');
   const skinD = daysSince('skin');
   const bathD = daysSince('bath');
-  const suppD = daysSince('supp');
+  const groomD = daysSince('groom');
   const medD = daysSince('med');
   const vetD = daysSince('vet');
   document.getElementById('fleaDays').textContent = fleaD === null ? '—' : fleaD;
   document.getElementById('skinDays').textContent = skinD === null ? '—' : skinD;
   document.getElementById('bathDays').textContent = bathD === null ? '—' : bathD;
-  document.getElementById('suppDays').textContent = suppD === null ? '—' : suppD;
+  document.getElementById('groomDays').textContent = groomD === null ? '—' : groomD;
   document.getElementById('medDays').textContent = medD === null ? '—' : medD;
   document.getElementById('vetDays').textContent = vetD === null ? '—' : vetD;
 
