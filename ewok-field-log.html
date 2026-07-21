@@ -42,13 +42,15 @@
     overflow-x:hidden;
   }
   .bg-deco{
-    position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;
+    position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:0;overflow:hidden;
   }
-  .bg-deco svg{position:absolute;opacity:.05;fill:var(--ink);}
+  .bg-deco svg{position:absolute;opacity:.09;fill:var(--ink);}
   .wrap{position:relative;z-index:1;}
   .wrap{max-width:640px;margin:0 auto;padding:20px 16px 60px;}
 
-  header{padding:8px 0 20px;border-bottom:2px solid var(--ink);margin-bottom:20px;}
+  header{padding:8px 0 20px;border-bottom:2px solid var(--ink);margin-bottom:20px;position:relative;}
+  .header-paw{position:absolute;top:50%;right:-25px;transform:translateY(-50%) rotate(16deg);opacity:.12;fill:var(--ink);pointer-events:none;z-index:0;}
+  header > *{position:relative;z-index:1;}
   .eyebrow{
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;letter-spacing:.14em;text-transform:uppercase;
@@ -147,6 +149,22 @@
   .entry-sev{font-size:11px;color:var(--rust-deep);font-weight:600;margin-top:2px;}
   .empty{color:var(--ink-soft);font-size:13px;padding:20px 0;text-align:center;font-style:italic;}
 
+  .course{
+    background:var(--card);border:1.5px solid var(--brick);border-radius:4px;
+    padding:12px 14px;margin-bottom:10px;
+  }
+  .course-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .course-name{font-family:'Zilla Slab',serif;font-weight:600;font-size:16px;}
+  .course-meta{font-size:12px;color:var(--ink-soft);margin-top:2px;font-family:'IBM Plex Mono',monospace;}
+  .course-progress{font-size:12px;font-weight:600;color:var(--brick);white-space:nowrap;}
+  .course-notes{font-size:13px;margin-top:6px;color:var(--ink);}
+  .course-actions{margin-top:8px;display:flex;gap:8px;}
+  .course-actions button{
+    font-size:11px;padding:5px 10px;border-radius:3px;cursor:pointer;
+    background:transparent;border:1px solid var(--line);color:var(--ink-soft);
+  }
+  .course.done{opacity:.55;}
+
   .reset{
     margin-top:30px;text-align:center;
   }
@@ -195,6 +213,13 @@
 <div class="wrap">
 
   <header>
+    <svg class="header-paw" width="130" height="130" viewBox="0 0 100 100">
+      <ellipse cx="50" cy="65" rx="22" ry="18"/>
+      <ellipse cx="22" cy="30" rx="10" ry="13" transform="rotate(-20 22 30)"/>
+      <ellipse cx="42" cy="14" rx="10" ry="13"/>
+      <ellipse cx="64" cy="16" rx="10" ry="13" transform="rotate(12 64 16)"/>
+      <ellipse cx="80" cy="34" rx="9" ry="12" transform="rotate(28 80 34)"/>
+    </svg>
     <div class="eyebrow">Small Breed Care Protocol</div>
     <h1>Ewok</h1>
     <div class="subtitle">Flea &amp; skin field log — chicken-free diet</div>
@@ -276,6 +301,37 @@
     </div>
   </div>
 
+  <div class="section-label">Medication schedule</div>
+  <div id="scheduleList"></div>
+  <button class="logbtn" style="width:100%;background:var(--brick);color:#fff;border-color:var(--brick);margin-top:6px;" onclick="openScheduleForm()">+ Add active course</button>
+
+  <div class="formcard" id="schedForm">
+    <div style="font-family:'Zilla Slab',serif;font-weight:600;font-size:18px;">Add medication course</div>
+
+    <label>Medication name</label>
+    <input type="text" id="s_name" placeholder="e.g. Cephalexin">
+
+    <label>Dose</label>
+    <input type="text" id="s_dose" placeholder="e.g. 125mg">
+
+    <label>Frequency</label>
+    <input type="text" id="s_freq" placeholder="e.g. Twice daily, every 12 hrs">
+
+    <label>Start date</label>
+    <input type="date" id="s_start">
+
+    <label>Duration (days, leave blank if ongoing)</label>
+    <input type="number" id="s_duration" min="1" placeholder="e.g. 10">
+
+    <label>Notes</label>
+    <textarea id="s_notes" placeholder="Prescribing vet, reason, special instructions"></textarea>
+
+    <div class="formrow">
+      <button class="btn-cancel" onclick="closeScheduleForm()">Cancel</button>
+      <button class="btn-save" onclick="saveSchedule()">Save course</button>
+    </div>
+  </div>
+
   <div class="section-label">History</div>
   <div id="history"></div>
 
@@ -286,6 +342,111 @@
 <script>
 let currentType = null;
 let entries = [];
+let schedule = [];
+
+function loadSchedule(){
+  try{
+    const raw = localStorage.getItem('ewok-med-schedule');
+    schedule = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    schedule = [];
+  }
+  renderSchedule();
+}
+
+function persistSchedule(){
+  try{
+    localStorage.setItem('ewok-med-schedule', JSON.stringify(schedule));
+  }catch(e){
+    console.error('Storage error', e);
+  }
+}
+
+function openScheduleForm(){
+  document.getElementById('s_name').value = '';
+  document.getElementById('s_dose').value = '';
+  document.getElementById('s_freq').value = '';
+  document.getElementById('s_start').value = todayStr();
+  document.getElementById('s_duration').value = '';
+  document.getElementById('s_notes').value = '';
+  document.getElementById('schedForm').classList.add('open');
+  document.getElementById('schedForm').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function closeScheduleForm(){
+  document.getElementById('schedForm').classList.remove('open');
+}
+
+function saveSchedule(){
+  const name = document.getElementById('s_name').value.trim();
+  if(!name){ alert('Medication name is required.'); return; }
+  schedule.push({
+    id: Date.now().toString(36),
+    name,
+    dose: document.getElementById('s_dose').value.trim(),
+    freq: document.getElementById('s_freq').value.trim(),
+    start: document.getElementById('s_start').value || todayStr(),
+    duration: document.getElementById('s_duration').value ? parseInt(document.getElementById('s_duration').value) : null,
+    notes: document.getElementById('s_notes').value.trim(),
+    completed: false
+  });
+  schedule.sort((a,b) => (a.completed - b.completed) || b.start.localeCompare(a.start));
+  persistSchedule();
+  closeScheduleForm();
+  renderSchedule();
+}
+
+function toggleCourseDone(id){
+  const c = schedule.find(s => s.id === id);
+  if(c) c.completed = !c.completed;
+  schedule.sort((a,b) => (a.completed - b.completed) || b.start.localeCompare(a.start));
+  persistSchedule();
+  renderSchedule();
+}
+
+function deleteCourse(id){
+  if(!confirm('Remove this medication course from the schedule?')) return;
+  schedule = schedule.filter(s => s.id !== id);
+  persistSchedule();
+  renderSchedule();
+}
+
+function renderSchedule(){
+  const list = document.getElementById('scheduleList');
+  if(schedule.length === 0){
+    list.innerHTML = '<div class="empty">No active medication courses. Add one below to track dosing windows.</div>';
+    return;
+  }
+  list.innerHTML = schedule.map(c => {
+    const startDate = new Date(c.start);
+    const dayNum = Math.floor((new Date(todayStr()) - startDate) / 86400000) + 1;
+    let progress;
+    if(c.completed){
+      progress = 'COMPLETED';
+    } else if(c.duration){
+      const remaining = c.duration - dayNum;
+      progress = remaining < 0 ? 'COURSE ENDED' : `Day ${dayNum} of ${c.duration}`;
+    } else {
+      progress = `Day ${dayNum} · ongoing`;
+    }
+    const metaParts = [c.dose, c.freq].filter(Boolean).join(' · ');
+    return `
+      <div class="course ${c.completed ? 'done' : ''}">
+        <div class="course-top">
+          <div>
+            <div class="course-name">${escapeHtml(c.name)}</div>
+            <div class="course-meta">${escapeHtml(metaParts)}${metaParts ? ' · ' : ''}started ${c.start}</div>
+          </div>
+          <div class="course-progress">${progress}</div>
+        </div>
+        ${c.notes ? `<div class="course-notes">${escapeHtml(c.notes)}</div>` : ''}
+        <div class="course-actions">
+          <button onclick="toggleCourseDone('${c.id}')">${c.completed ? 'Mark active' : 'Mark completed'}</button>
+          <button onclick="deleteCourse('${c.id}')">Remove</button>
+        </div>
+      </div>`;
+  }).join('');
+}
 
 const TYPE_META = {
   flea:  {label:'Flea',  tag:'flea',  title:'Log flea sighting or bite',     sev:true,  product:false, noteLabel:'Notes'},
@@ -300,17 +461,18 @@ const TYPE_META = {
 
 async function loadEntries(){
   try{
-    const res = await window.storage.get('ewok-entries', false);
-    entries = res && res.value ? JSON.parse(res.value) : [];
+    const raw = localStorage.getItem('ewok-entries');
+    entries = raw ? JSON.parse(raw) : [];
   }catch(e){
     entries = [];
   }
+  loadSchedule();
   render();
 }
 
 async function persist(){
   try{
-    await window.storage.set('ewok-entries', JSON.stringify(entries), false);
+    localStorage.setItem('ewok-entries', JSON.stringify(entries));
   }catch(e){
     console.error('Storage error', e);
   }
@@ -369,10 +531,13 @@ async function saveEntry(){
 }
 
 async function clearAll(){
-  if(!confirm('Clear all of Ewok\'s logged entries? This cannot be undone.')) return;
+  if(!confirm('Clear all of Ewok\'s logged entries and medication schedule? This cannot be undone.')) return;
   entries = [];
+  schedule = [];
   await persist();
+  persistSchedule();
   render();
+  renderSchedule();
 }
 
 function daysSince(type){
