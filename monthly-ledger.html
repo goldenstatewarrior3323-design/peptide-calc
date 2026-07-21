@@ -204,9 +204,11 @@
 
   <div class="section-header">📉 MONEY OUT</div>
   <div class="list-wrap" id="bills-list"></div>
-  <div class="add-card" id="bill-add-card" style="display:none;">
+  <div class="add-card" id="bill-add-card" style="display:none; flex-wrap:wrap;">
     <input class="add-input-name" id="bill-add-name" placeholder="Bill name">
     <div class="amount-wrap"><span class="currency">$</span><input class="amount-input" id="bill-add-amount" type="number" inputmode="decimal" placeholder="0"></div>
+    <select id="bill-add-group" class="group-select"></select>
+    <input class="add-input-name" id="bill-add-group-new" placeholder="New category name (e.g. Fixed Bills)" style="display:none; flex-basis:100%;">
     <button class="add-confirm" onclick="confirmAddBill()">Add</button>
     <button class="add-cancel" onclick="cancelAddBill()">✕</button>
   </div>
@@ -540,7 +542,7 @@ function render(){
 
   const billsList = document.getElementById('bills-list');
   billsList.innerHTML = '';
-  state.bills.forEach(b => billsList.appendChild(renderBillRow(b)));
+  renderBillsIntoList(billsList);
 
   renderIncomeList();
 
@@ -611,6 +613,78 @@ function incomeReceivedAmount(i){
   return i.received ? round2(Number(i.amount)||0) : 0;
 }
 
+let openBillGroups = new Set();
+
+function renderBillsIntoList(billsList){
+  const grouped = {};
+  const groupOrder = [];
+  const ungrouped = [];
+  state.bills.forEach(b => {
+    if (b.group) {
+      if (!grouped[b.group]) { grouped[b.group] = []; groupOrder.push(b.group); }
+      grouped[b.group].push(b);
+    } else {
+      ungrouped.push(b);
+    }
+  });
+  ungrouped.forEach(b => billsList.appendChild(renderBillRow(b)));
+  groupOrder.forEach(name => billsList.appendChild(renderBillGroup(name, grouped[name])));
+}
+
+function renderBillGroup(name, items){
+  const wrapper = document.createElement('div');
+  wrapper.className = 'group-wrapper';
+  const isOpen = openBillGroups.has(name);
+
+  const header = document.createElement('div');
+  header.className = 'group-header';
+  const subtotal = items.reduce((s,b)=>s+(Number(b.amount)||0),0);
+  header.innerHTML = `
+    <button class="chevron-btn group-chevron">${isOpen ? '▾' : '▸'}</button>
+    <input class="name-input group-name-input" style="flex:1;" value="${escapeAttr(name)}" />
+    <span class="group-subtotal">${fmt(subtotal)}</span>
+  `;
+  wrapper.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'group-body' + (isOpen ? ' open' : '');
+  items.forEach(b => body.appendChild(renderBillRow(b)));
+
+  const addToGroupBtn = document.createElement('button');
+  addToGroupBtn.className = 'item-add-btn';
+  addToGroupBtn.textContent = `+ Add to ${name}`;
+  addToGroupBtn.addEventListener('click', () => {
+    state.bills.push({ id: uid(), name: '', icon: guessIcon(name, false), amount: 0, dueDay: 0, paid: false, budget: null, paidAt: null, group: name });
+    openBillGroups.add(name);
+    saveNow();
+    render();
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('.group-body.open .name-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }, 0);
+  });
+  body.appendChild(addToGroupBtn);
+  wrapper.appendChild(body);
+
+  header.querySelector('.group-chevron').addEventListener('click', () => {
+    const open = body.classList.toggle('open');
+    header.querySelector('.group-chevron').textContent = open ? '▾' : '▸';
+    if (open) openBillGroups.add(name); else openBillGroups.delete(name);
+  });
+
+  header.querySelector('.group-name-input').addEventListener('blur', (e) => {
+    const newName = e.target.value.trim();
+    if (newName && newName !== name) {
+      state.bills.forEach(b => { if (b.group === name) b.group = newName; });
+      if (openBillGroups.has(name)) { openBillGroups.delete(name); openBillGroups.add(newName); }
+      saveNow();
+      render();
+    }
+  });
+
+  return wrapper;
+}
+
 function renderBillRow(b){
   const wrapper = document.createElement('div');
 
@@ -650,16 +724,31 @@ function renderBillRow(b){
   const moveUpBtn = row.querySelector('.move-up');
   const moveDownBtn = row.querySelector('.move-down');
 
-  const idx = state.bills.findIndex(x => x.id === b.id);
-  moveUpBtn.disabled = idx <= 0;
-  moveDownBtn.disabled = idx >= state.bills.length - 1;
+  const cohort = state.bills.filter(x => (x.group || null) === (b.group || null));
+  const posInCohort = cohort.findIndex(x => x.id === b.id);
+  moveUpBtn.disabled = posInCohort <= 0;
+  moveDownBtn.disabled = posInCohort >= cohort.length - 1;
   moveUpBtn.addEventListener('click', () => {
-    const i = state.bills.findIndex(x => x.id === b.id);
-    if (i > 0) { [state.bills[i-1], state.bills[i]] = [state.bills[i], state.bills[i-1]]; saveNow(); render(); }
+    const sameGroup = state.bills.filter(x => (x.group || null) === (b.group || null));
+    const pos = sameGroup.findIndex(x => x.id === b.id);
+    if (pos > 0) {
+      const neighbor = sameGroup[pos - 1];
+      const i1 = state.bills.findIndex(x => x.id === b.id);
+      const i2 = state.bills.findIndex(x => x.id === neighbor.id);
+      [state.bills[i1], state.bills[i2]] = [state.bills[i2], state.bills[i1]];
+      saveNow(); render();
+    }
   });
   moveDownBtn.addEventListener('click', () => {
-    const i = state.bills.findIndex(x => x.id === b.id);
-    if (i < state.bills.length - 1) { [state.bills[i+1], state.bills[i]] = [state.bills[i], state.bills[i+1]]; saveNow(); render(); }
+    const sameGroup = state.bills.filter(x => (x.group || null) === (b.group || null));
+    const pos = sameGroup.findIndex(x => x.id === b.id);
+    if (pos < sameGroup.length - 1) {
+      const neighbor = sameGroup[pos + 1];
+      const i1 = state.bills.findIndex(x => x.id === b.id);
+      const i2 = state.bills.findIndex(x => x.id === neighbor.id);
+      [state.bills[i1], state.bills[i2]] = [state.bills[i2], state.bills[i1]];
+      saveNow(); render();
+    }
   });
 
   function refreshAmountDisplay(){
@@ -983,19 +1072,35 @@ function escapeAttr(s){
 function showAddBill(){
   document.getElementById('bill-add-card').style.display = 'flex';
   document.getElementById('bill-add-toggle').style.display = 'none';
+  populateBillGroupOptions();
   document.getElementById('bill-add-name').focus();
+}
+function populateBillGroupOptions(){
+  const sel = document.getElementById('bill-add-group');
+  const groups = Array.from(new Set(state.bills.map(b => b.group).filter(Boolean)));
+  sel.innerHTML = '<option value="">No category</option>' +
+    groups.map(g => `<option value="${escapeAttr(g)}">${escapeAttr(g)}</option>`).join('') +
+    '<option value="__new__">+ New category…</option>';
+  sel.value = '';
+  document.getElementById('bill-add-group-new').style.display = 'none';
+  document.getElementById('bill-add-group-new').value = '';
 }
 function cancelAddBill(){
   document.getElementById('bill-add-card').style.display = 'none';
   document.getElementById('bill-add-toggle').style.display = 'flex';
   document.getElementById('bill-add-name').value = '';
   document.getElementById('bill-add-amount').value = '';
+  document.getElementById('bill-add-group-new').value = '';
+  document.getElementById('bill-add-group-new').style.display = 'none';
 }
 function confirmAddBill(){
   const name = document.getElementById('bill-add-name').value.trim();
   if (!name) return;
   const amount = parseFloat(document.getElementById('bill-add-amount').value) || 0;
-  state.bills.push({id: uid(), name, icon: guessIcon(name, false), amount, dueDay:0, paid:false, budget:null, paidAt:null});
+  const groupSel = document.getElementById('bill-add-group').value;
+  const groupNew = document.getElementById('bill-add-group-new').value.trim();
+  const group = groupSel === '__new__' ? (groupNew || null) : (groupSel || null);
+  state.bills.push({id: uid(), name, icon: guessIcon(name, false), amount, dueDay:0, paid:false, budget:null, paidAt:null, group});
   saveNow();
   cancelAddBill();
   render();
@@ -1307,6 +1412,9 @@ document.getElementById('adj-label-input').addEventListener('input', e => { stat
 document.getElementById('adj-amount-input').addEventListener('input', e => { state.adjAmount = parseFloat(e.target.value) || 0; save(); updateSummary(); });
 document.getElementById('income-add-group').addEventListener('change', e => {
   document.getElementById('income-add-group-new').style.display = e.target.value === '__new__' ? 'block' : 'none';
+});
+document.getElementById('bill-add-group').addEventListener('change', e => {
+  document.getElementById('bill-add-group-new').style.display = e.target.value === '__new__' ? 'block' : 'none';
 });
 
 document.getElementById('label-balance').addEventListener('input', e => { state.dashLabels.balance = e.target.value; save(); });
