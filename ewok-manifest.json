@@ -1,0 +1,15 @@
+{
+  "name": "Ewok Field Log",
+  "short_name": "Ewok Log",
+  "start_url": "./ewok-field-log.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EDE6D4",
+  "theme_color": "#2A4A34",
+  "icons": [
+    { "src": "./ewok-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./ewok-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./ewok-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "./ewok-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
