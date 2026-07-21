@@ -157,7 +157,12 @@
   .tag.med{background:var(--brick);}
   .tag.vet{background:var(--navy);}
   .entry-body{flex:1;min-width:0;}
-  .entry-top{display:flex;justify-content:space-between;gap:8px;}
+  .entry-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .entry-actions{display:flex;gap:6px;}
+  .entry-actions button{
+    font-size:10px;padding:3px 8px;border-radius:3px;cursor:pointer;
+    background:transparent;border:1px solid var(--line);color:var(--ink-soft);
+  }
   .entry-date{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);}
   .entry-note{font-size:14px;margin-top:3px;color:var(--ink);}
   .entry-sev{font-size:11px;color:var(--rust-deep);font-weight:600;margin-top:2px;}
@@ -314,7 +319,7 @@
 
     <div class="formrow">
       <button class="btn-cancel" onclick="closeForm()">Cancel</button>
-      <button class="btn-save" onclick="saveEntry()">Save entry</button>
+      <button class="btn-save" id="f_saveBtn" onclick="saveEntry()">Save entry</button>
     </div>
   </div>
 
@@ -323,7 +328,7 @@
   <button class="logbtn" style="width:100%;background:var(--brick);color:#fff;border-color:var(--brick);margin-top:6px;" onclick="openScheduleForm()">+ Add active course</button>
 
   <div class="formcard" id="schedForm">
-    <div style="font-family:'Zilla Slab',serif;font-weight:600;font-size:18px;">Add medication course</div>
+    <div id="s_formTitle" style="font-family:'Zilla Slab',serif;font-weight:600;font-size:18px;">Add medication course</div>
 
     <label>Medication name</label>
     <input type="text" id="s_name" placeholder="e.g. Cephalexin">
@@ -345,7 +350,7 @@
 
     <div class="formrow">
       <button class="btn-cancel" onclick="closeScheduleForm()">Cancel</button>
-      <button class="btn-save" onclick="saveSchedule()">Save course</button>
+      <button class="btn-save" id="s_saveBtn" onclick="saveSchedule()">Save course</button>
     </div>
   </div>
 
@@ -360,6 +365,8 @@
 let currentType = null;
 let entries = [];
 let schedule = [];
+let editingEntryId = null;
+let editingScheduleId = null;
 
 function loadSchedule(){
   try{
@@ -380,33 +387,61 @@ function persistSchedule(){
 }
 
 function openScheduleForm(){
+  editingScheduleId = null;
   document.getElementById('s_name').value = '';
   document.getElementById('s_dose').value = '';
   document.getElementById('s_freq').value = '';
   document.getElementById('s_start').value = todayStr();
   document.getElementById('s_duration').value = '';
   document.getElementById('s_notes').value = '';
+  document.getElementById('s_formTitle').textContent = 'Add medication course';
+  document.getElementById('s_saveBtn').textContent = 'Save course';
+  document.getElementById('schedForm').classList.add('open');
+  document.getElementById('schedForm').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function editCourse(id){
+  const c = schedule.find(s => s.id === id);
+  if(!c) return;
+  editingScheduleId = id;
+  document.getElementById('s_name').value = c.name;
+  document.getElementById('s_dose').value = c.dose || '';
+  document.getElementById('s_freq').value = c.freq || '';
+  document.getElementById('s_start').value = c.start;
+  document.getElementById('s_duration').value = c.duration || '';
+  document.getElementById('s_notes').value = c.notes || '';
+  document.getElementById('s_formTitle').textContent = 'Edit medication course';
+  document.getElementById('s_saveBtn').textContent = 'Save changes';
   document.getElementById('schedForm').classList.add('open');
   document.getElementById('schedForm').scrollIntoView({behavior:'smooth', block:'center'});
 }
 
 function closeScheduleForm(){
   document.getElementById('schedForm').classList.remove('open');
+  editingScheduleId = null;
 }
 
 function saveSchedule(){
   const name = document.getElementById('s_name').value.trim();
   if(!name){ alert('Medication name is required.'); return; }
-  schedule.push({
-    id: Date.now().toString(36),
+  const fields = {
     name,
     dose: document.getElementById('s_dose').value.trim(),
     freq: document.getElementById('s_freq').value.trim(),
     start: document.getElementById('s_start').value || todayStr(),
     duration: document.getElementById('s_duration').value ? parseInt(document.getElementById('s_duration').value) : null,
     notes: document.getElementById('s_notes').value.trim(),
-    completed: false
-  });
+  };
+
+  if(editingScheduleId){
+    const idx = schedule.findIndex(s => s.id === editingScheduleId);
+    if(idx !== -1){
+      schedule[idx] = { ...schedule[idx], ...fields };
+    }
+  } else {
+    schedule.push({ id: Date.now().toString(36), completed: false, ...fields });
+  }
+
   schedule.sort((a,b) => (a.completed - b.completed) || b.start.localeCompare(a.start));
   persistSchedule();
   closeScheduleForm();
@@ -436,15 +471,15 @@ function renderSchedule(){
   }
   list.innerHTML = schedule.map(c => {
     const startDate = new Date(c.start);
-    const dayNum = Math.floor((new Date(todayStr()) - startDate) / 86400000) + 1;
+    const dayNum = Math.floor((new Date(todayStr()) - startDate) / 86400000);
     let progress;
     if(c.completed){
       progress = 'COMPLETED';
     } else if(c.duration){
       const remaining = c.duration - dayNum;
-      progress = remaining < 0 ? 'COURSE ENDED' : `Day ${dayNum} of ${c.duration}`;
+      progress = remaining <= 0 ? 'COURSE ENDED' : `${dayNum} of ${c.duration} days`;
     } else {
-      progress = `Day ${dayNum} · ongoing`;
+      progress = `${dayNum} days elapsed`;
     }
     const metaParts = [c.dose, c.freq].filter(Boolean).join(' · ');
     return `
@@ -458,6 +493,7 @@ function renderSchedule(){
         </div>
         ${c.notes ? `<div class="course-notes">${escapeHtml(c.notes)}</div>` : ''}
         <div class="course-actions">
+          <button onclick="editCourse('${c.id}')">Edit</button>
           <button onclick="toggleCourseDone('${c.id}')">${c.completed ? 'Mark active' : 'Mark completed'}</button>
           <button onclick="deleteCourse('${c.id}')">Remove</button>
         </div>
@@ -497,11 +533,15 @@ async function persist(){
 
 function todayStr(){
   const d = new Date();
-  return d.toISOString().slice(0,10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
 }
 
 function openForm(type){
   currentType = type;
+  editingEntryId = null;
   const meta = TYPE_META[type];
   document.getElementById('formTitle').textContent = meta.title;
   document.getElementById('f_date').value = todayStr();
@@ -513,13 +553,44 @@ function openForm(type){
   document.getElementById('f_costWrap').style.display = meta.cost ? 'block' : 'none';
   if(meta.product) document.getElementById('f_productLabel').textContent = meta.productLabel;
   document.getElementById('f_noteLabel').textContent = meta.noteLabel;
+  document.getElementById('f_saveBtn').textContent = 'Save entry';
   document.getElementById('formcard').classList.add('open');
   document.getElementById('formcard').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function editEntry(id){
+  const e = entries.find(x => x.id === id);
+  if(!e) return;
+  currentType = e.type;
+  editingEntryId = id;
+  const meta = TYPE_META[e.type];
+  document.getElementById('formTitle').textContent = 'Edit entry';
+  document.getElementById('f_date').value = e.date;
+  document.getElementById('f_note').value = e.note || '';
+  document.getElementById('f_product').value = e.product || '';
+  document.getElementById('f_cost').value = e.cost != null ? e.cost : '';
+  document.getElementById('f_sevWrap').style.display = meta.sev ? 'block' : 'none';
+  if(meta.sev) document.getElementById('f_severity').value = e.severity || 'mild';
+  document.getElementById('f_productWrap').style.display = meta.product ? 'block' : 'none';
+  document.getElementById('f_costWrap').style.display = meta.cost ? 'block' : 'none';
+  if(meta.product) document.getElementById('f_productLabel').textContent = meta.productLabel;
+  document.getElementById('f_noteLabel').textContent = meta.noteLabel;
+  document.getElementById('f_saveBtn').textContent = 'Save changes';
+  document.getElementById('formcard').classList.add('open');
+  document.getElementById('formcard').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function deleteEntry(id){
+  if(!confirm('Delete this entry? This cannot be undone.')) return;
+  entries = entries.filter(e => e.id !== id);
+  persist();
+  render();
 }
 
 function closeForm(){
   document.getElementById('formcard').classList.remove('open');
   currentType = null;
+  editingEntryId = null;
 }
 
 async function saveEntry(){
@@ -531,15 +602,22 @@ async function saveEntry(){
   const costRaw = TYPE_META[currentType].cost ? document.getElementById('f_cost').value : null;
   const cost = costRaw ? parseFloat(costRaw) : null;
 
-  entries.push({
-    id: Date.now().toString(36),
-    type: currentType,
-    date,
-    note,
-    severity,
-    product,
-    cost
-  });
+  if(editingEntryId){
+    const idx = entries.findIndex(e => e.id === editingEntryId);
+    if(idx !== -1){
+      entries[idx] = { ...entries[idx], date, note, severity, product, cost };
+    }
+  } else {
+    entries.push({
+      id: Date.now().toString(36),
+      type: currentType,
+      date,
+      note,
+      severity,
+      product,
+      cost
+    });
+  }
 
   entries.sort((a,b) => b.date.localeCompare(a.date));
   await persist();
@@ -607,6 +685,10 @@ function render(){
         <div class="entry-body">
           <div class="entry-top">
             <div class="entry-date">${e.date}</div>
+            <div class="entry-actions">
+              <button onclick="editEntry('${e.id}')">Edit</button>
+              <button onclick="deleteEntry('${e.id}')">Delete</button>
+            </div>
           </div>
           ${sevLine}
           ${productLine}
