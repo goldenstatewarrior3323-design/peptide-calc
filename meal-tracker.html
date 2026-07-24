@@ -507,7 +507,8 @@
     <button id="week-next-btn" onclick="weekNext()" style="background:none;border:none;font-size:20px;color:var(--blue);cursor:pointer;padding:4px 10px;">›</button>
   </div>
   <div class="weight-card">
-    <div class="card-title">Daily Calories vs Target</div>
+    <div class="card-title">Daily Net Calories vs Target</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:-6px;margin-bottom:8px;">Food eaten minus exercise burned — this is what actually drove each day's deficit, not raw intake.</div>
     <div id="week-cal-chart"></div>
   </div>
   <div class="weight-card" id="week-averages"></div>
@@ -4370,13 +4371,17 @@ function renderWeek(){
   document.getElementById('week-next-btn').style.cursor = dayStripOffset===0 ? 'default' : 'pointer';
   document.getElementById('week-next-btn').disabled = dayStripOffset===0;
 
-  const maxCal=Math.max(...days.map(d=>Math.max(d.cal,d.calTarget)),100);
-  document.getElementById('week-cal-chart').innerHTML=days.map(d=>`
+  const maxCal=Math.max(...days.map(d=>Math.max(d.cal-d.exCals,d.calTarget-d.exCals)),100);
+  document.getElementById('week-cal-chart').innerHTML=days.map(d=>{
+    const net = d.cal - d.exCals; // food eaten minus exercise burned — this is the number that actually drove the day's deficit
+    const baseTarget = d.calTarget - d.exCals; // back out exercise to get the flat target this net figure should be judged against
+    return `
     <div class="week-cal-row">
       <div class="wdr-day">${d.label}</div>
-      <div class="wdr-bar-wrap"><div class="wdr-bar-fill" style="width:${d.hasData?(d.cal/maxCal*100).toFixed(0):0}%;background:${d.cal>d.calTarget?'var(--red)':d.hasData?'var(--blue)':'var(--border)'}"></div></div>
-      <div class="wdr-cals">${d.hasData?d.cal.toLocaleString():'-'}</div>
-    </div>`).join('');
+      <div class="wdr-bar-wrap"><div class="wdr-bar-fill" style="width:${d.hasData?Math.max(0,(net/maxCal*100)).toFixed(0):0}%;background:${d.cal>d.calTarget?'var(--red)':d.hasData?'var(--blue)':'var(--border)'}"></div></div>
+      <div class="wdr-cals">${d.hasData?net.toLocaleString()+(d.exCals?' <span style="font-size:10px;color:var(--muted);">('+d.cal.toLocaleString()+'−'+d.exCals+')</span>':''):'-'}</div>
+    </div>`;
+  }).join('');
 
   // ── PIN HISTORY (this week) ──────────────────────────────────────────────
   // Reads the Peptide Calculator's shared 'pinLog' key — same origin, no sync needed.
