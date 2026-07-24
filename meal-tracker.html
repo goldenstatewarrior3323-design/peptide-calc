@@ -4432,10 +4432,13 @@ function renderWeek(){
   const avgIron=avg(logged.map(d=>d.iron));
   const avgCarbs=avg(logged.map(d=>d.carbs));
   const totalExCals=days.reduce((s,d)=>s+d.exCals,0);
+  const avgExCalsPerDay=Math.round(totalExCals/7); // same convention as the Estimated Weekly Change card below, for consistency across the page
+  const avgNetCal=avgCal-avgExCalsPerDay;
 
   document.getElementById('week-averages').innerHTML=`
     <div class="card-title">7-Day Averages (${logged.length} days logged)</div>
-    ${nr('Avg Calories',avgCal.toLocaleString()+' / '+calTarget.toLocaleString())}
+    ${nr('Avg Calories (actual)',avgCal.toLocaleString()+' / '+calTarget.toLocaleString())}
+    ${avgExCalsPerDay>0?nr('Avg Calories (net of exercise)',avgNetCal.toLocaleString()+' <span style="font-size:11px;color:var(--muted);">('+avgCal.toLocaleString()+'−'+avgExCalsPerDay.toLocaleString()+')</span>'):''}
     ${nr('Avg Protein',avgProt+'g / '+wmt.protein+'g')}
     ${nr('Avg Fiber',avgFiber+'g / '+wmt.fiber+'g')}
     ${nr('Avg Sodium',avgSodium+'mg / '+wmt.sodium.toLocaleString()+'mg')}`;
@@ -4508,7 +4511,6 @@ function renderWeek(){
   const weights = getWeights();
   const currentWeight = weights.length ? weights[0].weight : getStartWeight(person);
   const { tdee } = calcCalTarget(currentWeight, person);
-  const avgExCalsPerDay = Math.round(totalExCals / 7);
   const netAvgCal = avgCal - avgExCalsPerDay; // food eaten minus exercise burned
   const dailyDeficit = tdee - netAvgCal; // positive = deficit (loss), negative = surplus (gain)
   const weeklyLbChange = dailyDeficit * 7 / 3500;
